@@ -1,0 +1,12 @@
+# Architecture Decision Records
+
+Each ADR captures one real decision: context, the decision, consequences, and the alternatives
+rejected. Format is lightweight [MADR](https://adr.github.io/madr/). Newest decisions supersede
+older ones explicitly; we don't edit history.
+
+| ADR | Title | Status |
+|---|---|---|
+| [0001](0001-llm-driver-local-vs-hosted.md) | LLM driver: hosted Gemini Flash default, local Ollama behind one interface | Accepted |
+| [0002](0002-embeddings-storage-and-model.md) | Embeddings: separate table, single fixed model `vector(384)` | Accepted |
+| [0003](0003-chunking-strategy.md) | Chunking: ~512 tokens, ~15% overlap, semantic-boundary split | Accepted |
+| [0004](0004-pipeline-trigger-jobs-vs-notify.md) | Pipeline trigger: durable `jobs` table + `LISTEN/NOTIFY` wake-up | Accepted |

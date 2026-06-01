@@ -1,0 +1,9 @@
+# Phase 0 — data layer only. App/runtime deps land in Phase 1.
+# Ranges (not hard pins) so the stack resolves across Python 3.11–3.14 until the
+# runtime Python version is fixed (VPS chosen in Phase 6). Lower bounds are the
+# versions this schema was designed against.
+alembic>=1.13.2,<2
+SQLAlchemy>=2.0.31,<2.1
+psycopg[binary]>=3.2.10,<3.4
+pgvector>=0.3.2,<0.5
+pydantic-settings>=2.3.4,<3

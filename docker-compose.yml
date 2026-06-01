@@ -1,0 +1,22 @@
+# Phase 0 — local Postgres with pgvector, for running and verifying migrations.
+# App/worker services are added in Phase 1.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: second_brain_db
+    environment:
+      POSTGRES_USER: second_brain
+      POSTGRES_PASSWORD: second_brain
+      POSTGRES_DB: second_brain
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U second_brain -d second_brain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:

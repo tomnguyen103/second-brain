@@ -1,1 +1,19 @@
 /MASTER_PROMPT.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+backend/.venv/
+
+# Local env / secrets
+.env
+backend/.env
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Local agent/tooling dirs (not project artifacts)
+.claude/
+.claude-flow/

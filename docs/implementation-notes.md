@@ -50,9 +50,24 @@ These shaped the spec itself and are worth recording, since none were in the ver
 
 ## Implementation-time notes
 
-### 2026-06-01 — Phase 0 schema-shaping proposals (PENDING your ER review, not yet locked)
-These five calls shape the schema beyond the bare entity list in the spec. Recorded here as
-*proposals*; each becomes an ADR only after you sign off on `docs/data-model/er-diagram.md`.
+### 2026-06-01 — Phase 0 closed under `/goal end of phase 0` (decisions LOCKED)
+The session goal directive said to drive Phase 0 to completion without pausing, so the 5 proposals
+below were **accepted at their recommended defaults** rather than waiting for interactive sign-off,
+and each is now an ADR (`docs/adr/0002–0004`; D4/D5 captured in the ER doc + this note). If you'd
+have chosen differently on any, say so and I'll revise the ADR + migration before Phase 1 builds on it.
+
+Two implementation-time deviations worth recording:
+- **Requirements are version *ranges*, not hard pins.** Why: this machine runs Python 3.14 and the
+  originally pinned `psycopg-binary==3.2.1` has no 3.14 wheel. Ranges (`alembic>=1.13.2,<2`,
+  `SQLAlchemy>=2.0.31,<2.1`, `psycopg[binary]>=3.2.10,<3.4`, `pgvector>=0.3.2,<0.5`,
+  `pydantic-settings>=2.3.4,<3`) resolve across 3.11–3.14. *Gave up:* exact reproducibility — re-pin
+  to a lockfile once the VPS Python is fixed in Phase 6.
+- **Live migration not applied in this environment.** Docker isn't installed on this box, so Phase 0
+  was verified *offline*: models import (12 tables on metadata) + `alembic upgrade head --sql` renders
+  full DDL. The live `alembic upgrade head` against pgvector is a documented user step
+  (backend/README). *Gave up:* an end-to-end "rows in a real DB" proof until Docker is available.
+
+The five schema-shaping calls (now locked):
 - **Embeddings as a separate table, `vector(384)`, one model** — keeps re-embedding additive
   (pgvector dims are fixed). *Gave up:* the simplicity of a single `chunks.embedding` column.
 - **Chunking ~512 tokens / ~15% overlap, semantic-boundary split** — safe MiniLM-class default.
