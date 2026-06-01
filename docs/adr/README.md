@@ -10,3 +10,6 @@ older ones explicitly; we don't edit history.
 | [0002](0002-embeddings-storage-and-model.md) | Embeddings: separate table, single fixed model `vector(384)` | Accepted |
 | [0003](0003-chunking-strategy.md) | Chunking: ~512 tokens, ~15% overlap, semantic-boundary split | Accepted |
 | [0004](0004-pipeline-trigger-jobs-vs-notify.md) | Pipeline trigger: durable `jobs` table + `LISTEN/NOTIFY` wake-up | Accepted |
+| [0005](0005-hybrid-retrieval-rrf.md) | Hybrid retrieval: pgvector + full-text, fused with Reciprocal Rank Fusion | Accepted |
+| [0006](0006-prompt-and-citation-contract.md) | Prompt template, citation contract, and grounding policy | Accepted |
+| [0007](0007-phase1-api-and-execution-model.md) | Phase 1 API surface and execution model | Accepted |

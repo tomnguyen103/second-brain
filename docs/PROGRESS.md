@@ -9,7 +9,7 @@ session — the master prompt treats it as the source of truth for "where we are
 |---|---|---|
 | Planning | Project design, stack, cost model, roadmap | ✅ Complete |
 | 0 | Data model + ER diagram + Alembic migrations + pgvector/full-text indexes | ✅ Complete |
-| 1 | RAG MVP: FastAPI /ingest + /chat, hybrid retrieval, Gemini via LLMClient | ⬜ Not started |
+| 1 | RAG MVP: FastAPI /ingest + /chat, hybrid retrieval, Gemini via LLMClient | 🟡 Plan complete |
 | 2 | Next.js chat UI (streaming, citations, semantic search) | ⬜ Not started |
 | 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ⬜ Not started |
 | 4 | MCP server + agentic actions incl. self-research tool | ⬜ Not started |
@@ -22,6 +22,24 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-01 — Phase 1 PLAN complete (ADRs 0005–0007, TDD plan, Phase 2 prep)
+- **ADRs** → `docs/adr/`: 0005 hybrid retrieval + RRF (pgvector cosine + Postgres full-text,
+  RRF `k=60`, `top_k=8`), 0006 prompt + citation contract (`[n]` markers, zero-context refusal,
+  no LLM call when no context), 0007 Phase 1 API + execution model (sync SQLAlchemy, inline
+  ingest, non-streaming `/chat`, `fake` driver). ADR index updated.
+- **Implementation plan** → `docs/phase-1-plan.md`: 13 TDD tasks with real code + tests, a
+  DB-free vs DB-bound split, frozen `/ingest` + `/chat` contracts, and run/verify steps.
+- **Phase 2 prep** → `docs/phase-2-plan.md`: Next.js chat-UI readiness — contract→TS types,
+  the backend deltas Phase 2 needs (`/search`, `/conversations`, `/feedback`, optional SSE),
+  and the open decisions for kickoff.
+- **Forks decided** (recommended defaults): Python **3.12** venv (machine has 3.12.13),
+  **Docker Desktop** test DB, **inline** ingest, **non-streaming** chat. Clarifications: query
+  is embedded at chat time; `raw_text` retained until Phase 6. Detail in implementation-notes.
+- **No application code yet** — the "approve contracts before scaffolding" gate stands; the plan
+  is ready to execute on go.
+- **Next:** implement Phase 1 per the plan. Tasks 1, 3–8 need no Docker; tasks 2, 9–12 need
+  `docker compose up -d db` + `alembic upgrade head`.
 
 ### 2026-06-01 — Phase 0 COMPLETE: data model + migrations + ADRs
 - **ER diagram** → `docs/data-model/er-diagram.md` (11 domain tables: sources→documents→chunks→
@@ -49,5 +67,6 @@ Add a dated entry per working session. Most recent on top.
 
 ## Open questions / parking lot
 - Which VPS provider to buy (Hetzner ~€4 vs DO/Vultr/Linode ~$5–6). Decide before Phase 6.
-- Chunking strategy specifics (size/overlap) — settle with an ADR in Phase 0/1.
+- ~~Chunking strategy specifics (size/overlap)~~ — RESOLVED in ADR-0003 (~512 tok / ~15% overlap, semantic boundaries).
+- **Install Docker Desktop** before Phase 1 end-to-end / integration tests (DB-bound tasks) — not on this machine yet.
 - Whether to do the optional managed-cluster (GKE/EKS) capstone in Phase 7.
