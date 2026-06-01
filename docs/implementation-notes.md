@@ -50,6 +50,38 @@ These shaped the spec itself and are worth recording, since none were in the ver
 
 ## Implementation-time notes
 
+### 2026-06-01 — Phase 1 plan finalized (ADRs 0005–0007; no code yet)
+Under `/goal complete phase 1 plan, and prepare for phase 2`. The owner approved the four
+execution forks via the recommended defaults (in-session), so the plan was finalized rather
+than waiting on further interactive sign-off. Artifacts: `docs/adr/0005` (hybrid retrieval +
+RRF), `0006` (prompt + citation contract), `0007` (Phase 1 API + execution model);
+`docs/phase-1-plan.md` (TDD task plan); `docs/phase-2-plan.md` (Phase 2 readiness). **No
+application code written** — the "don't scaffold until contracts approved" gate is respected;
+the code lives as a reviewable plan, not in `app/`.
+
+Decisions / clarifications worth recording (newest first):
+- **Query is embedded at chat time** — what / why: hybrid retrieval needs a query vector, so the
+  spec phrase "embeddings on ingest only" is sharpened to *"no hosted embedding API; documents
+  are embedded at ingest and the query is embedded at `/chat` with the same local MiniLM model."*
+  Trade-off: the ~90 MB MiniLM model is resident in the API process (fine on a 4 GB box).
+  Affects: ADR-0005, `embeddings/encoder.py`, `retrieval/hybrid.py`.
+- **`raw_text` retained in Phase 1** — what / why: the ER-doc D5 post-embed purge is a Phase 6
+  retention concern; keeping `raw_text` now aids debugging/re-chunk. Trade-off: a little extra
+  storage until Phase 6 adds the purge. Affects: `ingest/service.py`, Phase 6.
+- **Four forks accepted (recommended options):** Python **3.12** venv for the backend (torch has
+  no reliable cp314 wheel — the machine already has CPython 3.12.13 via `py`); **Docker Desktop**
+  for the test DB (matches `docker-compose.yml`); **inline synchronous ingest** (the `jobs` queue
+  / ADR-0004 waits for Phase 5); **non-streaming `/chat`** (SSE deferred to Phase 2). Env check:
+  `py --list` shows 3.14 (default) + 3.12.13; `docker` not installed. Affects: ADR-0007,
+  `requirements.txt`, `README.md`.
+- **Prompt version is a code constant** (`PROMPT_VERSION="rag-v1"`), not persisted per message —
+  no column exists; Phase 3 (MLflow) formalizes storage + A/B + rollback. Affects: ADR-0006.
+- **Zero-context short-circuit:** when retrieval returns nothing, `/chat` returns a fixed refusal
+  and makes **no LLM call** (saves free-tier quota, removes hallucination risk). Affects: ADR-0006,
+  `chat/service.py`.
+- **`fake` LLM driver** added (config `SECOND_BRAIN_LLM_PROVIDER=fake`) so the whole pipeline is
+  testable with no key and no network — also the CI path. Affects: ADR-0007, `llm/fake.py`.
+
 ### 2026-06-01 — Phase 0 closed under `/goal end of phase 0` (decisions LOCKED)
 The session goal directive said to drive Phase 0 to completion without pausing, so the 5 proposals
 below were **accepted at their recommended defaults** rather than waiting for interactive sign-off,
