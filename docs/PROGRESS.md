@@ -10,7 +10,7 @@ session — the master prompt treats it as the source of truth for "where we are
 | Planning | Project design, stack, cost model, roadmap | ✅ Complete |
 | 0 | Data model + ER diagram + Alembic migrations + pgvector/full-text indexes | ✅ Complete |
 | 1 | RAG MVP: FastAPI /ingest + /chat, hybrid retrieval, Gemini via LLMClient | ✅ Complete |
-| 2 | Next.js chat UI (streaming, citations, semantic search) | ⬜ Not started |
+| 2 | Next.js chat UI (streaming, citations, semantic search) | 🟡 In progress |
 | 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ⬜ Not started |
 | 4 | MCP server + agentic actions incl. self-research tool | ⬜ Not started |
 | 5 | Daily briefing + scheduled pipelines | ⬜ Not started |
@@ -22,6 +22,22 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-01 — Phase 2 IN PROGRESS: backend deltas + Next.js UI scaffold
+- **Branch:** `phase-2-impl` (off main, which now has Phase 1 merged).
+- **Backend deltas shipped:** `GET /search` (hybrid_search wrapper), `GET /conversations`,
+  `GET /conversations/{id}`, `POST /feedback` — all with Pydantic v2 schemas + integration tests.
+- **Frontend scaffold shipped:** Next.js 16 + TypeScript + Tailwind v4 + shadcn/ui + TanStack Query.
+  Routes: `/chat` (message → cited answer → [n] → CitationCard popover; SourceFilter; conversation
+  history load), `/search` (full-text+vector results with source/tag filters). Conversation sidebar
+  with 15s auto-refresh. Private-mode toggle. Feedback thumbs per message.
+- **Build status:** `tsc --noEmit` clean; `next build` clean (both routes static-generate).
+- **Open decisions resolved:** non-streaming first; openapi-typescript codegen script added
+  (`npm run gen-types`); TanStack Query; Tailwind + shadcn/ui; hosting deferred to Phase 6.
+- **Not yet done:** E2E smoke against live backend (requires `docker compose up -d` + backend
+  running); `npm run gen-types` to sync types from live `/openapi.json`; streaming (deferred).
+- **Next:** run backend + frontend together, take the MVP screenshot, then decide on Phase 2 polish
+  (streaming SSE, Vitest component tests) vs moving to Phase 3.
 
 ### 2026-06-01 — Phase 1 COMPLETE: RAG MVP shipped (POST /ingest + POST /chat)
 - **Branch:** `phase-1-impl` (28 tests, 0 failures). Merge to main when ready.

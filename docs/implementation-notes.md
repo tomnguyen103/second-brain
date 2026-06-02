@@ -50,6 +50,21 @@ These shaped the spec itself and are worth recording, since none were in the ver
 
 ## Implementation-time notes
 
+### 2026-06-01 — Phase 2 open decisions resolved (all recommended defaults accepted)
+1. **Non-streaming first** — `/chat` reused as-is (non-streaming JSON). SSE deferred.
+   Why: fastest path to a screenshot; streaming is a Phase 2 polish item.
+   Trade-off: no token-by-token UX until SSE is added.
+2. **openapi-typescript codegen** — `npm run gen-types` in `frontend/package.json` generates
+   `lib/api/types.ts` from live `/openapi.json`. Types were hand-written for the initial
+   scaffold (backend not running at write time); the script will overwrite them once backend is live.
+3. **TanStack Query** — `@tanstack/react-query` v5 for all data fetching. Chosen over SWR for
+   richer mutation API (needed for `/chat` + `/feedback` flows).
+4. **Tailwind v4 + shadcn/ui** — create-next-app installed Tailwind v4 (beta); shadcn v4 supports
+   this. Trade-off: some shadcn docs reference v3 patterns; v4 uses CSS `@theme` blocks, not
+   `tailwind.config.js`. Affects: `app/globals.css`, `components/ui/*`.
+5. **Hosting deferred** — Vercel free tier vs VPS static-export stays undecided until Phase 6
+   per the cost rule in AGENTS.md.
+
 ### 2026-06-01 — Phase 1 implementation fixes (four off-spec corrections)
 
 1. **`tsv` ORM column marked `Computed`** — the `chunks.tsv` column is a PostgreSQL
