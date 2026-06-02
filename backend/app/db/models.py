@@ -271,3 +271,18 @@ class Job(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created()
+
+
+class Task(Base):
+    """A user task created via the MCP create_task action (Phase 4, ADR-0010).
+    Distinct from a pipeline Job — this is the user's to-do, not internal work."""
+    __tablename__ = "tasks"
+    __table_args__ = (
+        CheckConstraint("status IN ('open','done','cancelled')", name="ck_tasks_status"),
+        Index("ix_tasks_status", "status"),
+    )
+    id: Mapped[int] = _pk()
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    detail: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="open")
+    created_at: Mapped[datetime] = _created()

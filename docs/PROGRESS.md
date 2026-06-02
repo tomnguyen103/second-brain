@@ -12,7 +12,7 @@ session — the master prompt treats it as the source of truth for "where we are
 | 1 | RAG MVP: FastAPI /ingest + /chat, hybrid retrieval, Gemini via LLMClient | ✅ Complete |
 | 2 | Next.js chat UI (citations, semantic search, feedback; streaming deferred) | ✅ Complete |
 | 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ✅ Complete |
-| 4 | MCP server + agentic actions incl. self-research tool | ⬜ Not started |
+| 4 | MCP server + agentic actions incl. self-research tool | ✅ Complete |
 | 5 | Daily briefing + scheduled pipelines | ⬜ Not started |
 | 6 | Productionize on VPS + data-ops hardening | ⬜ Not started |
 | 7 | Kubernetes learning track on local k3s/kind | ⬜ Not started |
@@ -22,6 +22,23 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-02 — Phase 4 COMPLETE: MCP server + agentic actions (incl. self-research)
+- **Branch:** `phase-4-impl` (off main, Phase 3 merged via PR #7). Plan in `docs/phase-4-plan.md`;
+  decision in ADR-0010.
+- **What shipped:** an **MCP server** (`app/mcp_server.py`, FastMCP/stdio, `python -m app.mcp_server`)
+  exposing five tools — `search_notes` (hybrid retrieval), `create_task`/`list_tasks` (new `tasks`
+  table, migration `0002`), `send_digest` (markdown digest of recent activity), and the flagship
+  `research_topic` (LLM writes a note → stored as a `research_note` source → auto-ingested → searchable).
+  Logic lives in tested services (`app/{tasks,digest,research}`); tools are thin session-opening wrappers.
+- **Verified:** backend `pytest` **78 passed** (unit + integration vs live DB on 5433, fake LLM). Live
+  smoke: `search_notes("HNSW index tuning")` → top hit "HNSW index tuning"; `send_digest()` → digest with
+  counts. MCP `list_tools()` returns the five tools.
+- **DB:** migration `0002_tasks` applied live (`alembic upgrade head`). `tasks` table added.
+- **Deferred (per ADR-0010):** async research via the `jobs` queue + optional web search (Phase 5);
+  digest *delivery* / email transport (Phase 5/6); SSE transport (stdio is the local-client path).
+- **Next:** Phase 5 — daily briefing + scheduled pipelines (the `jobs` table + `briefing`/`research` job
+  types are already in the schema).
 
 ### 2026-06-02 — Phase 3 COMPLETE: evaluation + MLOps (eval set, MLflow, A/B, prompt versioning)
 - **Branch:** `phase-3-impl` (off main, which now has Phase 2 merged via PR #6). Planned in

@@ -50,6 +50,28 @@ These shaped the spec itself and are worth recording, since none were in the ver
 
 ## Implementation-time notes
 
+### 2026-06-02 — Phase 4 MCP server + agentic actions: deliberate calls
+- **`tasks` is a new table (migration 0002), not the `jobs` table.** A user to-do is a different
+  concept from a pipeline `Job` (whose type CHECK is `ingest|embed|briefing|research`). New
+  `tasks(id,title,detail,status,created_at)` with a status CHECK. *Affects:* `migrations/versions/
+  0002_tasks.py`, `app/db/models.py:Task`.
+- **`research_topic` is inline and stores a `research_note` source.** Generate → `ingest_documents`
+  (chunk+embed) → searchable, reusing the Phase 1 pipeline. `sources.type` already allowed
+  `research_note`. Async via the `jobs` queue (`research` type exists) + optional web search are
+  Phase 5. With the `fake` driver the note is a deterministic canned summary (still embedded) — real
+  research needs a Gemini key. (ADR-0010.)
+- **`send_digest` composes, doesn't deliver.** Returns a markdown digest of recent activity; email/
+  transport is Phase 5/6. Honest naming kept ("digest" = recent-activity summary).
+- **Thin tools / fat services.** All logic is in services that take a `db` (unit/integration-tested
+  with the rolled-back fixture); MCP tools open their own `SessionLocal()` and commit. So tests
+  exercise the *services*, not the stdio tools, to stay isolated; the server is smoke-tested
+  (`list_tools()` returns the five names) + a live read-only smoke.
+- **Windows shell quirk — stray 0-byte files.** Several commits this session surfaced empty junk
+  files at the repo root / `backend/` (`6`, `-hash`, `1.2`, `first`, `([])`, `e.key`, `list[CitationOut]`)
+  — an artifact of how some argument fragments (`tail -6`, `>=1.2`, `content-hash`, "first line") leak
+  into filenames in this Git-Bash-on-Windows setup. **Mitigation:** always `git status` before commit
+  and use explicit `git add <files>` (never `-A`) so they never get committed; delete with `rm`.
+
 ### 2026-06-02 — Phase 3 eval/MLOps: a few deliberate calls
 - **Integration tests scoped to their own source.** The eval runner ingests the fixed corpus into
   the dev DB (idempotent), and the dev DB *is* the test DB (5433). `test_retrieval`'s query

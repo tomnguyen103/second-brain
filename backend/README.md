@@ -1,4 +1,4 @@
-# Second Brain — backend (through Phase 3: RAG MVP + eval/MLOps)
+# Second Brain — backend (through Phase 4: RAG MVP + eval/MLOps + MCP)
 
 Phase 1 ships `POST /ingest` and `POST /chat` on the Phase 0 schema: local MiniLM-384
 embeddings, hybrid pgvector + full-text retrieval fused with RRF, and cited answers via an
@@ -81,6 +81,39 @@ $env:SECOND_BRAIN_PROMPT_VERSION = "rag-v1"
 > `fake` driver returns a canned, instant answer) — the `gemini` run produces the meaningful
 > answer-quality numbers. The runner writes the eval corpus into the dev DB (idempotent — content
 > -hash dedupe) and the MLflow store to `./mlruns` (gitignored).
+
+## Phase 4 — MCP server + agentic actions (run & verify)
+
+Exposes the brain's actions as MCP tools: `search_notes`, `create_task`, `list_tasks`,
+`send_digest`, `research_topic`. Services in `app/{tasks,digest,research}`; server in
+`app/mcp_server.py`. See ADR-0010.
+
+```powershell
+cd backend; .\.venv\Scripts\Activate.ps1
+
+# 0) Apply migration 0002 (tasks table), then run the Phase 4 tests
+docker compose up -d db          # from repo root, if not already up
+alembic upgrade head             # -> 0002_tasks
+$env:SECOND_BRAIN_TEST_DATABASE_URL = "postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain"
+pytest tests/unit/test_mcp_server.py tests/unit/test_research_prompt.py `
+       tests/unit/test_digest_format.py tests/integration/test_tasks.py `
+       tests/integration/test_research.py tests/integration/test_digest.py -v
+
+# 1) Run the MCP server over stdio (fake LLM = keyless; drop it + set a Gemini key for real research)
+$env:SECOND_BRAIN_LLM_PROVIDER = "fake"
+python -m app.mcp_server
+
+# 2) Or explore it interactively with the MCP Inspector
+mcp dev app/mcp_server.py        # opens the Inspector; call search_notes / create_task / research_topic
+
+# 3) Connect from Claude Desktop — add to its MCP config (claude_desktop_config.json):
+#   "second-brain": { "command": "<abs path>/.venv/Scripts/python.exe", "args": ["-m","app.mcp_server"],
+#                     "cwd": "<abs path>/backend" }
+```
+
+> Notes: `research_topic` with the `fake` driver stores a deterministic note (still embedded +
+> searchable); set `SECOND_BRAIN_GEMINI_API_KEY` + drop the `fake` override for real research.
+> `create_task`/`research_topic` write to the configured DB.
 
 ## Phase 0 — run & verify (from repo root)
 

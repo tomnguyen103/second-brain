@@ -48,6 +48,11 @@ integrated.
 - **Incremental:** end each working chunk with something runnable or reviewable, and tell
   me how to run/verify it. Don't dump huge unrunnable scaffolds.
 - **Ask before assuming** on anything that affects architecture, cost, or data privacy.
+- **No session/token cost pauses:** I'm on a Claude Max subscription — the per-session
+  dollar figure shown in tooling is an *estimate of equivalent API cost*, not a billed
+  amount. Do NOT pause, check in, or ask for re-approval based on session/token cost
+  (including when it "doubles" or crosses a threshold). The "cost-conscious" rule above
+  refers ONLY to recurring infrastructure bills (e.g. the VPS) — flag those, not session cost.
 - **Keep records current:** update `docs/PROGRESS.md` at the end of each session (status +
   dated log), and append to `docs/implementation-notes.md` whenever you make a decision,
   change, or trade-off that wasn't in the spec (what / why / what I gave up).
