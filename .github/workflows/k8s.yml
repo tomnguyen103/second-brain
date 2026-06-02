@@ -28,6 +28,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The backend image carries CUDA torch wheels (~several GB); the hosted runner's ~14 GB free
+      # disk overflows when `kind load` does `docker save` to /tmp. Reclaim ~20+ GB of preinstalled
+      # toolchains we don't use (Android SDK, .NET, GHC, CodeQL). (CPU-only torch would slim the
+      # image itself — deferred, see ADR-0014.)
+      - name: Free up runner disk space
+        run: |
+          df -h / | tail -1
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h / | tail -1
+
       # Multi-node cluster from the committed config (ingress-ready label + host 80/443 maps).
       # Versions pinned to match local (kind v0.31.0 -> node v1.35.0). Name via flag only.
       - name: Create kind cluster
