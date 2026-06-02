@@ -2,7 +2,7 @@ from app.llm.base import LLMMessage, LLMResponse
 
 
 class GeminiClient:
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
         from google import genai
         self._genai = genai
         self._client = genai.Client(api_key=api_key)

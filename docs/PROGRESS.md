@@ -23,6 +23,24 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-02 — Live deploy validated LOCALLY on Docker Desktop (prod Compose stack) + Gemini model fix
+- **What:** brought up `deploy/docker-compose.prod.yml` end-to-end on Docker Desktop (project
+  `second-brain-prod`, isolated from the dev DB on 5433) with a real Gemini API key — running the
+  Phase-6 live-deploy runbook locally before provisioning a VPS (chose "run locally first").
+- **Fix (see implementation-notes):** Google **retired `gemini-1.5-flash`** on the API (first real
+  `generateContent` call 404'd — prior phases only used the `fake` driver, so the model name was never
+  live-tested). Bumped the default to **`gemini-2.5-flash`** (GA, pinned for eval reproducibility) in
+  `app/config.py` + `app/llm/gemini.py`, and wired a `SECOND_BRAIN_GEMINI_MODEL` passthrough into the
+  api+worker in the prod compose so it's swappable via `.env.prod`. api+worker rebuilt (torch layer
+  cached → seconds).
+- **Verified:** all 8 services Up; migrations `0001`→`0004`; `/health` `db:ok` (PgBouncer
+  scram-sha-256); ingest (`embedded=1`) → `/chat` cited answer on `gemini-2.5-flash` (147 prompt / 321
+  total tokens, ~1.6 s); frontend HTTP 200; Grafana `database:ok`; Prometheus Ready; worker drained a
+  `briefing` job → stored a Gemini-written digest. **Local validation only — not committed.**
+- **Next:** for always-on, provision the VPS (ADR-0011: Oracle Cloud Always Free SG primary / Contabo
+  SG ~$5 fallback) and run `docs/runbooks/deploy-checklist.md` — the model fix is in the code now so it
+  won't recur there. Optional: branch + PR the model fix.
+
 ### 2026-06-02 — Phase 7 COMPLETE: Kubernetes learning track on local kind (manifests + HPA + ingress + CI/CD), torn down
 - **Branch:** `phase-7-impl` (off main, Phase 5 merged via PR #10). Plan in `docs/phase-7-plan.md`;
   decisions in **ADR-0014**. NOT pytest-TDD — verification is "apply manifest → assert rollout/health/
