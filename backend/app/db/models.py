@@ -11,6 +11,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    Computed,
     DateTime,
     Double,
     ForeignKey,
@@ -106,8 +107,10 @@ class Chunk(Base):
     token_count: Mapped[int | None] = mapped_column(Integer)
     char_start: Mapped[int | None] = mapped_column(Integer)
     char_end: Mapped[int | None] = mapped_column(Integer)
-    # GENERATED ALWAYS column — created in the migration; read-only here.
-    tsv: Mapped[str | None] = mapped_column(TSVECTOR)
+    # GENERATED ALWAYS AS (to_tsvector('english', content)) STORED — read-only.
+    tsv: Mapped[str | None] = mapped_column(
+        TSVECTOR, Computed("to_tsvector('english', content)", persisted=True)
+    )
     metadata_: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = _created()
     document: Mapped["Document"] = relationship(back_populates="chunks")
