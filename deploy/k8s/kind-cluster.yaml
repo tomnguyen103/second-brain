@@ -1,0 +1,33 @@
+# Multi-node kind cluster for the Phase 7 Kubernetes LEARNING TRACK (D1).
+#
+# Multi-node (1 control-plane + 2 workers) so HPA pod-spread and ingress-on-a-labelled-node
+# are real, not single-node toys. The control-plane node is labelled `ingress-ready=true` and
+# forwards host ports 80/443 to itself, so the ingress-nginx *kind* provider (which schedules on
+# that node with hostPort 80/443) is reachable from the host at http://localhost.
+#
+#   Create:   kind create cluster --config deploy/k8s/kind-cluster.yaml
+#   Teardown: kind delete cluster --name second-brain      # D10 — nothing left running ($0)
+#
+# Node image follows the installed kind version's default (kind v0.31.0 -> Kubernetes v1.35).
+# The manifests use only stable APIs (apps/v1, batch/v1, autoscaling/v2, networking.k8s.io/v1),
+# so they are version-robust; CI pins the kind version to keep local and CI aligned.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: second-brain
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+  - role: worker
+  - role: worker
