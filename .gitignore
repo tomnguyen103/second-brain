@@ -29,3 +29,5 @@ Thumbs.db
 # Local agent/tooling dirs (not project artifacts)
 .claude/
 .claude-flow/
+.agents/
+.codex/
