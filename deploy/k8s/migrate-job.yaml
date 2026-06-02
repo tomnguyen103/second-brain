@@ -1,0 +1,54 @@
+# One-shot migration Job (D3): `alembic upgrade head` against Postgres DIRECTLY (db:5432, not via
+# pgbouncer) — mirrors the compose DIRECT_DATABASE_URL. In compose the api `command` prefixed the
+# migration; here it is its own Job so the api/worker run only their process. Re-running is safe
+# (alembic is idempotent — already-applied revisions are skipped). Apply AFTER Postgres is Ready;
+# OnFailure + backoffLimit retries cover a brief DB-not-ready race.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: migrate
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: migrate
+        app.kubernetes.io/part-of: second-brain
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: alembic
+          image: second-brain-api:phase7
+          imagePullPolicy: IfNotPresent      # use the kind-loaded image; never pull from a registry (D2)
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: second-brain-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: second-brain-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: second-brain-config
+                  key: POSTGRES_DB
+            # alembic reads settings.database_url = SECOND_BRAIN_DATABASE_URL. Assembled from the
+            # parts above via $(VAR) so the password stays only in the Secret. DIRECT to db:5432.
+            - name: SECOND_BRAIN_DATABASE_URL
+              value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

@@ -15,13 +15,55 @@ session — the master prompt treats it as the source of truth for "where we are
 | 4 | MCP server + agentic actions incl. self-research tool | ✅ Complete |
 | 5 | Daily briefing + scheduled pipelines | ✅ Complete |
 | 6 | Productionize on VPS + data-ops hardening | ✅ Complete |
-| 7 | Kubernetes learning track on local k3s/kind | ⬜ Not started |
+| 7 | Kubernetes learning track on local k3s/kind | ✅ Complete |
 
 Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-02 — Phase 7 COMPLETE: Kubernetes learning track on local kind (manifests + HPA + ingress + CI/CD), torn down
+- **Branch:** `phase-7-impl` (off main, Phase 5 merged via PR #10). Plan in `docs/phase-7-plan.md`;
+  decisions in **ADR-0014**. NOT pytest-TDD — verification is "apply manifest → assert rollout/health/
+  scale", captured as text under **`docs/k8s-evidence/`** (00 overview + 01–09 per layer + 11 teardown).
+- **What shipped (`deploy/k8s/`):** real manifests translating all **8** prod-compose services —
+  Postgres **StatefulSet + PVC** (+ headless Service), a one-shot **migrate Job** (`alembic upgrade
+  head` direct to the DB, split out of the api's compose command, D3), **pgbouncer** (env-configured
+  so no `userlist.txt`/password is committed, D12), **redis**, **api** (uvicorn only; CPU requests for
+  HPA), **worker** (`--loop`), **frontend** (NEXT_PUBLIC baked at build, D11), **ingress-nginx**
+  host-based routing (`api.second-brain.local` / `second-brain.local`), **metrics-server + HPA** on
+  api CPU, and **Prometheus + Grafana** (configs reused `--from-file` from Phase 6 — DRY). Plus a
+  `kustomization.yaml` (one-shot `apply -k`), `secret.example.yaml` (template only, D4), and
+  `deploy/k8s/README.md` (run/verify/teardown).
+- **Verified live on a multi-node kind cluster (1 control-plane + 2 workers, v1.35.0):** all pods
+  Ready; migrate Job Complete (schema at `0004`); `SELECT 1` through pgbouncer (scram-sha-256); api
+  `/health` `db:ok`; **worker drained an enqueued briefing job** (queued→done, Briefing row written);
+  frontend serves HTML with the ingress API host baked into the client bundle; ingress smoke `/health`
+  200 + UI 200 (via `Host` header); **HPA scaled api 1→4 under `hey` load** (CPU peaked 400%/50%,
+  36,293 reqs all 200, pods spread across both workers) **and back 4→1**; Prometheus scrapes the api
+  (`up{job=second-brain-api}=1`); Grafana `/api/health` 200. `kubectl apply -k` server-dry-run clean.
+- **CI/CD:** new **`.github/workflows/k8s.yml`** (kind-action, pinned kind v0.31.0/node v1.35.0,
+  ingress-nginx v1.12.3, metrics-server v0.7.2): build+load images → create secret/configmaps →
+  apply → wait all rollouts → smoke `/health` + UI through ingress → kind-action tears the cluster
+  down. The eval-gated **`ci.yml` is untouched** (D8). HPA load stays a local evidence step (D13).
+- **Decisions (D1–D13, ADR-0014):** multi-node kind; local images via `kind load` + `IfNotPresent`
+  (no registry, $0); StatefulSet+migrate-Job; ConfigMap/Secret split (secrets uncommitted); host
+  ingress; HPA-on-CPU; reuse monitoring; new K8s CI; **managed cloud OFF by default (D9)**; teardown
+  (D10). Added: D11 NEXT_PUBLIC build-time bake, D12 pgbouncer env-config, D13 local HPA evidence.
+- **Off-spec fix:** added a root **`.dockerignore`** — without it the repo-root build context shipped
+  the host `backend/.venv` (1.3G) and `frontend/node_modules` (660M, wrong-OS) INTO the images,
+  bloating the backend and breaking the frontend. The Phase-6 images were only `docker compose
+  config`-linted, never built, so this latent bug surfaced on first real build. Detail in
+  `implementation-notes.md`.
+- **Teardown (D10):** `kind delete cluster` — 3 nodes deleted, `No kind clusters found`, no
+  `second-brain` containers. **Nothing left running ($0).** No managed cloud was ever created.
+- **PR:** [#11](https://github.com/tomnguyen103/second-brain/pull/11) — `phase-7-impl` → main; merge
+  gated on CI (the new `k8s.yml` + the untouched eval-gated `ci.yml`) green **and** the CodeRabbit
+  (Pro) deep review addressed.
+- **Next:** roadmap phases 0–7 all complete. Optional follow-ups: provision the Oracle box + execute
+  the deploy runbook; CPU-only torch image; the optional managed-cluster (GKE/EKS) capstone (D9, paid
+  — would need explicit go-ahead and immediate teardown).
 
 ### 2026-06-02 — Phase 5 COMPLETE: daily briefing + scheduled pipelines (durable worker)
 - **Branch:** `phase-5-impl` (off main, Phase 6 merged via PR #9). Plan in `docs/phase-5-plan.md`;
@@ -262,4 +304,7 @@ Add a dated entry per working session. Most recent on top.
   Vietnam daily-use UI).
 - ~~Chunking strategy specifics (size/overlap)~~ — RESOLVED in ADR-0003 (~512 tok / ~15% overlap, semantic boundaries).
 - ~~**Install Docker Desktop** before Phase 1 end-to-end / integration tests~~ — DONE 2026-06-01: installed, Phase 0 migration applied live; Docker DB on host **5433** (native PG holds 5432).
-- Whether to do the optional managed-cluster (GKE/EKS) capstone in Phase 7.
+- ~~Whether to do the optional managed-cluster (GKE/EKS) capstone in Phase 7~~ — DECIDED 2026-06-02
+  in ADR-0014 (D9): **OFF by default** (paid; would blow the $0/learning-track constraint). The local
+  kind track is the Phase 7 deliverable; a managed-cluster demo stays optional and, if ever run, needs
+  explicit go-ahead and immediate teardown.

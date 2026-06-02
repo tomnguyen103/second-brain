@@ -1,0 +1,98 @@
+# Grafana (D7) — reuses the Phase 6 provisioning + dashboard verbatim (deploy/grafana/*), which
+# already points the datasource at the in-cluster `prometheus:9090`. Three ConfigMaps supply the
+# files (created --from-file — DRY, no duplicated copies):
+#
+#   kubectl -n second-brain create configmap grafana-datasources \
+#     --from-file=deploy/grafana/provisioning/datasources/datasource.yml --dry-run=client -o yaml | kubectl apply -f -
+#   kubectl -n second-brain create configmap grafana-dashboard-provider \
+#     --from-file=deploy/grafana/provisioning/dashboards/dashboards.yml --dry-run=client -o yaml | kubectl apply -f -
+#   kubectl -n second-brain create configmap grafana-dashboard-json \
+#     --from-file=deploy/grafana/dashboards/second-brain.json --dry-run=client -o yaml | kubectl apply -f -
+#
+# Admin password comes from the Secret. Storage is emptyDir (ephemeral — learning track).
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: grafana
+spec:
+  selector:
+    app: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+        app.kubernetes.io/part-of: second-brain
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: second-brain-secrets
+                  key: GRAFANA_ADMIN_PASSWORD
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "384Mi"
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboard-json
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard-json
+          configMap:
+            name: grafana-dashboard-json

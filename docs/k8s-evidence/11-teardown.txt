@@ -1,0 +1,22 @@
+Phase 7 evidence — Task 11: teardown (D10 — leave nothing running, $0)
+======================================================================
+After all evidence was captured, the ephemeral learning-track cluster was deleted. Kubernetes was
+NEVER the production runtime (that stays the single-VPS Docker Compose stack). No managed cloud was
+ever created (D9 — OFF by default). Local kind costs $0 whether up or down; this confirms hygiene.
+
+$ kind get clusters
+second-brain
+
+$ kind delete cluster --name second-brain
+Deleting cluster "second-brain" ...
+Deleted nodes: ["second-brain-worker" "second-brain-worker2" "second-brain-control-plane"]
+
+$ kind get clusters
+No kind clusters found.
+
+$ docker ps -a --filter "name=second-brain" --format "{{.Names}}"
+(none)
+
+GATE PASSED: cluster torn down; no kind clusters; no second-brain containers. Nothing left running.
+The committed manifests + CI workflow (k8s.yml) recreate the whole stack on demand; CI also tears
+its own cluster down in the kind-action post step.

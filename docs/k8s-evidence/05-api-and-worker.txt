@@ -1,0 +1,38 @@
+Phase 7 evidence — Task 5: api + worker Deployments
+====================================================
+api runs only uvicorn (migrations are the Job's, D3) and reaches Postgres through pgbouncer.
+worker runs the resident --loop and actually drains an enqueued job (proved via the DB, since
+run_loop is silent on success). NOTE: the worker EAGER-loads the embedder at startup (main()
+calls get_embedder()); the api LAZY-loads it (embedder:"unloaded" below).
+
+$ kubectl apply -f deploy/k8s/api.yaml ; kubectl apply -f deploy/k8s/worker.yaml
+$ kubectl -n second-brain rollout status deploy/api --timeout=240s
+deployment "api" successfully rolled out
+$ kubectl -n second-brain rollout status deploy/worker --timeout=180s
+deployment "worker" successfully rolled out
+
+$ kubectl -n second-brain get pods -l 'app in (api,worker)' -o wide
+NAME                      READY   STATUS    RESTARTS   AGE   NODE
+api-c6bc96c9d-z4v4l       1/1     Running   0          13s   second-brain-worker
+worker-66f499988d-hl27m   1/1     Running   0          12s   second-brain-worker2   (ready=true, restarts=0)
+
+# api /health from inside the pod — db:ok proves it reaches Postgres via pgbouncer:
+$ kubectl -n second-brain exec deploy/api -- python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').read().decode())"
+{"status":"ok","db":"ok","embedder":"unloaded"}
+
+# Prove the worker genuinely processes jobs on K8s: enqueue a briefing, then check the DB.
+$ kubectl -n second-brain exec deploy/api -- python -m app.jobs.enqueue briefing
+enqueued job 1 (briefing)
+# (worker polls every 5s; waited ~12s)
+$ psql ... -c "SELECT id, type, status, attempts FROM jobs ORDER BY id"
+ id |   type   | status | attempts
+----+----------+--------+----------
+  1 | briefing | done   |        0
+$ psql ... -c "SELECT id, document_count, length(body_markdown) AS body_len, period_end FROM briefings"
+ id | document_count | body_len |          period_end
+----+----------------+----------+-------------------------------
+  1 |              0 |      179 | 2026-06-02 16:26:24.382139+00
+# document_count=0 (empty corpus -> "nothing new" briefing, no LLM call) — expected Phase 5 behaviour.
+
+GATE PASSED: api Ready + /health db:ok; worker Ready (0 restarts) and drained a real job
+(queued -> done, Briefing row persisted) end-to-end on the cluster.

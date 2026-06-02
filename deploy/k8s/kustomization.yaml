@@ -1,0 +1,36 @@
+# Convenience one-shot apply of the core stack:  kubectl apply -k deploy/k8s
+#
+# NOTE: kustomize applies all resources together; it does NOT order them. Readiness converges via
+# probes + the migrate Job's OnFailure/backoff (api/worker tolerate a brief pre-migration race).
+#
+# PREREQUISITES (not in this kustomization, by design):
+#   1. The Secret (D4 — created out-of-band; see secret.example.yaml).
+#   2. The monitoring ConfigMaps, sourced --from-file from the Phase 6 configs (DRY — kustomize's
+#      configMapGenerator can't read files above deploy/k8s, so these stay an explicit step):
+#        kubectl -n second-brain create configmap prometheus-config \
+#          --from-file=prometheus.yml=deploy/prometheus/prometheus.yml \
+#          --from-file=alerts.yml=deploy/prometheus/alerts.yml --dry-run=client -o yaml | kubectl apply -f -
+#        kubectl -n second-brain create configmap grafana-datasources       --from-file=deploy/grafana/provisioning/datasources/datasource.yml --dry-run=client -o yaml | kubectl apply -f -
+#        kubectl -n second-brain create configmap grafana-dashboard-provider --from-file=deploy/grafana/provisioning/dashboards/dashboards.yml --dry-run=client -o yaml | kubectl apply -f -
+#        kubectl -n second-brain create configmap grafana-dashboard-json     --from-file=deploy/grafana/dashboards/second-brain.json --dry-run=client -o yaml | kubectl apply -f -
+#   3. ingress-nginx + metrics-server (cluster add-ons; see README.md / k8s.yml).
+#
+# For the layered "apply + wait per layer" path used during development, see README.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: second-brain
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - postgres-statefulset.yaml
+  - migrate-job.yaml
+  - pgbouncer.yaml
+  - redis.yaml
+  - api.yaml
+  - worker.yaml
+  - frontend.yaml
+  - ingress.yaml
+  - api-hpa.yaml
+  - monitoring/prometheus.yaml
+  - monitoring/grafana.yaml

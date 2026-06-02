@@ -1,0 +1,29 @@
+Phase 7 evidence — Task 1: multi-node kind cluster + namespace
+================================================================
+Captured on the local learning-track cluster (kind v0.31.0, node image kindest/node:v1.35.0).
+The cluster is ephemeral (torn down at the end, D10); these captures are the durable proof.
+
+$ kind create cluster --config deploy/k8s/kind-cluster.yaml
+ • Ensuring node image (kindest/node:v1.35.0) ...   ✓
+ • Preparing nodes 📦 📦 📦  ...                     ✓
+ • Starting control-plane ...                        ✓
+ • Installing CNI ...                                ✓
+ • Installing StorageClass ...                       ✓
+ • Joining worker nodes ...                          ✓
+Set kubectl context to "kind-second-brain"
+
+$ kubectl wait --for=condition=Ready nodes --all --timeout=120s
+node/second-brain-control-plane condition met
+node/second-brain-worker condition met
+node/second-brain-worker2 condition met
+
+$ kubectl get nodes -o wide
+NAME                         STATUS   ROLES           AGE   VERSION   INTERNAL-IP   OS-IMAGE                         CONTAINER-RUNTIME
+second-brain-control-plane   Ready    control-plane   31s   v1.35.0   172.19.0.3    Debian GNU/Linux 12 (bookworm)   containerd://2.2.0
+second-brain-worker          Ready    <none>          18s   v1.35.0   172.19.0.4    Debian GNU/Linux 12 (bookworm)   containerd://2.2.0
+second-brain-worker2         Ready    <none>          18s   v1.35.0   172.19.0.2    Debian GNU/Linux 12 (bookworm)   containerd://2.2.0
+
+$ kubectl apply -f deploy/k8s/namespace.yaml
+namespace/second-brain created
+
+GATE PASSED: control-plane + 2 workers Ready; namespace second-brain Active.

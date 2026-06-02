@@ -1,0 +1,43 @@
+Phase 7 evidence — OVERVIEW: full Second Brain stack running on local kind
+==========================================================================
+All 8 Compose services translated to K8s and running, plus the migrate Job complete, ingress
+serving, and HPA active. Cluster is ephemeral (torn down after capture, D10) — this is the proof.
+
+$ kubectl -n second-brain get deploy,statefulset,job,svc,ingress,hpa
+NAME                         READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/api          1/1     1            1           14m
+deployment.apps/frontend     1/1     1            1           12m
+deployment.apps/grafana      1/1     1            1           3m5s
+deployment.apps/pgbouncer    1/1     1            1           15m
+deployment.apps/prometheus   1/1     1            1           3m6s
+deployment.apps/redis        1/1     1            1           15m
+deployment.apps/worker       1/1     1            1           14m
+
+NAME                  READY   AGE
+statefulset.apps/db   1/1     27m
+
+NAME                STATUS     COMPLETIONS   DURATION   AGE
+job.batch/migrate   Complete   1/1           5s         16m
+
+NAME                 TYPE        CLUSTER-IP      PORT(S)    AGE
+service/api          ClusterIP   10.96.239.234   8000/TCP   14m
+service/db           ClusterIP   None            5432/TCP   27m     (headless — StatefulSet)
+service/frontend     ClusterIP   10.96.205.62    3000/TCP   12m
+service/grafana      ClusterIP   10.96.98.140    3000/TCP   3m5s
+service/pgbouncer    ClusterIP   10.96.154.51    6432/TCP   15m
+service/prometheus   ClusterIP   10.96.47.198    9090/TCP   3m6s
+service/redis        ClusterIP   10.96.183.8     6379/TCP   15m
+
+NAME                                     CLASS   HOSTS                                       ADDRESS     PORTS
+ingress.networking.k8s.io/second-brain   nginx   api.second-brain.local,second-brain.local   localhost   80
+
+NAME                                      REFERENCE        TARGETS       MINPODS   MAXPODS   REPLICAS
+horizontalpodautoscaler.autoscaling/api   Deployment/api   cpu: 0%/50%   1         4         1
+
+# Pods spread across both worker nodes; app pods run the local kind-loaded images (no registry):
+  api / migrate / worker  -> second-brain-api:phase7   (built from deploy/Dockerfile.backend)
+  frontend                -> second-brain-web:phase7   (built from deploy/Dockerfile.frontend, D11)
+  db -> pgvector/pgvector:pg16 | pgbouncer -> edoburu/pgbouncer | redis -> redis:7-alpine
+  prometheus -> prom/prometheus | grafana -> grafana/grafana
+
+Per-layer gate evidence: see 01..09 in this directory. Teardown proof: see 11-teardown.txt.

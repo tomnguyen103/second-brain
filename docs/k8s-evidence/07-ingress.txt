@@ -1,0 +1,31 @@
+Phase 7 evidence — Task 7: ingress-nginx host-based routing (D5)
+================================================================
+ingress-nginx (kind provider, PINNED controller-v1.12.3) routes by host:
+  api.second-brain.local -> api:8000 ,  second-brain.local -> frontend:3000.
+The controller binds the control-plane node's host ports 80/443 (kind extraPortMappings), so the
+hosts are reachable at http://localhost. Smoke uses a Host header (no /etc/hosts edit needed).
+
+$ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.3/deploy/static/provider/kind/deploy.yaml
+$ kubectl wait -n ingress-nginx --for=condition=ready pod -l app.kubernetes.io/component=controller --timeout=180s
+pod/ingress-nginx-controller-7dd5849869-ppdxf condition met
+
+$ kubectl apply -f deploy/k8s/ingress.yaml
+ingress.networking.k8s.io/second-brain created
+$ kubectl -n second-brain get ingress
+NAME           CLASS   HOSTS                                       PORTS   AGE
+second-brain   nginx   api.second-brain.local,second-brain.local   80      0s
+
+# --- API through ingress ---
+$ curl -s -H "Host: api.second-brain.local" http://localhost/health        (HTTP 200)
+{"status":"ok","db":"ok","embedder":"unloaded"}
+
+# --- UI through ingress --- ('/' redirects to /chat by app design; /chat renders) ---
+$ curl -s -i -H "Host: second-brain.local" http://localhost/
+HTTP/1.1 307 Temporary Redirect
+location: /chat
+$ curl -s -H "Host: second-brain.local" http://localhost/chat               (HTTP 200)
+<!DOCTYPE html><html lang="en" class="geist_... antialiased"> ...
+$ curl -s -L -H "Host: second-brain.local" http://localhost/                (HTTP 200 after following)
+
+GATE PASSED: ingress serves the api (/health 200, db:ok) AND the UI (/, 307->/chat, 200 HTML).
+For a browser, add:  127.0.0.1  second-brain.local api.second-brain.local

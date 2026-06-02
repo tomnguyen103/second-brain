@@ -1,0 +1,62 @@
+# Durable-job worker (Phase 5, ADR-0013). Same image as the api; runs the resident poll loop
+# (`python -m app.jobs.worker --loop`) instead of uvicorn. Drains the jobs queue (daily briefing +
+# async research). No ports, no migrations (the migrate Job owns those). Connects via pgbouncer.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+        app.kubernetes.io/part-of: second-brain
+    spec:
+      containers:
+        - name: worker
+          image: second-brain-api:phase7
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "app.jobs.worker", "--loop"]
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: second-brain-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: second-brain-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: second-brain-config
+                  key: POSTGRES_DB
+            - name: SECOND_BRAIN_DATABASE_URL
+              value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@pgbouncer:6432/$(POSTGRES_DB)
+            - name: SECOND_BRAIN_LLM_PROVIDER
+              valueFrom:
+                configMapKeyRef:
+                  name: second-brain-config
+                  key: SECOND_BRAIN_LLM_PROVIDER
+            - name: SECOND_BRAIN_GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: second-brain-secrets
+                  key: SECOND_BRAIN_GEMINI_API_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"

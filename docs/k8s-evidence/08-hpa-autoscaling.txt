@@ -1,0 +1,42 @@
+Phase 7 evidence — Task 8: metrics-server + HPA autoscaling under load (D6)
+===========================================================================
+metrics-server v0.7.2 installed with --kubelet-insecure-tls (required on kind). HPA on api CPU
+(target 50% of the 250m request, min 1 / max 4). Load driven by an in-cluster `hey` pod at
+/health. Autoscaling demonstrated BOTH directions (1 -> 4 under load, 4 -> 1 after).
+
+$ kubectl top nodes                       # metrics-server working
+NAME                         CPU(cores)   CPU(%)   MEMORY(bytes)   MEMORY(%)
+second-brain-control-plane   83m          0%       1346Mi          4%
+second-brain-worker          42m          0%       579Mi           1%
+second-brain-worker2         21m          0%       485Mi           1%
+
+$ kubectl -n second-brain get hpa api     # initial
+NAME   REFERENCE        TARGETS       MINPODS   MAXPODS   REPLICAS
+api    Deployment/api   cpu: 0%/50%   1         4         1
+
+# Load: hey -z 90s -c 80 http://api:8000/health  (in-cluster pod). Polling HPA + api pod count:
+t= 24s | api pods=3 | cpu: 141%/50% | replicas 1->scaling
+t= 40s | api pods=4 | cpu: 400%/50% | replicas 3
+t= 56s | api pods=4 | cpu: 133%/50% | replicas 4   (capped at maxReplicas)
+t= 72s | api pods=4 | cpu: 100%/50% | replicas 4
+t= 88s | api pods=4 | cpu: 100%/50% | replicas 4
+
+$ kubectl -n second-brain get pods -l app=api -o wide      # 4 pods, spread across BOTH workers
+api-c6bc96c9d-fg5dp   1/1   Running   second-brain-worker
+api-c6bc96c9d-z4v4l   1/1   Running   second-brain-worker
+api-c6bc96c9d-8hz47   1/1   Running   second-brain-worker2
+api-c6bc96c9d-knfdt   1/1   Running   second-brain-worker2
+
+$ kubectl -n second-brain logs load        # hey summary
+  Total:        90.1578 secs
+  Requests/sec: 402.5498
+  Status code distribution: [200] 36293 responses
+
+# After deleting the load pod, the HPA scales back down (60s stabilization, then 1 pod/30s):
+$ kubectl -n second-brain get hpa api      # ~150s after load removed
+NAME   REFERENCE        TARGETS       MINPODS   MAXPODS   REPLICAS
+api    Deployment/api   cpu: 0%/50%   1         4         1
+api pods now: 1
+
+GATE PASSED: HPA scaled api 1 -> 4 under load (CPU peaked 400%/50%, capped at max=4, pods spread
+across both worker nodes), then 4 -> 1 after load removed. 36,293 requests served (all 200).

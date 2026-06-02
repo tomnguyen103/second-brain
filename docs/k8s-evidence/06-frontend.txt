@@ -1,0 +1,25 @@
+Phase 7 evidence — Task 6: frontend Deployment (NEXT_PUBLIC baked, D11)
+=======================================================================
+The frontend image was built with --build-arg NEXT_PUBLIC_API_BASE_URL=http://api.second-brain.local
+so Next inlines the ingress API host at build time (a runtime ConfigMap value would be ignored).
+
+$ kubectl apply -f deploy/k8s/frontend.yaml
+service/frontend created
+deployment.apps/frontend created
+$ kubectl -n second-brain rollout status deploy/frontend --timeout=180s
+deployment "frontend" successfully rolled out
+
+$ kubectl -n second-brain get pods -l app=frontend
+NAME                        READY   STATUS    RESTARTS   AGE
+frontend-587754f8c7-xsc2g   1/1     Running   0          13s
+
+# Serves the Next.js app shell:
+$ kubectl -n second-brain exec deploy/frontend -- wget -qO- http://localhost:3000/
+<!DOCTYPE html><html lang="en" class="geist_... h-full antialiased"><head><meta charSet="utf-8"/> ...
+
+# D11 bake verified — the ingress API host is in BOTH client and server bundles:
+$ kubectl -n second-brain exec deploy/frontend -- sh -c "grep -rl 'api.second-brain.local' .next | head -3"
+.next/server/chunks/ssr/_0q07iul._.js
+.next/static/chunks/1vq19va-s4k-8.js     <-- client bundle: the browser will call the API via ingress
+
+GATE PASSED: frontend Ready, serves HTML, and the API base URL is baked into the client bundle (D11).
