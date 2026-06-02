@@ -3,11 +3,18 @@
 The live deploy (deferred from Phase 6 until the box is provisioned per ADR-0011). Everything
 runs as one Docker Compose stack on one VPS. Eval-gated: only deploy a commit whose CI is green.
 
-## 0. Provision the box (ADR-0011)
-- **Primary:** Oracle Cloud Always Free, **Singapore** region, VM.Standard.A1.Flex, 4 OCPU /
-  24 GB / ~100 GB boot. ARM64 — our images are multi-arch.
-- **Fallback:** Contabo Cloud VPS 10 (Singapore), 8 GB.
-- Open only the ports you serve (see step 5). Add a swapfile if on 4 GB.
+> **Status (2026-06-02): LIVE** on a DigitalOcean droplet (`YOUR_VPS_IP`), project
+> `second-brain`, with a Caddy HTTPS reverse proxy (adds `deploy/docker-compose.vps.yml` +
+> `deploy/caddy/Caddyfile` on top of the base). To **operate the running box**, see
+> **`docs/USAGE.md`**; this runbook stays the from-scratch provisioning reference. Every prod
+> compose command must use:
+> `docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod …`
+
+## 0. Provision the box (ADR-0011, amended 2026-06-02 — US-based owner)
+- **Primary:** Oracle Cloud Always Free, **US Central (Chicago, `us-chicago-1`)** home region,
+  VM.Standard.A1.Flex, up to 4 OCPU / 24 GB / ~100 GB boot. ARM64 — our images are multi-arch.
+- **Fallback:** Hetzner US (Ashburn VA / Hillsboro OR), ~$5/mo, x86 — instant, no ARM-capacity lottery.
+- Open only the ports you serve (see step 5). Add a swapfile if on a small (≤4 GB) box.
 
 ## 1. Install Docker + Compose
 ```bash
@@ -67,7 +74,7 @@ The `worker` service drains the jobs queue continuously; a host cron line enqueu
 ```cron
 # /etc/cron.d/second-brain-briefing  — 07:00 server time, daily
 # /etc/cron.d format requires a user field (here: root) between the schedule and the command.
-0 7 * * *  root  cd /path/to/second-brain && docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod exec -T worker python -m app.jobs.enqueue briefing >> /var/log/second-brain-briefing.log 2>&1
+0 7 * * *  root  cd /root/second-brain && docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod exec -T worker python -m app.jobs.enqueue briefing >> /var/log/second-brain-briefing.log 2>&1
 ```
 Read it next morning at `GET /briefing` (or the frontend page). Each run summarizes documents
 ingested since the previous briefing's `period_end`; a re-run over an empty tail is a cheap

@@ -9,6 +9,47 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Going live on the VPS — Caddy HTTPS + compose override gotchas (2026-06-02)
+
+### Caddy reverse proxy with no-domain HTTPS via `sslip.io`
+- **What:** added `deploy/caddy/Caddyfile` + a `caddy` service (in `deploy/docker-compose.vps.yml`)
+  fronting the stack on 80/443. `handle_path /api/*` strips the prefix to `api:8000`; everything
+  else proxies to `frontend:3000`. Site address is env-injected (`{$CADDY_SITE_ADDRESS}`).
+- **Why:** the owner has no domain, but the UI needs HTTPS (and the browser bundle calling the API
+  over plain HTTP from an HTTPS page is blocked as mixed content). `sslip.io` resolves
+  `YOUR_VPS_IP.sslip.io → YOUR_VPS_IP`, so Caddy gets a **real, auto-renewing Let's
+  Encrypt cert** with zero DNS setup. Same-origin proxying also makes CORS a non-issue. Verified:
+  valid cert (exp 2026-08-31), http→https 308, `/api/health` + UI + ingest/search/chat all 200.
+- **Trade-off:** the sslip host is baked into the frontend bundle + the override (not portable);
+  swapping to a real domain later = change `CADDY_SITE_ADDRESS` + the frontend build arg + rebuild.
+  Acceptable. Moving to a real domain is a one-liner change away.
+
+### Compose **concatenates** port lists across files → use `!override`
+- **What / why:** the base `docker-compose.prod.yml` publishes prometheus `9090:9090` and grafana
+  `3001:3000` on `0.0.0.0`; the VPS override wanted them on `127.0.0.1` only. Adding
+  `127.0.0.1:9090:9090` in the override **appended** to (didn't replace) the base entry, so the
+  container tried to bind **both** `0.0.0.0:9090` and `127.0.0.1:9090` → second bind fails
+  "address already in use" (exit 128). This aborted the whole `up`, leaving 4 services in
+  **Created** (the symptom: API live but UI/worker/monitoring down). **Fix:** `ports: !override`
+  (compose v2.24+) in the override so the localhost binding replaces the base list.
+- **Trade-off:** none — strictly correct. The lesson generalizes: compose merges **maps** by key
+  but **concatenates sequences**; to replace a sequence you need `!override`/`!reset`.
+
+### Project-name gotcha — always `-p second-brain`
+- **What:** running `docker compose -f deploy/docker-compose.prod.yml …` from the repo root without
+  `-p` resolves the project name to **`deploy`** (the compose file's parent dir), creating an empty
+  **duplicate** project (separate volumes → empty DB). The real stack is project `second-brain`.
+- **How to apply:** every prod compose command must use
+  `-p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod`.
+  The deploy-checklist + the briefing cron were corrected accordingly; documented in `docs/USAGE.md`.
+
+### `sources.type` is constrained
+- The `sources_type_check` constraint allows only `notes_folder | github | rss | pdf_upload |
+  bookmark | research_note | manual`. Ad-hoc ingest must use **`manual`** (the value all tests use);
+  `note` 500s with a CheckViolation. Reflected in the USAGE.md examples.
+
+---
+
 ## Hosted Gemini embeddings provider — fit the box on a 2 GB VPS (2026-06-02)
 
 ### `embedding_provider=gemini` drops the local torch/MiniLM footprint

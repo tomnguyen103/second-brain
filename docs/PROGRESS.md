@@ -23,6 +23,35 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-02 — LIVE on the VPS: full stack up + Caddy HTTPS, end-to-end verified
+- **What:** brought the production stack fully live on the **DigitalOcean droplet**
+  (`YOUR_VPS_IP`, 2 GB, project **`second-brain`**, files `docker-compose.prod.yml` +
+  `docker-compose.vps.yml`, embeddings offloaded to Gemini so it fits 2 GB). Added a **Caddy**
+  reverse proxy with **real Let's Encrypt HTTPS** via the no-domain host
+  **`YOUR_VPS_IP.sslip.io`** (`/api/*` → api, everything else → frontend; http→https 308).
+  New files: `deploy/caddy/Caddyfile`, `deploy/docker-compose.vps.yml`, `docs/USAGE.md`.
+- **Found the API live but only 4/8 services up** (api, db, pgbouncer, redis); frontend, worker,
+  grafana, prometheus stuck in **Created**. Root cause: the `vps.yml` override **added** a
+  `127.0.0.1:` port to prometheus/grafana, and **compose concatenates port lists** rather than
+  replacing — so each tried to bind both `0.0.0.0:PORT` and `127.0.0.1:PORT` → "address already
+  in use" (exit 128), which aborted the `up` and left the rest Created. **Fix:** `ports: !override`
+  in the override (compose v2.24+ tag) so the localhost binding replaces the base one.
+- **Two more fixes:** (1) the frontend image baked `NEXT_PUBLIC_API_BASE_URL` at **build** time
+  but the override only passed it as `build.args` (correct) — rebuilt with the HTTPS `/api` URL so
+  the browser bundle isn't mixed-content; (2) documented the **project-name gotcha**: omitting
+  `-p second-brain` resolves the project to `deploy` and spins up an empty duplicate (hit it once,
+  cleaned it up incl. orphan volumes).
+- **Verified end-to-end over HTTPS** (real cert, from off-box): `/api/health` ok; `/ingest`
+  (`type:manual` — `note` violates `sources_type_check`) embedded via Gemini; `/search` retrieved
+  it; `/chat` returned a **cited** `gemini-2.5-flash` answer (1.4 s); `/briefing` produced a
+  Gemini briefing after enqueue. All 8 app services + caddy **Up**; cert auto-renews (exp 2026-08-31).
+- **Ops wired:** daily briefing **cron** installed at `/etc/cron.d/second-brain-briefing` (07:00,
+  correct `-p second-brain` invocation — the runbook's old line would've hit the project-name bug).
+  Grafana/Prometheus stay bound to `127.0.0.1` (SSH-tunnel only).
+- **Known follow-ups:** briefing `body_markdown` has mojibake em-dash/middot (cosmetic, app-code,
+  spawned as a separate task); harden by moving `api:8000`/`frontend:3000` to `127.0.0.1` + enabling
+  `ufw` (USAGE.md §hardening). Repo changes uncommitted pending review.
+
 ### 2026-06-02 — Live deploy validated LOCALLY on Docker Desktop (prod Compose stack) + Gemini model fix
 - **What:** brought up `deploy/docker-compose.prod.yml` end-to-end on Docker Desktop (project
   `second-brain-prod`, isolated from the dev DB on 5433) with a real Gemini API key — running the
