@@ -13,6 +13,8 @@ def test_defaults(monkeypatch):
     assert s.llm_provider == "gemini"
     assert s.embedding_dim == 384
     assert s.retrieval_top_k == 8
+    assert s.prompt_version == "rag-v1"
+    assert s.mlflow_tracking_uri == "file:./mlruns"
 
 
 def test_env_override(monkeypatch):
