@@ -33,6 +33,10 @@ def run_once(
 ):
     """Claim and process a single job. Returns the Job (done/failed) or None if the queue
     is empty. Any handler exception is recorded on the job (`mark_failed`) rather than raised.
+
+    One attempt is atomic: the claim (queued -> running) is committed first, then the handler
+    runs; on failure its partial writes are rolled back before the failure is recorded, so a
+    failed job never leaves orphaned rows (e.g. a half-written Briefing) behind.
     """
     registry = HANDLERS if handlers is None else handlers
     job = queue.claim_next(db, types=types)
@@ -40,12 +44,23 @@ def run_once(
         return None
 
     handler = registry.get(job.type)
+    # SAVEPOINT around the handler: on failure its partial writes roll back while the claim
+    # (queued -> running, taken before the savepoint) survives, so a failed job never commits
+    # orphaned rows (e.g. a half-written Briefing) alongside the failure record. Managed
+    # manually (not `with`) so a handler that commits internally — research via
+    # ingest_documents — is tolerated: that commit releases the savepoint, and is_active is
+    # then False, so we don't double-release it.
+    savepoint = db.begin_nested()
     try:
         if handler is None:
             raise LookupError(f"no handler registered for job type {job.type!r}")
         result = handler(db, job.payload, embedder=embedder, llm=llm)
+        if savepoint.is_active:
+            savepoint.commit()
         queue.mark_done(db, job, result=result)
     except Exception as exc:  # noqa: BLE001 — any handler failure is recorded on the job row
+        if savepoint.is_active:
+            savepoint.rollback()
         queue.mark_failed(db, job, str(exc), max_attempts=max_attempts)
     db.commit()
     return job

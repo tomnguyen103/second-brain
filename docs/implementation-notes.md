@@ -22,15 +22,29 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 - **Trade-off:** `research_topic`'s internal commit means a `research` attempt isn't strictly one
   transaction (an extra mid-attempt commit) — harmless for a single worker.
 
-### No savepoint wrapper around handler dispatch (poisoned-session edge accepted)
-- **What:** `run_once` catches any handler exception and calls `mark_failed` directly — no
-  `begin_nested()` around the handler.
-- **Why:** the realistic failure is `llm.generate` raising **before** any DB write (clean session →
-  `mark_failed` works). Wrapping in a savepoint would conflict with `research_topic`'s internal
-  `commit()` (committing inside an open savepoint closes it). 
-- **Trade-off:** a handler that poisons the session mid-write would leave a `running` row to
-  recover by hand. Acceptable at single-user scale; ADR-0013 notes a `NOTIFY`+reaper as the
-  scale-up path.
+### SAVEPOINT around handler dispatch — atomic attempt, no orphan rows (CodeRabbit PR #10)
+- **What:** `run_once` wraps the handler in `db.begin_nested()` (a SAVEPOINT), managed manually
+  (not `with`) and gated on `savepoint.is_active`. On handler failure the savepoint is rolled
+  back (discarding the handler's partial writes) before `mark_failed`; the claim (taken *before*
+  the savepoint) survives. One attempt is atomic — a failed job never commits orphaned rows.
+- **Why:** CodeRabbit (PR #10, Major) showed the original single-commit `run_once` would commit a
+  handler's partial writes (e.g. a flushed `Briefing`) alongside the failure record. A
+  test (`test_run_once_rolls_back_partial_writes_on_failure`) reproduced it (red), then the
+  savepoint fixed it (green).
+- **Why manual `is_active` (not a `with` block):** `research_topic` → `ingest_documents` commits
+  internally; that commit releases the savepoint, so a plain `with db.begin_nested()` would
+  double-release and raise on exit. The `is_active` check skips the release when the handler
+  already committed (research), while flush-only handlers (briefing) still roll back on failure.
+- **Trade-off:** research isn't strictly atomic per attempt (its internal commit lands the note
+  before `mark_done`), but `ingest_documents` dedupes on `content_hash`, so a retry is idempotent
+  (the re-run note is a `duplicate`, no second row). Briefing is now fully rollback-safe.
+
+### Deferred: index on `documents.created_at` for the briefing window scan (CodeRabbit nitpick)
+- **What / why:** `build_briefing` range-filters + orders on `Document.created_at`, which has no
+  index (existing `documents` indexes cover `source_id`, `status`, `metadata`). Deferred — the
+  briefing runs once daily over a personal-scale corpus (sub-second seqscan); a composite
+  `(created_at, id)` index is the clean fix if the corpus grows (would be migration 0005). Noted
+  in ADR-0013's deferred list.
 
 ### `BriefingOut.model` needs `protected_namespaces=()`
 - **What:** the schema field is literally named `model` (honest column name); Pydantic v2 reserves

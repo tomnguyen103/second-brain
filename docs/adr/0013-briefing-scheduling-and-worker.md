@@ -63,7 +63,7 @@ allowed `jobs.type` values (Phase 0 CHECK) — no type migration.
 - **Good:** every Phase 5 / JD bullet has a home — scheduled summarization job (D2/D4/D5),
   durable pipeline finally exercising the `jobs` table (D1), summarization via `LLMClient`
   (D4/D7), a surfaced/shareable briefing (`GET /briefing`, D3), and the closed async-research
-  loop (D6). Verified: 145 backend tests pass; a live `--once` smoke enqueued and produced a
+  loop (D6). Verified: 146 backend tests pass; a live `--once` smoke enqueued and produced a
   stored briefing; the prod compose validates with the new `worker` service.
 - **Good:** an empty window short-circuits to a "nothing new" briefing with **no LLM call**
   (mirrors the chat zero-context rule), so an accidental double-enqueue over an empty tail is
@@ -72,12 +72,18 @@ allowed `jobs.type` values (Phase 0 CHECK) — no type migration.
   - **`run_once` is one commit per attempt** (claim → dispatch → mark → commit); queue
     primitives only `flush()`. A handler result is stashed under `payload.result` because the
     `jobs` table has no result column (keeps it inspectable). `build_briefing` flushes; the
-    worker owns the commit. `research_topic` commits internally (via `ingest_documents`) — an
-    extra mid-attempt commit, harmless for one worker.
-  - **No savepoint wrapper around handler dispatch.** The realistic failure is `llm.generate`
-    raising *before* any DB write (clean session → `mark_failed` works). A handler that poisons
-    the session mid-write would leave a `running` row to recover manually — acceptable at
-    single-user scale; revisit with `NOTIFY` + a reaper if throughput grows.
+    worker owns the commit.
+  - **SAVEPOINT around handler dispatch (atomic attempt).** The handler runs inside
+    `db.begin_nested()`; on failure the savepoint is rolled back (partial writes discarded)
+    before `mark_failed`, while the claim — taken before the savepoint — survives. A failed job
+    never commits orphaned rows. The savepoint is managed manually and gated on `is_active` so a
+    handler that commits internally (`research_topic` via `ingest_documents`) is tolerated: that
+    commit releases the savepoint, so we don't double-release it. Research therefore isn't
+    strictly atomic per attempt, but `ingest_documents` dedupes on `content_hash`, so a retry is
+    idempotent (the re-run note is a `duplicate`). (Tightened after CodeRabbit review on PR #10.)
+  - **Deferred — index on `documents.created_at`.** `build_briefing` range-scans `created_at`;
+    fine at personal scale (daily, sub-second seqscan). A composite `(created_at, id)` index
+    (migration 0005) is the clean fix if the corpus grows.
   - **`FOR UPDATE SKIP LOCKED` isn't exercised by a single test transaction** (it can't
     simulate two workers). Tests assert the status transition (`queued → running` makes a second
     `claim_next` return `None`); SKIP LOCKED is documented as the N-worker guard. The resident

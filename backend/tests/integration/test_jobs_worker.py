@@ -6,6 +6,9 @@ use the allowed-but-out-of-scope `embed` type so they collide with no real handl
 """
 from __future__ import annotations
 
+from sqlalchemy import select
+
+from app.db.models import Source
 from app.jobs import handlers, queue, worker
 from app.llm.fake import FakeLLMClient
 
@@ -48,6 +51,28 @@ def test_run_once_marks_failed_on_handler_exception(db_session, fake_embedder):
     assert "kaboom" in (job.last_error or "")
 
 
+def test_run_once_rolls_back_partial_writes_on_failure(db_session, fake_embedder):
+    # A handler that writes to the DB and then raises must leave no orphan row: the failure
+    # record persists, but the handler's partial work is rolled back (one attempt = atomic).
+    marker = "ORPHAN_MARKER_run_once_rollback"
+
+    def writes_then_raises(db, payload, *, embedder, llm):
+        db.add(Source(type="manual", name=marker))
+        db.flush()
+        raise RuntimeError("boom after a partial write")
+
+    queue.enqueue(db_session, type="embed")
+    job = worker.run_once(
+        db_session, embedder=fake_embedder, llm=FakeLLMClient(),
+        max_attempts=1, handlers={"embed": writes_then_raises},
+    )
+
+    assert job is not None and job.status == "failed"
+    assert "boom" in (job.last_error or "")
+    # the orphaned source was rolled back, not committed with the failure
+    assert db_session.scalar(select(Source).where(Source.name == marker)) is None
+
+
 def test_run_once_returns_none_when_no_job(db_session, fake_embedder):
     job = worker.run_once(
         db_session, embedder=fake_embedder, llm=FakeLLMClient(),
@@ -72,6 +97,8 @@ def test_register_and_unregister_global_registry():
         return None
 
     handlers.register("embed", h)
-    assert handlers.HANDLERS.get("embed") is h
-    handlers.unregister("embed")
+    try:
+        assert handlers.HANDLERS.get("embed") is h
+    finally:
+        handlers.unregister("embed")   # always clean up, even if the assertion fails
     assert "embed" not in handlers.HANDLERS
