@@ -34,6 +34,10 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
   (compose v2.24+) in the override so the localhost binding replaces the base list.
 - **Trade-off:** none — strictly correct. The lesson generalizes: compose merges **maps** by key
   but **concatenates sequences**; to replace a sequence you need `!override`/`!reset`.
+- **PR #14 hardening follow-up:** extended the same `!override` pattern to `api:8000` and
+  `frontend:3000`, binding both direct HTTP ports to `127.0.0.1`. Caddy 80/443 is now the only
+  public surface by default; direct API/Swagger access is still available on the box or through an
+  SSH tunnel.
 
 ### Project-name gotcha — always `-p second-brain`
 - **What:** running `docker compose -f deploy/docker-compose.prod.yml …` from the repo root without

@@ -1,6 +1,6 @@
 # Production stack for the single VPS (Phase 6, ADR-0011/0012). NOT run in CI and NOT the
 # dev compose (that one is db-only). Bring up with:
-#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
+#   docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod up -d --build
 # Everything is one Docker Compose stack on one box, per AGENTS.md.
 services:
   db:

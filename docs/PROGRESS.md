@@ -47,10 +47,10 @@ Add a dated entry per working session. Most recent on top.
   Gemini briefing after enqueue. All 8 app services + caddy **Up**; cert auto-renews (exp 2026-08-31).
 - **Ops wired:** daily briefing **cron** installed at `/etc/cron.d/second-brain-briefing` (07:00,
   correct `-p second-brain` invocation — the runbook's old line would've hit the project-name bug).
-  Grafana/Prometheus stay bound to `127.0.0.1` (SSH-tunnel only).
+  Grafana/Prometheus stay bound to `127.0.0.1` (SSH-tunnel only). PR #14 follow-up also made the
+  VPS override bind direct API/frontend ports to `127.0.0.1`, leaving Caddy 80/443 as the public surface.
 - **Known follow-ups:** briefing `body_markdown` has mojibake em-dash/middot (cosmetic, app-code,
-  spawned as a separate task); harden by moving `api:8000`/`frontend:3000` to `127.0.0.1` + enabling
-  `ufw` (USAGE.md §hardening). Repo changes uncommitted pending review.
+  spawned as a separate task); enable `ufw` (USAGE.md §hardening).
 
 ### 2026-06-02 — Live deploy validated LOCALLY on Docker Desktop (prod Compose stack) + Gemini model fix
 - **What:** brought up `deploy/docker-compose.prod.yml` end-to-end on Docker Desktop (project

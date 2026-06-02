@@ -13,8 +13,8 @@ production droplet.
 |---|---|---|
 | **Web UI** | **https://YOUR_VPS_IP.sslip.io** | Chat + search. Redirects to `/chat`. |
 | **API (app path)** | https://YOUR_VPS_IP.sslip.io/api | Behind Caddy, same TLS cert. e.g. `/api/health`, `/api/chat`. |
-| **API (direct)** | http://YOUR_VPS_IP:8000 | Plain HTTP, published directly. Handy for Swagger + quick `curl`. |
-| **Swagger UI** | http://YOUR_VPS_IP:8000/docs | Interactive "try it" docs for every endpoint. |
+| **API (direct)** | http://localhost:8000 *(on the box or via SSH tunnel)* | Plain HTTP, bound to localhost only. Handy for quick `curl`. |
+| **Swagger UI** | http://localhost:8000/docs *(on the box or via SSH tunnel)* | Interactive "try it" docs for every endpoint. |
 | Grafana | http://localhost:3001 *(via SSH tunnel)* | admin / `GRAFANA_ADMIN_PASSWORD`. Not public. |
 | Prometheus | http://localhost:9090 *(via SSH tunnel)* | Not public. |
 
@@ -189,12 +189,8 @@ curl -H "Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>" \
 
 The deployment is functional and uses real HTTPS, but a few things are worth tightening:
 
-1. **Close the direct ports.** `api:8000` and `frontend:3000` are still published to `0.0.0.0`
-   (plain HTTP) as a fallback. Once you rely on Caddy, restrict them to `127.0.0.1` in
-   `deploy/docker-compose.vps.yml` (use the `!override` tag, like prometheus/grafana already do)
-   so only 80/443 are public. Swagger then moves behind the proxy.
-2. **Enable a host firewall.** `ufw` is currently inactive; allow only 22/80/443.
-3. **Privacy:** with `SECOND_BRAIN_EMBEDDING_PROVIDER=gemini`, note text is sent to Google at
+1. **Enable a host firewall.** `ufw` is currently inactive; allow only 22/80/443.
+2. **Privacy:** with `SECOND_BRAIN_EMBEDDING_PROVIDER=gemini`, note text is sent to Google at
    **ingest** (not just chat). Switch to `local` embeddings for a fully private path (needs a
    ≥4 GB box for the torch model).
 

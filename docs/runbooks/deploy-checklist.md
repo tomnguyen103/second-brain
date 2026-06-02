@@ -42,10 +42,12 @@ cd backend && python -m app.eval.gate    # exit 0 = quality OK
 
 ## 4. Bring up the DB first, then generate the PgBouncer userlist
 ```bash
-docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d db
+DC="docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod"
+
+$DC up -d db
 # wait for healthy, then copy the SCRAM verifier into the (gitignored) userlist:
 cp deploy/pgbouncer/userlist.txt.example deploy/pgbouncer/userlist.txt
-docker compose -f deploy/docker-compose.prod.yml exec db \
+$DC exec db \
   psql -U second_brain -tAc \
   "SELECT '\"'||rolname||'\" \"'||rolpassword||'\"' FROM pg_authid WHERE rolname='second_brain';" \
   > deploy/pgbouncer/userlist.txt
@@ -53,12 +55,14 @@ docker compose -f deploy/docker-compose.prod.yml exec db \
 
 ## 5. Bring up the whole stack
 ```bash
-docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
+DC="docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod"
+
+$DC up -d --build
 ```
 The `api` service applies migrations (`alembic upgrade head`, against the DB directly — not via
 PgBouncer) then starts uvicorn. Services: db, pgbouncer (6432), redis, api (8000), frontend
-(3000), prometheus (9090), grafana (3001). Put a reverse proxy (Caddy/Traefik) + TLS in front;
-only expose 80/443 publicly, keep 9090/3001 behind the proxy or an SSH tunnel.
+(3000), prometheus (9090), grafana (3001), caddy (80/443). Caddy is the public HTTPS entrypoint;
+the VPS override keeps the direct app and monitoring ports bound to localhost.
 
 ## 6. Verify
 ```bash
@@ -85,11 +89,14 @@ queue any time: `SELECT id,type,status,attempts,last_error FROM jobs ORDER BY id
 ## 8. Rollback
 ```bash
 git checkout <previous-green-sha>
-docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
+DC="docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod"
+
+$DC up -d --build
 #   DB: only if a migration must be undone -> alembic downgrade -1 (see backup-restore first)
 #   Prompt rollback needs no deploy: set SECOND_BRAIN_PROMPT_VERSION=rag-v1 and restart api (ADR-0009)
 ```
 
 ## Update flow (steady state)
-`git pull` a green commit → `up -d --build` → verify `/health` + Grafana. Take a DB backup
-before any release that includes a migration (see `backup-restore.md`).
+`git pull` a green commit → run the canonical `$DC up -d --build` command above → verify
+`/api/health` + Grafana. Take a DB backup before any release that includes a migration (see
+`backup-restore.md`).
