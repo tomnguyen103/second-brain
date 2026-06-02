@@ -58,7 +58,9 @@ Add a dated entry per working session. Most recent on top.
   `implementation-notes.md`.
 - **Teardown (D10):** `kind delete cluster` — 3 nodes deleted, `No kind clusters found`, no
   `second-brain` containers. **Nothing left running ($0).** No managed cloud was ever created.
-- **PR:** `phase-7-impl` → main (CI `k8s.yml` + `ci.yml` green; CodeRabbit deep review addressed).
+- **PR:** [#11](https://github.com/tomnguyen103/second-brain/pull/11) — `phase-7-impl` → main; merge
+  gated on CI (the new `k8s.yml` + the untouched eval-gated `ci.yml`) green **and** the CodeRabbit
+  (Pro) deep review addressed.
 - **Next:** roadmap phases 0–7 all complete. Optional follow-ups: provision the Oracle box + execute
   the deploy runbook; CPU-only torch image; the optional managed-cluster (GKE/EKS) capstone (D9, paid
   — would need explicit go-ahead and immediate teardown).
