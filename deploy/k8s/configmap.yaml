@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: second-brain-config
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+data:
+  # Non-secret Postgres identity. The password lives in the Secret; each pod assembles its DSN
+  # from these + POSTGRES_PASSWORD via $(VAR) substitution (see api/worker/migrate manifests),
+  # so the credential is never written into a ConfigMap.
+  POSTGRES_USER: second_brain
+  POSTGRES_DB: second_brain
+  # LLM driver (D4): the learning-track demo uses the deterministic, keyless `fake` provider, so
+  # the whole stack runs $0 with no network/secret and CI stays keyless. Flip to `gemini` and set
+  # SECOND_BRAIN_GEMINI_API_KEY in the Secret for real answers.
+  SECOND_BRAIN_LLM_PROVIDER: fake
+# NOTE (D11): NEXT_PUBLIC_API_BASE_URL is deliberately NOT here. Next.js inlines NEXT_PUBLIC_* at
+# `next build`, so it is BAKED INTO the frontend image (deploy/Dockerfile.frontend ARG), not read
+# at runtime. A runtime ConfigMap value would be silently ignored by the browser bundle.
