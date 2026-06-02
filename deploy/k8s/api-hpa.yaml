@@ -1,0 +1,39 @@
+# Horizontal Pod Autoscaler for the api (D6). Scales on CPU utilisation vs the api's CPU `requests`
+# (250m). averageUtilization 50% means sustained load >125m/pod triggers scale-up. Requires
+# metrics-server (installed in Task 8). Demonstrated by driving load at /health and watching
+# replicas climb 1 -> N (evidence captured under docs/k8s-evidence/).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0        # react fast for the demo
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 30
