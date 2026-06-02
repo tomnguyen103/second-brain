@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import chat, health, ingest
+from app.api import chat, conversations, health, ingest, search
 from app.config import settings
 
 app = FastAPI(title="Second Brain API", version="0.1.0")
@@ -15,3 +15,5 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(ingest.router)
 app.include_router(chat.router)
+app.include_router(search.router)
+app.include_router(conversations.router)
