@@ -49,10 +49,16 @@ Add a dated entry per working session. Most recent on top.
   **0.088 ms vs 0.706 ms** exact (~8×, ~2k rows); GIN bitmap **0.436 ms vs 2.340 ms** seqscan
   (~5.4×, ~30k rows). Measured inside a rolled-back txn (no dev-DB pollution).
 - **Ops docs:** `docs/runbooks/{deploy-checklist,backup-restore,incident-response}.md`.
-- **Verified:** backend `pytest` **114 passed** (was 79; +35 across config/audit/retention/
+- **Verified:** backend `pytest` **118 passed** (was 79; +39 across config/audit/retention/
   erasure/dataops-API/metrics/RLS/eval-gate). Eval gate run: hit@k=1.000, citation=1.000,
   refusal=0.923 → PASSED. Prod compose validated with `docker compose config`. RLS confirmed
   (`relrowsecurity` true on all 8 tables) without breaking owner access.
+- **PR #9 → merged to main.** CI all green (unit + integration vs pgvector + eval gate, on both
+  push and PR runs). **CodeRabbit:** deep review skipped (free-tier rate limit — 0 inline
+  comments / no code issues across two pushes + an explicit re-request); its one advisory
+  (docstring coverage) was handled by docstringing production code + a `.coderabbit.yaml` that
+  keeps the check an advisory `warning` (test functions deliberately not counted). Detail in
+  `implementation-notes.md`.
 - **Deferred (per ADR-0012):** live VPS deploy (runbook); transaction-mode pooling; remote
   MLflow; LLM-as-judge eval; Next standalone-output image optimization.
 - **Next:** Phase 7 — Kubernetes learning track on local k3s/kind (manifests + HPA + ingress +

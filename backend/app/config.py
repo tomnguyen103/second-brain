@@ -5,6 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Application settings, read from `SECOND_BRAIN_*` env vars and an optional `.env` file."""
+
     model_config = SettingsConfigDict(
         env_prefix="SECOND_BRAIN_",
         env_file=".env",

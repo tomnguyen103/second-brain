@@ -36,6 +36,7 @@ _TABLES = (
 
 
 def upgrade() -> None:
+    """Enable RLS and add a permissive app-access policy on each user-data table."""
     for table in _TABLES:
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
         # FOR ALL, permissive: USING governs read/update/delete visibility, WITH CHECK governs
@@ -47,6 +48,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop the app-access policies and disable RLS on each user-data table."""
     for table in _TABLES:
         op.execute(f"DROP POLICY IF EXISTS {table}_app_access ON {table}")
         op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")
