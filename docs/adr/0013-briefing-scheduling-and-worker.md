@@ -63,7 +63,7 @@ allowed `jobs.type` values (Phase 0 CHECK) — no type migration.
 - **Good:** every Phase 5 / JD bullet has a home — scheduled summarization job (D2/D4/D5),
   durable pipeline finally exercising the `jobs` table (D1), summarization via `LLMClient`
   (D4/D7), a surfaced/shareable briefing (`GET /briefing`, D3), and the closed async-research
-  loop (D6). Verified: 154 backend tests pass; a live `--once` smoke enqueued and produced a
+  loop (D6). Verified: 145 backend tests pass; a live `--once` smoke enqueued and produced a
   stored briefing; the prod compose validates with the new `worker` service.
 - **Good:** an empty window short-circuits to a "nothing new" briefing with **no LLM call**
   (mirrors the chat zero-context rule), so an accidental double-enqueue over an empty tail is

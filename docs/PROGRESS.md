@@ -41,7 +41,7 @@ Add a dated entry per working session. Most recent on top.
   briefing scope = docs-since-last-briefing; new `briefings` table; async research via the worker;
   `fake` LLM for deterministic tests. Empty window → "nothing new" briefing, **no LLM call**
   (idempotent re-enqueue).
-- **Verified:** backend `pytest` **154 passed** (was 118; +36 across config/queue/worker/briefing-
+- **Verified:** backend `pytest` **145 passed** (was 118; +27 across config/queue/worker/briefing-
   format/build_briefing/handlers/API). Live `--once` smoke: `enqueue briefing` → `worker --once`
   → stored Briefing (12 docs in the 24h window, markdown body); second run on the empty queue →
   "no eligible job". Prod compose validates with the new `worker` service (`docker compose config`
