@@ -4,14 +4,18 @@ from fastapi import Depends, Header, HTTPException, status
 
 from app.config import settings as _settings
 from app.db.session import get_db                     # re-exported for routers
-from app.embeddings.encoder import Embedder
 from app.llm.factory import get_llm_client
 
 
 @lru_cache(maxsize=1)
-def get_embedder() -> Embedder:
-    """Return the process-wide embedder singleton (the model loads once, on first use)."""
-    return Embedder()
+def get_embedder():
+    """Return the process-wide embedder singleton for the configured provider (ADR-0002).
+
+    `local` loads sentence-transformers/torch on first use; `gemini` calls the hosted API
+    (no torch — keeps the box small). Selected by `settings.embedding_provider`.
+    """
+    from app.embeddings.factory import build_embedder
+    return build_embedder(_settings)
 
 
 def get_settings():
