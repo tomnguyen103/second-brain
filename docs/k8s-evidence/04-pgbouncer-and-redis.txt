@@ -1,0 +1,25 @@
+Phase 7 evidence — Task 4: pgbouncer (env-config, D12) + redis
+==============================================================
+pgbouncer is configured entirely by env (no committed userlist.txt); the DB password comes from
+the Secret. scram-sha-256 client auth + session pooling verified by a real query THROUGH pgbouncer.
+
+$ kubectl apply -f deploy/k8s/pgbouncer.yaml
+$ kubectl apply -f deploy/k8s/redis.yaml
+$ kubectl -n second-brain rollout status deploy/pgbouncer --timeout=120s
+deployment "pgbouncer" successfully rolled out
+$ kubectl -n second-brain rollout status deploy/redis --timeout=120s
+deployment "redis" successfully rolled out
+
+$ kubectl -n second-brain get pods -l 'app in (pgbouncer,redis)'
+NAME                         READY   STATUS    RESTARTS   AGE
+pgbouncer-5d5cbd46dc-ls75n   1/1     Running   0          11s
+redis-7f697f78cc-h5hq5       1/1     Running   0          11s
+
+# Real query through the pooler (client -> pgbouncer:6432 -> db:5432), proving auth + pooling:
+$ kubectl -n second-brain exec db-0 -- psql "postgresql://second_brain:***@pgbouncer:6432/second_brain" -tAc "SELECT 1 AS through_pgbouncer"
+1
+
+$ kubectl -n second-brain exec deploy/redis -- redis-cli ping
+PONG
+
+GATE PASSED: both Running; SELECT 1 succeeds through pgbouncer (scram-sha-256, session mode); redis PONG.
