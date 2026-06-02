@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # LLM driver (ADR-0001, ADR-0007)
     llm_provider: str = "gemini"          # gemini | ollama | fake
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-2.5-flash"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
 

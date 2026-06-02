@@ -9,6 +9,40 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Local prod-stack deploy on Docker Desktop — Gemini 1.5 retired (2026-06-02)
+
+### Default LLM model `gemini-1.5-flash` → `gemini-2.5-flash`
+- **What:** bumped the default Gemini model in `app/config.py` (`gemini_model`) and the
+  `GeminiClient.__init__` fallback in `app/llm/gemini.py`; added a
+  `SECOND_BRAIN_GEMINI_MODEL: ${SECOND_BRAIN_GEMINI_MODEL:-gemini-2.5-flash}` passthrough to the
+  **api** and **worker** services in `deploy/docker-compose.prod.yml` so the live model is swappable
+  via `.env.prod` without an image rebuild.
+- **Why:** Google **retired the Gemini 1.5 series** on the API — the first real `generateContent`
+  call (during this local prod bring-up) returned `404 NOT_FOUND: models/gemini-1.5-flash is not
+  found for API version v1beta`. Every prior phase tested with the **`fake`** LLM driver, so a real
+  Gemini call had never validated the model name — the deprecation only surfaced on first live use.
+  Confirmed via `client.models.list()` (run inside the api container with the live key) that
+  `gemini-2.5-flash` is available + supports `generateContent`. Chose **2.5-flash**: GA/stable (not a
+  `-preview`), free-tier, and a **pinned** name keeps eval-gate runs reproducible (preferred over the
+  shifting `gemini-flash-latest` alias).
+- **Trade-off:** historical docs (`docs/phase-1-plan.md`, `docs/adr/0007`) still cite the old name —
+  left as a point-in-time record, not back-edited. *Affects:* `app/config.py`, `app/llm/gemini.py`,
+  `deploy/docker-compose.prod.yml`.
+
+### Whole prod Compose stack verified locally (the deferred Phase-6 live deploy)
+- **What / why:** brought up `deploy/docker-compose.prod.yml` on Docker Desktop (project
+  `-p second-brain-prod`, isolated from the dev DB container on 5433) with a real Gemini key — the
+  live-deploy step ADR-0011/0012 deferred "until the box is provisioned." Validated end-to-end before
+  committing to a VPS: all 8 services Up; migrations `0001`→`0004`; `/health` `db:ok` (PgBouncer
+  **scram-sha-256** path, the Windows-risky bit); ingest→embed→**cited** chat on `gemini-2.5-flash`;
+  frontend HTTP 200; Grafana/Prometheus up; worker drained a `briefing` job and stored a
+  Gemini-written digest.
+- **Trade-off:** a laptop isn't always-on, so the daily-briefing **cron** still needs the VPS; this
+  run proves the stack, not 24/7 operation. Changes left uncommitted (working tree) pending a decision
+  to branch/PR the model fix.
+
+---
+
 ## Phase 7 — Kubernetes learning track on local kind (2026-06-02)
 
 ### Root `.dockerignore` added — the prod images were never actually built before
