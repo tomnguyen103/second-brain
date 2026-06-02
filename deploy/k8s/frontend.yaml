@@ -1,0 +1,65 @@
+# Next.js frontend. The image was built with NEXT_PUBLIC_API_BASE_URL=http://api.second-brain.local
+# baked in (D11) — Next inlines NEXT_PUBLIC_* at build time, so the browser calls the API through
+# ingress. `npm run start` serves on :3000 (the image's default CMD).
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: frontend
+spec:
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        app.kubernetes.io/part-of: second-brain
+    spec:
+      containers:
+        - name: frontend
+          image: second-brain-web:phase7
+          imagePullPolicy: IfNotPresent      # use the kind-loaded image; never pull from a registry (D2)
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

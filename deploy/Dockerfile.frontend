@@ -11,6 +11,15 @@ COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install --no-audit --no-fund
 
 COPY frontend/ ./
+
+# Phase 7 (D11): Next.js inlines NEXT_PUBLIC_* at build time, so the API base URL must be set
+# BEFORE `next build`, not at runtime. The default preserves the prior behaviour (localhost:8000,
+# used by docker-compose which passes no build arg); the K8s image is built with
+# --build-arg NEXT_PUBLIC_API_BASE_URL=http://api.second-brain.local so the browser calls the API
+# through ingress. Additive + backwards-compatible.
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
 RUN npm run build
 
 ENV NODE_ENV=production
