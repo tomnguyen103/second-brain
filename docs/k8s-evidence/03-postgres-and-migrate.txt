@@ -1,0 +1,42 @@
+Phase 7 evidence — Task 3: Postgres StatefulSet + PVC + migrate Job (D3)
+========================================================================
+Images built locally and loaded into all kind nodes (no registry, D2):
+  $ docker build -f deploy/Dockerfile.backend  -t second-brain-api:phase7 .   # exit 0
+  $ docker build -f deploy/Dockerfile.frontend -t second-brain-web:phase7 \
+        --build-arg NEXT_PUBLIC_API_BASE_URL=http://api.second-brain.local .   # exit 0 (D11)
+  $ kind load docker-image second-brain-api:phase7 --name second-brain         # loaded x3 nodes
+  $ kind load docker-image second-brain-web:phase7 --name second-brain         # loaded x3 nodes
+(.dockerignore was added so the host .venv/node_modules are NOT shipped into the images.)
+
+$ kubectl apply -f deploy/k8s/postgres-statefulset.yaml
+service/db created
+statefulset.apps/db created
+
+$ kubectl -n second-brain rollout status statefulset/db --timeout=240s
+partitioned roll out complete: 1 new pods have been updated...
+
+$ kubectl -n second-brain get pods -l app=db -o wide
+NAME   READY   STATUS    RESTARTS   AGE   IP           NODE
+db-0   1/1     Running   0          22s   10.244.2.3   second-brain-worker
+
+$ kubectl -n second-brain get pvc
+NAME        STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS
+data-db-0   Bound    pvc-f2de6cac-d66a-4255-acc6-ef38d7da6b02   1Gi        RWO            standard
+
+$ kubectl apply -f deploy/k8s/migrate-job.yaml
+job.batch/migrate created
+
+$ kubectl -n second-brain wait --for=condition=complete job/migrate --timeout=180s
+job.batch/migrate condition met
+
+$ kubectl -n second-brain get job migrate
+NAME      STATUS     COMPLETIONS   DURATION   AGE
+migrate   Complete   1/1           5s         5s
+
+$ kubectl -n second-brain logs job/migrate
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_baseline, baseline schema ... + pgvector/full-text indexes
+INFO  [alembic.runtime.migration] Running upgrade 0001_baseline -> 0002_tasks
+INFO  [alembic.runtime.migration] Running upgrade 0002_tasks -> 0003_rls_audit
+INFO  [alembic.runtime.migration] Running upgrade 0003_rls_audit -> 0004_briefings
+
+GATE PASSED: Postgres pod Ready + PVC Bound; migrate Job Complete; schema at head (0004_briefings).

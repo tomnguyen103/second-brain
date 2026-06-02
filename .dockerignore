@@ -1,0 +1,17 @@
+# Build-context excludes. The build context for deploy/Dockerfile.* is the REPO ROOT, so without
+# this the host virtualenv (backend/.venv, ~1.3G) and node_modules (frontend, ~660M, wrong-OS
+# native binaries) would be shipped as context AND copied into the images by `COPY backend/ ./`
+# / `COPY frontend/ ./` — bloating the backend image and breaking the frontend image (platform
+# mismatch). Added in Phase 7 (the prod images were only `docker compose config`-linted before).
+**/.venv/
+**/node_modules/
+**/__pycache__/
+**/*.py[cod]
+.git/
+**/.next/
+**/mlruns/
+mlflow.db
+**/.env
+.claude/
+.claude-flow/
+docs/k8s-evidence/

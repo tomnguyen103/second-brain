@@ -1,0 +1,98 @@
+# Postgres (pgvector) as a StatefulSet + PVC (D3). Reached in-cluster by Service DNS:
+#   db.second-brain.svc.cluster.local  (short: db).  Headless Service gives the stable pod DNS a
+# StatefulSet wants. The PVC (kind's default local-path StorageClass) persists data across pod
+# restarts. The dev Postgres on the host (port 5433) is SEPARATE from this in-cluster instance.
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: db
+spec:
+  clusterIP: None          # headless — stable per-pod DNS for the StatefulSet
+  selector:
+    app: db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: db
+spec:
+  serviceName: db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+        app.kubernetes.io/part-of: second-brain
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: second-brain-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: second-brain-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: second-brain-secrets
+                  key: POSTGRES_PASSWORD
+            # Init into a subdir so the PV mount root (which may carry a lost+found) is never PGDATA.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
