@@ -19,6 +19,7 @@ if settings.metrics_enabled:
 
     @app.get("/metrics", include_in_schema=False)
     def metrics_endpoint() -> Response:
+        """Prometheus exposition endpoint (scraped by the Prometheus service)."""
         body, content_type = render()
         return Response(content=body, media_type=content_type)
 

@@ -38,7 +38,10 @@ def _route_template(request: Request) -> str:
 
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
+    """Times each request and records the count + duration metrics, by route template."""
+
     async def dispatch(self, request: Request, call_next):
+        """Record one request's status + latency, then return the response unchanged."""
         # Don't record the scrape endpoint itself — it adds noise and self-reference.
         if request.url.path == _METRICS_PATH:
             return await call_next(request)

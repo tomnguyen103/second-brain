@@ -10,10 +10,12 @@ from app.llm.factory import get_llm_client
 
 @lru_cache(maxsize=1)
 def get_embedder() -> Embedder:
+    """Return the process-wide embedder singleton (the model loads once, on first use)."""
     return Embedder()
 
 
 def get_settings():
+    """Return the application settings (overridable in tests via dependency_overrides)."""
     return _settings
 
 

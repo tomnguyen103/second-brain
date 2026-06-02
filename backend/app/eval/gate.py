@@ -34,6 +34,7 @@ def check_thresholds(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the baseline eval and return 0 if all thresholds pass, 1 otherwise (CI gate)."""
     # Heavy imports deferred so import/--help stays fast and model-free.
     from app.db.session import SessionLocal
     from app.embeddings.encoder import Embedder
