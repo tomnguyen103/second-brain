@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     )
 
     # psycopg3 driver URL. Override via SECOND_BRAIN_DATABASE_URL.
-    database_url: str = "postgresql+psycopg://second_brain:second_brain@localhost:5432/second_brain"
+    # Host port 5433 (not 5432): the Docker DB is published on 5433 to avoid a clash with a
+    # native PostgreSQL on this machine. See docker-compose.yml and docs/implementation-notes.md.
+    database_url: str = "postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain"
 
 
 settings = Settings()
