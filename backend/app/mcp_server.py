@@ -39,6 +39,7 @@ def _session():
 @mcp.tool()
 def search_notes(query: str, top_k: int = 5) -> list[dict]:
     """Search the second brain (hybrid vector + full-text) and return the top matching chunks."""
+    top_k = max(1, min(top_k, 50))   # clamp client-controlled top_k (SQL LIMIT)
     with _session() as db:
         hits, _meta = hybrid_search(db, get_embedder(), settings, query, top_k=top_k)
         display = load_display_chunks(db, [h.chunk_id for h in hits])
@@ -69,6 +70,7 @@ def create_task(title: str, detail: str = "") -> dict:
 @mcp.tool()
 def list_tasks(status: str = "", limit: int = 20) -> list[dict]:
     """List tasks, optionally filtered by status (open|done|cancelled)."""
+    limit = max(1, min(limit, 100))   # clamp client-controlled limit (SQL LIMIT)
     with _session() as db:
         tasks = _list_tasks(db, status=status or None, limit=limit)
         return [{"id": t.id, "title": t.title, "detail": t.detail,
@@ -78,6 +80,7 @@ def list_tasks(status: str = "", limit: int = 20) -> list[dict]:
 @mcp.tool()
 def send_digest(limit: int = 10) -> str:
     """Compose a markdown digest of recent activity (recently added documents + counts)."""
+    limit = max(1, min(limit, 100))   # clamp client-controlled limit (SQL LIMIT)
     with _session() as db:
         return build_digest(db, limit=limit)
 

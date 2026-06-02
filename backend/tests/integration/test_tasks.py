@@ -33,3 +33,11 @@ def test_empty_title_rejected(db_session):
 def test_invalid_status_filter_rejected(db_session):
     with pytest.raises(ValueError):
         list_tasks(db_session, status="bogus")
+
+
+def test_negative_limit_is_clamped_not_crashed(db_session):
+    create_task(db_session, "a task")
+    # a negative limit must not reach Postgres as LIMIT -1 (which it rejects)
+    result = list_tasks(db_session, limit=-1)
+    assert isinstance(result, list)
+    assert len(result) <= 100

@@ -43,6 +43,7 @@ def create_task(db: Session, title: str, detail: str | None = None) -> TaskOut:
 def list_tasks(db: Session, *, status: str | None = None, limit: int = 20) -> list[TaskOut]:
     if status is not None and status not in _VALID_STATUS:
         raise ValueError(f"invalid status filter: {status!r}")
+    limit = max(1, min(limit, 100))   # guard LLM/client-controlled limit (Postgres rejects LIMIT -1)
     stmt = select(Task)
     if status:
         stmt = stmt.where(Task.status == status)

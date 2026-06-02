@@ -25,7 +25,9 @@ Everything inline + synchronous (matches ADR-0007); `fake` LLM for deterministic
 - **D2 — `research_topic` is inline and stores a `research_note` source.** Generate a summary via
   `LLMClient` → `ingest_documents(source=research_note, doc)` → chunk+embed → searchable. `sources.type`
   already allows `research_note`. *Gave up:* async via the `jobs` table (`research` type exists) — Phase 5,
-  where scheduled work pays off. Optional web search is deferred (Gemini-only research in v1).
+  where scheduled work pays off. Research goes through the `LLMClient` seam, so it works with any
+  configured driver (Gemini default, Ollama "private mode", `fake` for tests); only the optional
+  external **web search** is deferred to a later iteration.
 - **D3 — `send_digest` composes, doesn't email.** It builds a markdown digest of recent sources/documents
   (+ counts) and returns it. Real delivery (email/transport) is Phase 5/6. Honest: "digest" = recent-activity summary.
 - **D4 — MCP tools are thin; services hold logic.** Keeps everything unit/integration-testable without the

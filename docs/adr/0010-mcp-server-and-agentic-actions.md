@@ -34,7 +34,8 @@ server module is smoke-tested (imports + `list_tools()` returns the five names).
 - `research_topic(topic)` — the flagship: the LLM writes a research note, which is stored as a
   **`research_note`** source and run through the normal ingest pipeline (chunk + embed), so it
   becomes permanently searchable. Inline (not queued); the `research` job type is reserved for the
-  async path in Phase 5. Optional web search is deferred (LLM-only research in v1).
+  async path in Phase 5. Research uses the configured `LLMClient` (Gemini default, Ollama "private
+  mode", `fake` for tests) — not Gemini-only; only the optional external **web search** is deferred.
 
 **Provider + determinism.** Tools use the configured `LLMClient` (Gemini default). For tests and a
 keyless smoke, `SECOND_BRAIN_LLM_PROVIDER=fake` makes `research_topic` deterministic; the note is
