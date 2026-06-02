@@ -1,0 +1,25 @@
+# Backend image — FastAPI + embedder. Build context is the REPO ROOT:
+#   docker build -f deploy/Dockerfile.backend -t second-brain-api .
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Build tooling for any wheels that need compiling, then install deps first for layer caching.
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+COPY backend/ ./
+
+# Run as non-root.
+RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+# Migrations are applied by the compose `command` (against the DB directly, not via PgBouncer);
+# the default command just serves the API.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

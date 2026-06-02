@@ -14,7 +14,7 @@ session — the master prompt treats it as the source of truth for "where we are
 | 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ✅ Complete |
 | 4 | MCP server + agentic actions incl. self-research tool | ✅ Complete |
 | 5 | Daily briefing + scheduled pipelines | ⬜ Not started |
-| 6 | Productionize on VPS + data-ops hardening | ⬜ Not started |
+| 6 | Productionize on VPS + data-ops hardening | ✅ Complete |
 | 7 | Kubernetes learning track on local k3s/kind | ⬜ Not started |
 
 Legend: ⬜ not started · 🟡 in progress · ✅ complete
@@ -22,6 +22,47 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-02 — Phase 6 COMPLETE: productionize + data-ops hardening (code/config; live deploy = runbook)
+- **Branch:** `phase-6-impl` (off main). Plan in `docs/phase-6-plan.md`; decisions in ADR-0011
+  (VPS) + ADR-0012 (productionization + governance). Live VPS deploy is deferred to a runbook
+  (the box isn't bought yet) — everything here builds and tests without a server, like prior
+  phases' deferrals.
+- **VPS decided (ADR-0011):** **Oracle Cloud Always Free (Singapore)** primary ($0, 24 GB, low
+  SEA latency), **Contabo SG ~$5/mo (8 GB)** paid fallback. Low cost was the priority; RAM is the
+  binding constraint (torch embedder + monitoring stack), LLM is offloaded so no GPU. Closes the
+  parking-lot item.
+- **What shipped (data governance):** app-layer **audit** service (`app/dataops/audit.py`);
+  **retention** TTL nulling `documents.raw_text` after embedding (`retention.py`); **GDPR**
+  source-level **export + delete-my-data** with FK cascade (`erasure.py`); admin-token-guarded
+  endpoints (`/data/export`, `DELETE /data/sources/{id}`, `/admin/retention/purge`); migration
+  **`0003`** enabling **RLS** + permissive policies on the 8 user-data tables (owner-bypass, no
+  FORCE — suite stays green).
+- **Observability:** Prometheus **`/metrics`** (request count + latency histogram, labelled by
+  route template) via `app/obs/metrics.py` + middleware; `deploy/` prod stack adds Prometheus
+  (scrape + alert rules) and provisioned Grafana (datasource + dashboard), plus PgBouncer
+  (session pooling) and Redis.
+- **CI/CD:** `.github/workflows/ci.yml` — unit → integration (vs `pgvector/pgvector:pg16`
+  service) → **eval quality gate** (`app/eval/gate.py`, fake LLM) that fails the build on a
+  retrieval/citation regression.
+- **Query tuning:** `docs/query-optimization.md` — measured EXPLAIN ANALYZE before/after: HNSW
+  **0.088 ms vs 0.706 ms** exact (~8×, ~2k rows); GIN bitmap **0.436 ms vs 2.340 ms** seqscan
+  (~5.4×, ~30k rows). Measured inside a rolled-back txn (no dev-DB pollution).
+- **Ops docs:** `docs/runbooks/{deploy-checklist,backup-restore,incident-response}.md`.
+- **Verified:** backend `pytest` **118 passed** (was 79; +39 across config/audit/retention/
+  erasure/dataops-API/metrics/RLS/eval-gate). Eval gate run: hit@k=1.000, citation=1.000,
+  refusal=0.923 → PASSED. Prod compose validated with `docker compose config`. RLS confirmed
+  (`relrowsecurity` true on all 8 tables) without breaking owner access.
+- **PR #9 → merged to main.** CI all green (unit + integration vs pgvector + eval gate, on both
+  push and PR runs). **CodeRabbit:** deep review skipped (free-tier rate limit — 0 inline
+  comments / no code issues across two pushes + an explicit re-request); its one advisory
+  (docstring coverage) was handled by docstringing production code + a `.coderabbit.yaml` that
+  keeps the check an advisory `warning` (test functions deliberately not counted). Detail in
+  `implementation-notes.md`.
+- **Deferred (per ADR-0012):** live VPS deploy (runbook); transaction-mode pooling; remote
+  MLflow; LLM-as-judge eval; Next standalone-output image optimization.
+- **Next:** Phase 7 — Kubernetes learning track on local k3s/kind (manifests + HPA + ingress +
+  CI/CD), then torn down. Or provision the Oracle box and execute the deploy runbook.
 
 ### 2026-06-02 — Phase 4 COMPLETE: MCP server + agentic actions (incl. self-research)
 - **Branch:** `phase-4-impl` (off main, Phase 3 merged via PR #7). Plan in `docs/phase-4-plan.md`;
@@ -184,7 +225,10 @@ Add a dated entry per working session. Most recent on top.
 - **Next:** Phase 0 — design the Postgres schema and produce the ER diagram.
 
 ## Open questions / parking lot
-- Which VPS provider to buy (Hetzner ~€4 vs DO/Vultr/Linode ~$5–6). Decide before Phase 6.
+- ~~Which VPS provider to buy~~ — RESOLVED 2026-06-02 in ADR-0011: **Oracle Cloud Always Free
+  (Singapore)** primary ($0, 24 GB, low SEA latency), **Contabo SG ~$5/mo (8 GB)** paid fallback.
+  Low cost was the priority; refreshed 2026 pricing (Hetzner is EU/US-only → latency cost for a
+  Vietnam daily-use UI).
 - ~~Chunking strategy specifics (size/overlap)~~ — RESOLVED in ADR-0003 (~512 tok / ~15% overlap, semantic boundaries).
 - ~~**Install Docker Desktop** before Phase 1 end-to-end / integration tests~~ — DONE 2026-06-01: installed, Phase 0 migration applied live; Docker DB on host **5433** (native PG holds 5432).
 - Whether to do the optional managed-cluster (GKE/EKS) capstone in Phase 7.

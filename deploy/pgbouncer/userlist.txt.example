@@ -1,0 +1,10 @@
+; PgBouncer auth file — SCRAM verifiers, NOT plaintext passwords.
+; Copy this to userlist.txt (gitignored) on the host and replace the verifier with the real
+; one from Postgres. Generate it after the db container is up:
+;
+;   docker compose -f deploy/docker-compose.prod.yml exec db \
+;     psql -U second_brain -tAc \
+;     "SELECT '\"' || rolname || '\" \"' || rolpassword || '\"' FROM pg_authid WHERE rolname = 'second_brain';"
+;
+; Paste the single line it prints below (it already includes the SCRAM-SHA-256$... verifier).
+"second_brain" "SCRAM-SHA-256$4096:REPLACE_WITH_REAL_SALT$REPLACE_WITH_REAL_STORED_KEY:REPLACE_WITH_REAL_SERVER_KEY"
