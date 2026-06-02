@@ -20,9 +20,12 @@ class EvalConfig:
 
 
 CONFIGS: dict[str, EvalConfig] = {
+    # Deterministic A/B (fake LLM) — for CI/repro: proves the harness + config plumbing.
     "baseline": EvalConfig("baseline", "fake", "rag-v1", 5),
     "variant": EvalConfig("variant", "fake", "rag-v2", 8),
+    # Real prompt A/B (needs a Gemini key) — the meaningful quality comparison rag-v1 vs rag-v2.
     "gemini": EvalConfig("gemini", "gemini", "rag-v1", 5),
+    "gemini-v2": EvalConfig("gemini-v2", "gemini", "rag-v2", 5),
 }
 
 
