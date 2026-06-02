@@ -89,12 +89,15 @@ def _mean_skip_none(values) -> float | None:
 def aggregate(rows: list[dict]) -> dict:
     """Roll per-case rows into aggregate metrics. Each row may carry: hit, recall, mrr,
     citation_validity, keyword_recall (floats or None when N/A), refusal_correct (bool),
-    latency_ms (float), is_refusal (bool). Returns only numeric values (MLflow-ready)."""
+    expected_refusal (bool, ground-truth label), is_refusal (bool, model's actual behaviour),
+    latency_ms (float). Returns only numeric values (MLflow-ready)."""
     lat = [r["latency_ms"] for r in rows if r.get("latency_ms") is not None]
     refusal_flags = [1.0 if r["refusal_correct"] else 0.0 for r in rows if "refusal_correct" in r]
     agg: dict[str, float | int | None] = {
         "n_cases": len(rows),
-        "n_refusal_cases": sum(1 for r in rows if r.get("is_refusal")),
+        # count refusal *cases* by ground-truth label (stable); is_refusal is the model's behaviour
+        "n_refusal_cases": sum(1 for r in rows if r.get("expected_refusal")),
+        "n_refused_by_model": sum(1 for r in rows if r.get("is_refusal")),
         "hit_at_k": _mean_skip_none(r.get("hit") for r in rows),
         "recall_at_k": _mean_skip_none(r.get("recall") for r in rows),
         "mrr": _mean_skip_none(r.get("mrr") for r in rows),

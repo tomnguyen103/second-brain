@@ -56,8 +56,9 @@ Measure answer quality and compare configs. The eval set lives in `backend/eval/
 ```powershell
 cd backend; .\.venv\Scripts\Activate.ps1
 
-# 0) Eval tests (metrics, dataset, configs, MLflow logging are DB-free; harness needs the DB)
+# 0) Eval tests — all DB-free except the harness (which needs the DB)
 pytest tests/unit/test_eval_metrics.py tests/unit/test_eval_dataset.py `
+       tests/unit/test_eval_configs.py tests/unit/test_eval_runner.py `
        tests/unit/test_prompt_versions.py tests/unit/test_eval_mlflow.py -v
 $env:SECOND_BRAIN_TEST_DATABASE_URL = "postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain"
 pytest tests/integration/test_eval_harness.py -v

@@ -15,7 +15,14 @@ def test_settings_for_applies_overrides():
     s = settings_for(CONFIGS["variant"], base=Settings(_env_file=None))
     assert s.llm_provider == "fake"
     assert s.prompt_version == "rag-v2"
-    assert s.retrieval_top_k == 8
+    assert s.retrieval_top_k == 5
+
+
+def test_default_ab_pair_is_single_variable():
+    """baseline vs variant differ only by prompt_version (top_k fixed) — attributable A/B."""
+    a, b = CONFIGS["baseline"], CONFIGS["variant"]
+    assert a.top_k == b.top_k
+    assert a.prompt_version != b.prompt_version
 
 
 def test_settings_for_does_not_mutate_base():

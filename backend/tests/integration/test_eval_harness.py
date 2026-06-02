@@ -13,28 +13,29 @@ pytestmark = pytest.mark.skipif(
     not os.getenv("SECOND_BRAIN_TEST_DATABASE_URL"), reason="no test DB")
 
 
-def _ingest_corpus(db, embedder):
+def _ingest_corpus(db, embedder) -> int:
     docs = [DocumentInput(title=d.title, content=d.content) for d in load_corpus()]
-    ingest_documents(db, embedder, source=SourceSpec(type="manual", name="Eval Corpus"),
-                     documents=docs)
+    result = ingest_documents(db, embedder, source=SourceSpec(type="manual", name="Eval Corpus"),
+                              documents=docs)
+    return result.source_id
 
 
 def test_harness_runs_and_scores(db_session, fake_embedder):
-    _ingest_corpus(db_session, fake_embedder)
+    sid = _ingest_corpus(db_session, fake_embedder)
     dataset = load_dataset()
 
     report = run_eval(db_session, fake_embedder, dataset, CONFIGS["baseline"],
-                      llm=FakeLLMClient())
+                      llm=FakeLLMClient(), source_ids=[sid])
 
     # one row per case, with all metric keys
     assert len(report.rows) == len(dataset)
     for row in report.rows:
-        assert {"hit", "recall", "mrr", "citation_validity", "keyword_recall",
-                "refusal_correct", "is_refusal", "latency_ms"} <= set(row)
+        assert {"hit", "recall", "mrr", "citation_validity", "keyword_recall", "refusal_correct",
+                "expected_refusal", "is_refusal", "latency_ms"} <= set(row)
 
-    # non-refusal rows have in-range retrieval metrics; refusal row has them as None
-    non_refusal = [r for r in report.rows if not r["is_refusal"]]
-    refusal = [r for r in report.rows if r["is_refusal"]]
+    # split by ground-truth label; the refusal case has retrieval metrics as None
+    non_refusal = [r for r in report.rows if not r["expected_refusal"]]
+    refusal = [r for r in report.rows if r["expected_refusal"]]
     assert len(refusal) == 1
     assert refusal[0]["hit"] is None
     for r in non_refusal:
@@ -53,9 +54,9 @@ def test_harness_runs_and_scores(db_session, fake_embedder):
 
 
 def test_harness_variant_config_uses_v2(db_session, fake_embedder):
-    """The variant config (rag-v2, top_k=8) runs and produces a full report too."""
-    _ingest_corpus(db_session, fake_embedder)
+    """The variant config (rag-v2) runs and produces a full report too."""
+    sid = _ingest_corpus(db_session, fake_embedder)
     report = run_eval(db_session, fake_embedder, load_dataset(), CONFIGS["variant"],
-                      llm=FakeLLMClient())
+                      llm=FakeLLMClient(), source_ids=[sid])
     assert report.config.prompt_version == "rag-v2"
     assert len(report.rows) >= 12

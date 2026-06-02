@@ -54,17 +54,18 @@ def test_percentile():
 
 def test_aggregate():
     rows = [
-        {"hit": 1.0, "recall": 1.0, "mrr": 1.0, "citation_validity": 1.0,
-         "keyword_recall": 1.0, "refusal_correct": True, "latency_ms": 10.0, "is_refusal": False},
-        {"hit": 0.0, "recall": 0.0, "mrr": 0.0, "citation_validity": 0.5,
-         "keyword_recall": 0.0, "refusal_correct": True, "latency_ms": 30.0, "is_refusal": False},
-        # refusal case: retrieval metrics N/A (None), refusal handled
-        {"hit": None, "recall": None, "mrr": None, "citation_validity": 1.0,
-         "keyword_recall": 1.0, "refusal_correct": False, "latency_ms": 5.0, "is_refusal": True},
+        {"hit": 1.0, "recall": 1.0, "mrr": 1.0, "citation_validity": 1.0, "keyword_recall": 1.0,
+         "refusal_correct": True, "latency_ms": 10.0, "expected_refusal": False, "is_refusal": False},
+        {"hit": 0.0, "recall": 0.0, "mrr": 0.0, "citation_validity": 0.5, "keyword_recall": 0.0,
+         "refusal_correct": True, "latency_ms": 30.0, "expected_refusal": False, "is_refusal": False},
+        # refusal case: retrieval metrics N/A (None); model did NOT actually refuse (is_refusal False)
+        {"hit": None, "recall": None, "mrr": None, "citation_validity": 1.0, "keyword_recall": 1.0,
+         "refusal_correct": False, "latency_ms": 5.0, "expected_refusal": True, "is_refusal": False},
     ]
     agg = m.aggregate(rows)
     assert agg["n_cases"] == 3
-    assert agg["n_refusal_cases"] == 1
+    assert agg["n_refusal_cases"] == 1          # by ground-truth label (expected_refusal)
+    assert agg["n_refused_by_model"] == 0       # none actually refused
     assert agg["hit_at_k"] == 0.5            # mean of [1,0], None skipped
     assert agg["recall_at_k"] == 0.5
     assert math.isclose(agg["refusal_accuracy"], 2 / 3)   # 2 of 3 correct

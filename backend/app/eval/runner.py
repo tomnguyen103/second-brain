@@ -25,10 +25,11 @@ _METRIC_ROWS = ["hit_at_k", "recall_at_k", "mrr", "citation_validity", "keyword_
                 "refusal_accuracy", "latency_p50_ms", "latency_p95_ms"]
 
 
-def _ingest_corpus(db, embedder) -> int:
+def _ingest_corpus(db, embedder) -> tuple[int, int]:
+    """Returns (source_id, n_docs). Idempotent — content-hash dedupe."""
     docs = [DocumentInput(title=d.title, content=d.content) for d in load_corpus()]
     result = ingest_documents(db, embedder, source=_SOURCE, documents=docs)
-    return len(result.documents)
+    return result.source_id, len(result.documents)
 
 
 def _print_table(reports: list[EvalReport]) -> None:
@@ -53,6 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     names = [n.strip() for n in args.configs.split(",") if n.strip()]
+    if not names:
+        print("at least one config name is required (--configs)", file=sys.stderr)
+        return 2
     unknown = [n for n in names if n not in CONFIGS]
     if unknown:
         print(f"unknown config(s): {unknown}; available: {sorted(CONFIGS)}", file=sys.stderr)
@@ -66,11 +70,12 @@ def main(argv: list[str] | None = None) -> int:
 
     db = SessionLocal()
     try:
-        n = _ingest_corpus(db, embedder)
+        source_id, n = _ingest_corpus(db, embedder)
         print(f"ingested/deduped {n} corpus docs; "
               f"running {len(dataset)} cases x {len(names)} config(s)\n")
         for name in names:
-            report = run_eval(db, embedder, dataset, CONFIGS[name])
+            # scope retrieval to the eval corpus so ambient DB data can't skew metrics
+            report = run_eval(db, embedder, dataset, CONFIGS[name], source_ids=[source_id])
             reports.append(report)
             if not args.no_mlflow:
                 from app.eval.mlflow_logger import log_report

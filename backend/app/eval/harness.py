@@ -31,14 +31,15 @@ class EvalReport:
 
 
 def run_eval(db: Session, embedder, dataset: list[EvalCase], config: EvalConfig,
-             *, settings: Settings | None = None, llm=None) -> EvalReport:
+             *, settings: Settings | None = None, llm=None,
+             source_ids: list[int] | None = None) -> EvalReport:
     cfg_settings = settings_for(config, base=settings)
     client = llm if llm is not None else get_llm_client(cfg_settings)
 
     rows: list[dict] = []
     for case in dataset:
         result = answer_question(db, embedder, client, cfg_settings, case.question,
-                                 top_k=config.top_k)
+                                 top_k=config.top_k, source_ids=source_ids)
         if case.expect_refusal:
             hit = recall = reciprocal = None        # retrieval metrics N/A for the refusal case
             keyword = None
@@ -61,7 +62,8 @@ def run_eval(db: Session, embedder, dataset: list[EvalCase], config: EvalConfig,
             "keyword_recall": keyword,
             "refusal_correct": metrics.refusal_correct(
                 result.answer, case.expect_refusal, _REFUSAL_TEXTS),
-            "is_refusal": case.expect_refusal,
+            "expected_refusal": case.expect_refusal,                  # ground-truth label
+            "is_refusal": metrics.is_refusal(result.answer, _REFUSAL_TEXTS),  # model's actual behaviour
             "latency_ms": float(result.latency_ms),
             "model": result.model,
         })

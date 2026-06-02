@@ -26,8 +26,10 @@ class AnswerResult:
 
 
 def answer_question(db: Session, embedder, llm, settings: Settings, question: str,
-                    *, top_k: int | None = None) -> AnswerResult:
-    hits, _meta = hybrid_search(db, embedder, settings, question, top_k=top_k)
+                    *, top_k: int | None = None, source_ids: list[int] | None = None
+                    ) -> AnswerResult:
+    hits, _meta = hybrid_search(db, embedder, settings, question, top_k=top_k,
+                                source_ids=source_ids)
     if not hits:
         # Empty corpus only — with an ingested corpus, vector search always returns candidates,
         # so refusal-on-irrelevance is the LLM's job (measured by the refusal metric).

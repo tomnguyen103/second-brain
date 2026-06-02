@@ -29,8 +29,8 @@ run). Retrieval metrics need no LLM; answer metrics use whatever driver the conf
   Phase 6 if the VPS hosts MLflow). Backend overridable via `SECOND_BRAIN_MLFLOW_TRACKING_URI`.
 - **D2 — Deterministic eval by default (`fake` LLM), real run is opt-in (`gemini`).** CI and the
   harness integration test must be reproducible and network-free, so the default A/B uses the
-  `fake` driver; the shareable MLflow comparison is generated with a documented `--config gemini`
-  run. Retrieval metrics are identical across drivers (LLM-independent). *Gave up:* answer-quality
+  `fake` driver; the shareable MLflow comparison is generated with a documented
+  `--configs gemini,gemini-v2` run. Retrieval metrics are identical across drivers (LLM-independent). *Gave up:* answer-quality
   realism in CI — covered by the manual `gemini` run.
 - **D3 — Answer-quality metrics are deterministic (no LLM-as-judge in v1).** Citation validity
   (markers in range), keyword recall (expected substrings present), and refusal correctness are
@@ -52,7 +52,7 @@ run). Retrieval metrics need no LLM; answer metrics use whatever driver the conf
 
 ## File structure (created/modified in this phase)
 
-```
+```text
 backend/
   requirements.txt                 # MODIFY: add mlflow, pyyaml
   app/
