@@ -52,5 +52,12 @@ class Settings(BaseSettings):
     # API
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Productionization + data governance (Phase 6, ADR-0012)
+    admin_token: str | None = None          # bearer token guarding destructive/admin endpoints
+    retention_raw_text_days: int = 180      # null documents.raw_text this long after embedding
+    metrics_enabled: bool = True            # expose Prometheus /metrics + request middleware
+    audit_enabled: bool = True              # write audit_log rows on governed data actions
+    pgbouncer_url: str | None = None         # optional pooled DSN for the always-on service
+
 
 settings = Settings()
