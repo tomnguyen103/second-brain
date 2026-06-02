@@ -1,4 +1,4 @@
-# Second Brain — backend (through Phase 4: RAG MVP + eval/MLOps + MCP)
+# Second Brain — backend (through Phase 6: RAG MVP + eval/MLOps + MCP + data-ops/observability)
 
 Phase 1 ships `POST /ingest` and `POST /chat` on the Phase 0 schema: local MiniLM-384
 embeddings, hybrid pgvector + full-text retrieval fused with RRF, and cited answers via an
@@ -114,6 +114,46 @@ mcp dev app/mcp_server.py        # opens the Inspector; call search_notes / crea
 > Notes: `research_topic` with the `fake` driver stores a deterministic note (still embedded +
 > searchable); set `SECOND_BRAIN_GEMINI_API_KEY` + drop the `fake` override for real research.
 > `create_task`/`research_topic` write to the configured DB.
+
+## Phase 6 — productionization + data-ops (run & verify)
+
+Data governance (RLS, audit, retention, GDPR export/delete), Prometheus metrics, an eval-gated
+CI pipeline, and the prod Compose stack. Services in `app/dataops/*` + `app/obs/*`; admin API in
+`app/api/dataops.py`; the prod stack + monitoring config in `deploy/`. See ADR-0011 (VPS) and
+ADR-0012 (productionization + governance).
+
+```powershell
+cd backend; .\.venv\Scripts\Activate.ps1
+
+# 0) Apply migration 0003 (RLS), then run the Phase 6 tests
+docker compose up -d db          # from repo root, if not already up
+alembic upgrade head             # -> 0003_rls_audit
+$env:SECOND_BRAIN_TEST_DATABASE_URL = "postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain"
+pytest tests/unit/test_config_phase6.py tests/unit/test_metrics.py tests/unit/test_eval_gate.py `
+       tests/integration/test_audit.py tests/integration/test_retention.py `
+       tests/integration/test_erasure.py tests/integration/test_dataops_api.py `
+       tests/integration/test_rls.py -v
+
+# 1) Metrics: run the API and scrape /metrics
+uvicorn app.main:app --reload    # then: curl http://localhost:8000/metrics
+
+# 2) Admin / data-subject endpoints (set a token to enable them; blank => 503)
+$env:SECOND_BRAIN_ADMIN_TOKEN = "a-long-random-token"
+#   GET    /data/export?source_id=<id>        (GDPR access)   -> Authorization: Bearer <token>
+#   DELETE /data/sources/<id>                 (GDPR erasure)
+#   POST   /admin/retention/purge?older_than_days=180   (null old raw_text)
+
+# 3) Eval gate (the CI quality gate; exit 0 = quality OK)
+python -m app.eval.gate
+
+# 4) Validate the production stack parses (does NOT start it)
+docker compose -f ../deploy/docker-compose.prod.yml --env-file ../deploy/.env.prod.example config | Out-Null
+```
+
+> Deploy is a runbook, not run here — see [`../docs/runbooks/deploy-checklist.md`](../docs/runbooks/deploy-checklist.md),
+> `backup-restore.md`, and `incident-response.md`. Query-tuning before/after numbers are in
+> [`../docs/query-optimization.md`](../docs/query-optimization.md). CI is `.github/workflows/ci.yml`
+> (unit → integration vs pgvector → eval gate).
 
 ## Phase 0 — run & verify (from repo root)
 
