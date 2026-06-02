@@ -50,6 +50,44 @@ These shaped the spec itself and are worth recording, since none were in the ver
 
 ## Implementation-time notes
 
+### 2026-06-02 — `test_defaults` made hermetic against a local `.env` (Phase 2 commit gate)
+- **What:** `tests/unit/test_config.py::test_defaults` now constructs `Settings(_env_file=None)`
+  in addition to the existing `monkeypatch.delenv` of `SECOND_BRAIN_*` vars.
+- **Why:** re-running the suite before committing Phase 2 caught a regression — the test failed
+  with `llm_provider == 'fake'` instead of `'gemini'`. Root cause: a leftover **`backend/.env`**
+  (from the prior session's live smoke test, which ran the app with the `fake` LLM for determinism)
+  sets `SECOND_BRAIN_LLM_PROVIDER=fake`. `Settings` has `env_file=".env"`, so `Settings()` reads it;
+  `monkeypatch.delenv` only clears `os.environ`, not the dotenv file. The "true code defaults" test
+  must not depend on a developer's local `.env`, so `_env_file=None` disables dotenv loading for it.
+- **Trade-off:** none meaningful — the test is now hermetic (passes in CI with no `.env` *and*
+  locally with a smoke-test `.env` present). `backend/.env` is gitignored, so it never enters a commit.
+- **Affects:** `backend/tests/unit/test_config.py`.
+
+### 2026-06-02 — Conversation detail reconstructs citations (Phase 2 verification fix)
+- **What:** `GET /conversations/{id}` now returns a `citations` array per assistant message
+  (same `CitationOut` shape as `/chat`), reconstructed from the persisted `retrievals` + the
+  answer text. The chat page rehydrates this into the live-chat message shape so replayed
+  history renders clickable `[n]` → source cards, the source-count badge, and working feedback
+  thumbs — previously only freshly-sent (live) turns had these.
+- **Why:** verifying Phase 2's Definition of Done ("renders a cited answer with **working**
+  `[n]` → source cards") surfaced that loading a past conversation from the sidebar showed dead,
+  non-clickable markers and dropped the whole footer. Root cause: the detail endpoint returned
+  raw `retrievals` (chunk_id/rank/score — all top-k) but not `citations` (marker/title/source/
+  snippet — only the cited ones), and `chat/page.tsx` mapped history to `{role, content}` only.
+- **How (faithful to the live path):** reconstruction mirrors `chat.service.chat()` exactly —
+  markers are assigned `1..k` over retrievals ordered by `rank`, then filtered to the markers the
+  answer actually used via the shared `parse_citations()`; display fields come from the shared
+  `load_display_chunks()`. So a replayed citation is identical to what `/chat` first returned
+  (asserted by a test comparing live vs. replayed markers). One batched display-load per request.
+- **Trade-off / what I gave up:** citations are recomputed on each detail fetch rather than
+  persisted denormalized — a tiny, bounded cost (few messages/conversation) chosen to avoid a
+  schema change and keep one source of truth for marker logic. If a chunk is purged later
+  (Phase 6 retention), that citation is silently skipped (card omitted, answer text intact).
+- **Affects:** `backend/app/api/conversations.py`, `backend/app/schemas/conversations.py`
+  (`MessageOut.citations`), `backend/tests/integration/test_search.py` (new
+  `test_conversation_detail_reconstructs_citations`), `frontend/app/chat/page.tsx`,
+  `frontend/lib/api/types.ts` (`MessageOut.citations`).
+
 ### 2026-06-01 — Phase 2 open decisions resolved (all recommended defaults accepted)
 1. **Non-streaming first** — `/chat` reused as-is (non-streaming JSON). SSE deferred.
    Why: fastest path to a screenshot; streaming is a Phase 2 polish item.

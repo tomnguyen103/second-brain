@@ -108,6 +108,7 @@ export interface MessageOut {
   latency_ms: number | null;
   created_at: string;
   retrievals: RetrievalOut[];
+  citations: Citation[];
 }
 
 export interface ConversationDetailResponse {

@@ -6,7 +6,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app import deps
+from app.chat.prompt import parse_citations
 from app.db.models import Conversation, Feedback, Message
+from app.retrieval.hybrid import load_display_chunks
+from app.schemas.chat import CitationOut
 from app.schemas.conversations import (
     ConversationDetailResponse,
     ConversationListResponse,
@@ -64,6 +67,45 @@ def get_conversation(
     if conv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
+    ordered = sorted(conv.messages, key=lambda m: m.created_at)
+
+    # Reconstruct citations for assistant messages, mirroring chat.service: markers are
+    # assigned 1..k over retrievals ordered by rank, and only the markers the answer
+    # actually used (parse_citations) become source cards. One batched display load.
+    all_chunk_ids = [r.chunk_id for m in ordered for r in m.retrievals]
+    display = load_display_chunks(db, all_chunk_ids) if all_chunk_ids else {}
+
+    def _citations(m: Message) -> list[CitationOut]:
+        if m.role != "assistant" or not m.retrievals:
+            return []
+        retr = sorted(m.retrievals, key=lambda r: r.rank)
+        used = parse_citations(m.content, len(retr))
+        out: list[CitationOut] = []
+        for marker, r in enumerate(retr, start=1):
+            if marker not in used:
+                continue
+            dc = display.get(r.chunk_id)
+            if dc is None:  # chunk purged (Phase 6 retention) — skip gracefully
+                continue
+            out.append(
+                CitationOut(
+                    marker=marker,
+                    chunk_id=r.chunk_id,
+                    document_id=dc.document_id,
+                    document_title=dc.document_title,
+                    source_id=dc.source_id,
+                    source_name=dc.source_name,
+                    snippet=dc.content,
+                    score=r.score,
+                    vector_score=r.vector_score,
+                    fulltext_score=r.fulltext_score,
+                    method=r.method,
+                    char_start=dc.char_start,
+                    char_end=dc.char_end,
+                )
+            )
+        return out
+
     messages_out = [
         MessageOut(
             id=m.id,
@@ -83,8 +125,9 @@ def get_conversation(
                 )
                 for r in m.retrievals
             ],
+            citations=_citations(m),
         )
-        for m in sorted(conv.messages, key=lambda m: m.created_at)
+        for m in ordered
     ]
     return ConversationDetailResponse(
         id=conv.id,

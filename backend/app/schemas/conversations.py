@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.schemas.chat import CitationOut
+
 
 class ConversationSummary(BaseModel):
     id: int
@@ -36,6 +38,7 @@ class MessageOut(BaseModel):
     latency_ms: int | None
     created_at: datetime
     retrievals: list[RetrievalOut]
+    citations: list[CitationOut] = []
 
 
 class ConversationDetailResponse(BaseModel):

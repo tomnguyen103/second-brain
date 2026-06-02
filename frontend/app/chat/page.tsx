@@ -31,10 +31,28 @@ function ChatPage() {
 
   useEffect(() => {
     if (history && messages.length === 0) {
-      setMessages(history.messages.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })));
+      setMessages(history.messages.map((m) => {
+        if (m.role === "assistant") {
+          // Rehydrate the live-chat shape so replayed history gets clickable [n]
+          // citations, the source count, and working feedback thumbs — not just
+          // live turns. Citations are reconstructed by the detail endpoint.
+          return {
+            role: "assistant" as const,
+            content: m.content,
+            response: {
+              conversation_id: history.id,
+              message_id: m.id,
+              answer: m.content,
+              citations: m.citations,
+              usage: { prompt_tokens: null, completion_tokens: null, total_tokens: null },
+              model: m.model,
+              latency_ms: m.latency_ms ?? 0,
+              retrieval: { method: "", candidates_vector: 0, candidates_fulltext: 0, fused_returned: m.citations.length },
+            },
+          };
+        }
+        return { role: "user" as const, content: m.content };
+      }));
     }
   }, [history]);
 
