@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.chat.prompt import ContextItem, REFUSAL_TEXT, build_messages, parse_citations
+from app.chat.prompt import ContextItem, build_messages, get_prompt, parse_citations
 from app.config import Settings
 from app.db.models import Conversation, Message, Retrieval
 from app.llm.base import LLMMessage
@@ -68,13 +68,15 @@ def chat(db: Session, embedder, llm, settings: Settings, *, message: str,
                                top_k=top_k, source_ids=filters.get("source_ids"),
                                tags=filters.get("tags"))
 
-    # Zero-context short-circuit — no LLM call (ADR-0006)
+    # Zero-context short-circuit — no LLM call (ADR-0006). Refusal text follows the active
+    # prompt version (ADR-0009) so an A/B variant can phrase its refusal differently.
     if not hits:
+        refusal = get_prompt(settings.prompt_version).refusal_text
         assistant = Message(conversation_id=conversation_id, role="assistant",
-                            content=REFUSAL_TEXT, model=None)
+                            content=refusal, model=None)
         db.add(assistant)
         db.commit()
-        return ChatResult(conversation_id, assistant.id, REFUSAL_TEXT, [],
+        return ChatResult(conversation_id, assistant.id, refusal, [],
                           {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
                           None, 0, {**meta, "fused_returned": 0})
 
@@ -82,7 +84,7 @@ def chat(db: Session, embedder, llm, settings: Settings, *, message: str,
     items = [ContextItem(i + 1, display[h.chunk_id].source_name,
                          display[h.chunk_id].document_title, display[h.chunk_id].content)
              for i, h in enumerate(hits)]
-    messages = build_messages(message, items, history)
+    messages = build_messages(message, items, history, prompt_version=settings.prompt_version)
 
     started = time.perf_counter()
     resp = llm.generate(messages)

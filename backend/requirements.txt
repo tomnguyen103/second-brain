@@ -14,5 +14,10 @@ uvicorn[standard]>=0.30,<1
 sentence-transformers>=3,<4
 google-genai>=0.3,<2
 httpx>=0.27,<1
+
+# Phase 3 — evaluation + MLOps
+mlflow>=2.14,<3        # local file-store tracking (no server); eval params/metrics/artifacts
+pyyaml>=6,<7           # eval dataset (eval/dataset.yaml)
+
 # dev/test
 pytest>=8,<9

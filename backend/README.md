@@ -1,4 +1,4 @@
-# Second Brain — backend (Phase 1: RAG MVP)
+# Second Brain — backend (through Phase 3: RAG MVP + eval/MLOps)
 
 Phase 1 ships `POST /ingest` and `POST /chat` on the Phase 0 schema: local MiniLM-384
 embeddings, hybrid pgvector + full-text retrieval fused with RRF, and cited answers via an
@@ -46,6 +46,41 @@ uvicorn app.main:app --reload
 #   POST /ingest a couple of notes, then POST /chat — see /docs for the schema
 #   For real answers: set SECOND_BRAIN_GEMINI_API_KEY and drop the SECOND_BRAIN_LLM_PROVIDER override
 ```
+
+## Phase 3 — evaluation + MLOps (run & verify)
+
+Measure answer quality and compare configs. The eval set lives in `backend/eval/`
+(corpus + `dataset.yaml`); metrics, harness, MLflow logging, and the A/B runner are in
+`app/eval/`. See ADR-0008 (methodology + MLflow) and ADR-0009 (prompt versioning + rollback).
+
+```powershell
+cd backend; .\.venv\Scripts\Activate.ps1
+
+# 0) Eval tests — all DB-free except the harness (which needs the DB)
+pytest tests/unit/test_eval_metrics.py tests/unit/test_eval_dataset.py `
+       tests/unit/test_eval_configs.py tests/unit/test_eval_runner.py `
+       tests/unit/test_prompt_versions.py tests/unit/test_eval_mlflow.py -v
+$env:SECOND_BRAIN_TEST_DATABASE_URL = "postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain"
+pytest tests/integration/test_eval_harness.py -v
+
+# 1) Deterministic A/B (fake LLM — reproducible, no key). Ingests the corpus, logs 2 MLflow runs.
+python -m app.eval.runner --configs baseline,variant
+
+# 2) Real prompt A/B (rag-v1 vs rag-v2) — needs a Gemini key; this is the shareable comparison
+$env:SECOND_BRAIN_GEMINI_API_KEY = "..."
+python -m app.eval.runner --configs gemini,gemini-v2
+
+# 3) Open the MLflow comparison UI (reads the local file store; no server/bill)
+mlflow ui --backend-store-uri ./mlruns      # then browse http://localhost:5000
+
+# Prompt rollback: just point the active version back and restart — no code change, no deploy
+$env:SECOND_BRAIN_PROMPT_VERSION = "rag-v1"
+```
+
+> Notes: the deterministic run reports `keyword_recall = 0` and `latency ≈ 0` by design (the
+> `fake` driver returns a canned, instant answer) — the `gemini` run produces the meaningful
+> answer-quality numbers. The runner writes the eval corpus into the dev DB (idempotent — content
+> -hash dedupe) and the MLflow store to `./mlruns` (gitignored).
 
 ## Phase 0 — run & verify (from repo root)
 

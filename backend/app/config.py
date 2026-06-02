@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     # Chat (ADR-0006)
     history_window: int = 6
 
+    # Prompt versioning (ADR-0009) — active prompt; rollback = set this back to a prior version
+    prompt_version: str = "rag-v1"          # rag-v1 | rag-v2
+
+    # Evaluation + MLOps (ADR-0008) — local file store, no server, $0
+    mlflow_tracking_uri: str = "file:./mlruns"
+    mlflow_experiment: str = "second-brain-rag"
+
     # API
     cors_origins: list[str] = ["http://localhost:3000"]
 

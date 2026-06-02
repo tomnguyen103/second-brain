@@ -13,3 +13,5 @@ older ones explicitly; we don't edit history.
 | [0005](0005-hybrid-retrieval-rrf.md) | Hybrid retrieval: pgvector + full-text, fused with Reciprocal Rank Fusion | Accepted |
 | [0006](0006-prompt-and-citation-contract.md) | Prompt template, citation contract, and grounding policy | Accepted |
 | [0007](0007-phase1-api-and-execution-model.md) | Phase 1 API surface and execution model | Accepted |
+| [0008](0008-evaluation-and-mlflow.md) | Evaluation methodology + MLflow tracking (local file store) | Accepted |
+| [0009](0009-prompt-versioning-ab-rollback.md) | Prompt versioning, A/B, and rollback (in-code registry + env-var selection) | Accepted |

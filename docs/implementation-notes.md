@@ -50,6 +50,29 @@ These shaped the spec itself and are worth recording, since none were in the ver
 
 ## Implementation-time notes
 
+### 2026-06-02 — Phase 3 eval/MLOps: a few deliberate calls
+- **Integration tests scoped to their own source.** The eval runner ingests the fixed corpus into
+  the dev DB (idempotent), and the dev DB *is* the test DB (5433). `test_retrieval`'s query
+  "HNSW tuning" then also matched the eval corpus's "HNSW index tuning" note, breaking an assertion
+  that the hit was one of its own two docs. **Fix:** the retrieval tests now pass
+  `source_ids=[result.source_id]` so they only see their own freshly-ingested data — the correct
+  isolation pattern when integration tests share a DB with dev/eval. *Affects:*
+  `tests/integration/test_retrieval.py`.
+- **Deterministic-by-default eval (`fake` driver).** The default A/B (`baseline`/`variant`) is
+  network-free and reproducible, so CI and `test_eval_harness` don't need a key. Consequence:
+  `keyword_recall = 0` and `latency ≈ 0` on the fake run (canned, instant answer), and the refusal
+  case isn't refused (the fake answer ignores context). These are **expected**; the real numbers
+  come from `--configs gemini,gemini-v2`. (ADR-0008.)
+- **MLflow = local file store (`file:./mlruns`), no server.** $0, no daemon; `mlflow ui
+  --backend-store-uri ./mlruns` renders the A/B comparison. `mlruns/` is gitignored. *Gave up:* a
+  shared/remote tracking server (Phase 6 if the VPS hosts MLflow).
+- **Eval is read-only.** `app/eval/pipeline.answer_question` reuses retrieval + prompt + LLM but
+  persists nothing — running the eval set must not pollute conversation history. The corpus ingest
+  (the runner) is the only DB write, and it's idempotent.
+- **prompt.py refactor kept rag-v1 byte-for-byte.** The new registry/`PromptSpec` is additive;
+  `SYSTEM_PROMPT`/`REFUSAL_TEXT`/`PROMPT_VERSION` remain as rag-v1 aliases so all prior tests pass
+  unchanged. (ADR-0009.)
+
 ### 2026-06-02 — `test_defaults` made hermetic against a local `.env` (Phase 2 commit gate)
 - **What:** `tests/unit/test_config.py::test_defaults` now constructs `Settings(_env_file=None)`
   in addition to the existing `monkeypatch.delenv` of `SECOND_BRAIN_*` vars.
