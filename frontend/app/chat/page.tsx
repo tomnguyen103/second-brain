@@ -31,11 +31,10 @@ function ChatPage() {
 
   useEffect(() => {
     if (history && messages.length === 0) {
-      const loaded: ChatMessage[] = history.messages.map((m) => ({
+      setMessages(history.messages.map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
-      }));
-      setMessages(loaded);
+      })));
     }
   }, [history]);
 
@@ -51,13 +50,10 @@ function ChatPage() {
         options: { private_mode: payload.privateMode, include_chunks: true },
       }),
     onMutate: ({ message }) => {
-      setMessages((prev) => [...prev, { role: "user", content: message }]);
+      setMessages((p) => [...p, { role: "user", content: message }]);
     },
     onSuccess: (data) => {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.answer, response: data },
-      ]);
+      setMessages((p) => [...p, { role: "assistant", content: data.answer, response: data }]);
       if (!conversationId) {
         setConversationId(data.conversation_id);
         router.replace(`/chat?cid=${data.conversation_id}`, { scroll: false });
@@ -65,13 +61,10 @@ function ChatPage() {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
     onError: (err) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `Error: ${err instanceof Error ? err.message : "Unknown error"}`,
-        },
-      ]);
+      setMessages((p) => [...p, {
+        role: "assistant",
+        content: `Error: ${err instanceof Error ? err.message : "Unknown error"}`,
+      }]);
     },
   });
 
@@ -80,44 +73,23 @@ function ChatPage() {
   }, [messages, isPending]);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-50">
-      {/* Header */}
-      <header className="px-6 py-3 border-b border-zinc-200 bg-white flex items-center justify-between">
-        <span className="text-sm font-medium text-zinc-500 tracking-tight">
-          {conversationId ? `Chat #${conversationId}` : "New conversation"}
+    <div className="flex flex-col h-full bg-background">
+      <header className="shrink-0 px-5 py-3 border-b border-border bg-card/50 backdrop-blur-sm flex items-center">
+        <span className="text-xs font-medium text-muted-foreground tracking-tight">
+          {conversationId ? `Conversation #${conversationId}` : "New conversation"}
         </span>
       </header>
-
-      {/* Messages */}
       <MessageList messages={messages} isLoading={isPending} />
       <div ref={bottomRef} />
-
-      {/* Filters */}
-      <SourceFilter
-        sourceIds={sourceIds}
-        tags={tags}
-        onChangeSourceIds={setSourceIds}
-        onChangeTags={setTags}
-      />
-
-      {/* Composer */}
-      <ChatComposer
-        onSend={(msg, privateMode) => sendMessage({ message: msg, privateMode })}
-        disabled={isPending}
-      />
+      <SourceFilter sourceIds={sourceIds} tags={tags} onChangeSourceIds={setSourceIds} onChangeTags={setTags} />
+      <ChatComposer onSend={(msg, pm) => sendMessage({ message: msg, privateMode: pm })} disabled={isPending} />
     </div>
   );
 }
 
 export default function ChatPageWrapper() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-xs text-zinc-400">Loading…</div>
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-xs text-muted-foreground">Loading…</span></div>}>
       <ChatPage />
     </Suspense>
   );

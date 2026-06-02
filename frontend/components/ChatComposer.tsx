@@ -12,9 +12,9 @@ interface Props {
 export function ChatComposer({ onSend, disabled }: Props) {
   const [text, setText] = useState("");
   const [privateMode, setPrivateMode] = useState(false);
+  const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  /* Auto-resize textarea */
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -31,68 +31,62 @@ export function ChatComposer({ onSend, disabled }: Props) {
   };
 
   return (
-    <div className="border-t border-zinc-200 bg-white px-4 pt-3 pb-4">
-      {/* Private mode banner */}
+    <div className="px-4 pb-4 pt-2 bg-background border-t border-border">
       {privateMode && (
         <div className="flex items-center gap-1.5 mb-2 px-1">
-          <Lock size={11} className="text-amber-600" />
-          <p className="text-[11px] text-amber-600 font-medium">
-            Private mode — Ollama only, nothing leaves your machine
+          <Lock size={11} className="text-amber-500" />
+          <p className="text-[11px] text-amber-500 font-medium">
+            Private mode — Ollama only, no data sent externally
           </p>
         </div>
       )}
 
-      <div className="flex items-end gap-2">
-        {/* Textarea */}
+      {/* Composer card */}
+      <div className={`flex items-end gap-2 rounded-2xl border bg-card px-3 py-2.5 transition-all duration-200 ${
+        focused
+          ? "border-amber-400/70 ring-3 ring-amber-400/15 shadow-sm"
+          : "border-border shadow-sm dark:shadow-none"
+      }`}>
         <textarea
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder="Ask anything about your notes…"
           rows={1}
           disabled={disabled}
-          className="flex-1 resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-400/60 focus:border-amber-400 transition-all duration-150 disabled:opacity-50 leading-[1.6] min-h-[42px] max-h-40"
+          className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50 leading-[1.65] min-h-[26px] max-h-40"
           aria-label="Chat message"
         />
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1.5 pb-px">
-          {/* Private mode toggle */}
-          <motion.button
-            whileTap={{ scale: 0.93 }}
+        <div className="flex items-center gap-1.5 shrink-0 pb-0.5">
+          <motion.button whileTap={{ scale: 0.9 }}
             onClick={() => setPrivateMode((p) => !p)}
-            className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-150 ${
+            className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all ${
               privateMode
-                ? "bg-amber-50 border-amber-300 text-amber-600"
-                : "border-zinc-200 bg-white text-zinc-400 hover:text-zinc-600 hover:border-zinc-300"
+                ? "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-600 dark:text-amber-400"
+                : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
             }`}
-            title={privateMode ? "Private mode ON" : "Private mode OFF"}
-            aria-label="Toggle private mode"
+            title={privateMode ? "Private ON (Ollama)" : "Private OFF (Gemini)"}
           >
-            {privateMode ? <Lock size={15} weight="bold" /> : <LockOpen size={15} />}
+            {privateMode ? <Lock size={14} weight="bold" /> : <LockOpen size={14} />}
           </motion.button>
 
-          {/* Send */}
-          <motion.button
-            whileTap={{ scale: 0.94 }}
+          <motion.button whileTap={{ scale: 0.91 }}
             onClick={submit}
             disabled={!canSend}
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500 text-white transition-all duration-150 hover:bg-amber-600 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm shadow-amber-200"
+            className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500 hover:bg-amber-600 dark:bg-amber-500 dark:hover:bg-amber-400 text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm shadow-amber-200/60 dark:shadow-none"
             aria-label="Send"
           >
-            <PaperPlaneTilt size={15} weight="bold" />
+            <PaperPlaneTilt size={14} weight="bold" />
           </motion.button>
         </div>
       </div>
 
-      <p className="mt-1.5 px-1 text-[10px] text-zinc-400">
-        Enter to send&nbsp;&nbsp;·&nbsp;&nbsp;Shift+Enter for new line
+      <p className="mt-1.5 px-1 text-[10px] text-muted-foreground/60">
+        Enter&nbsp;to&nbsp;send · Shift+Enter&nbsp;for&nbsp;new&nbsp;line
       </p>
     </div>
   );

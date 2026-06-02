@@ -5,71 +5,49 @@ import { AnimatePresence } from "framer-motion";
 import type { Citation } from "@/lib/api/types";
 import { CitationCard } from "./CitationCard";
 
-interface Props {
-  answer: string;
-  citations: Citation[];
-}
+interface Props { answer: string; citations: Citation[]; }
 
 export function AnswerWithCitations({ answer, citations }: Props) {
-  const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
-  const [cardPos, setCardPos] = useState({ top: 0, left: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<Citation | null>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const ref = useRef<HTMLDivElement>(null);
 
-  const citationMap = new Map(citations.map((c) => [c.marker, c]));
+  const map = new Map(citations.map((c) => [c.marker, c]));
   const parts = answer.split(/(\[\d+\])/g);
 
-  const handleMarkerClick = (
-    e: React.MouseEvent<HTMLButtonElement>,
-    citation: Citation
-  ) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    if (!containerRect) return;
-    const top = rect.bottom - containerRect.top + 6;
-    const left = Math.min(
-      rect.left - containerRect.left,
-      containerRect.width - 308
-    );
-    setCardPos({ top, left });
-    setActiveCitation((prev) =>
-      prev?.marker === citation.marker ? null : citation
-    );
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>, citation: Citation) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const cr = ref.current?.getBoundingClientRect();
+    if (!cr) return;
+    setPos({ top: r.bottom - cr.top + 6, left: Math.min(r.left - cr.left, cr.width - 308) });
+    setActive((p) => p?.marker === citation.marker ? null : citation);
   };
 
   return (
-    <div ref={containerRef} className="relative">
-      <p className="text-sm leading-[1.75] whitespace-pre-wrap text-zinc-800">
+    <div ref={ref} className="relative">
+      <p className="text-sm leading-[1.75] whitespace-pre-wrap text-foreground">
         {parts.map((part, i) => {
-          const match = part.match(/^\[(\d+)\]$/);
-          if (!match) return <span key={i}>{part}</span>;
-
-          const markerNum = Number(match[1]);
-          const citation = citationMap.get(markerNum);
-          if (!citation) return <span key={i} className="text-zinc-400">{part}</span>;
-
+          const m = part.match(/^\[(\d+)\]$/);
+          if (!m) return <span key={i}>{part}</span>;
+          const c = map.get(Number(m[1]));
+          if (!c) return <span key={i} className="text-muted-foreground">{part}</span>;
           return (
             <sup key={i}>
               <button
-                onClick={(e) => handleMarkerClick(e, citation)}
-                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 text-[10px] font-mono font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400 ring-offset-1"
-                aria-label={`Source ${markerNum}: ${citation.document_title}`}
+                onClick={(e) => handleClick(e, c)}
+                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-[10px] font-mono font-semibold transition-colors focus:outline-none focus:ring-1 focus:ring-amber-400 ring-offset-1 ring-offset-card"
+                aria-label={`Source ${m[1]}: ${c.document_title}`}
               >
-                {markerNum}
+                {m[1]}
               </button>
             </sup>
           );
         })}
       </p>
-
       <AnimatePresence>
-        {activeCitation && (
-          <div
-            style={{ position: "absolute", top: cardPos.top, left: cardPos.left }}
-          >
-            <CitationCard
-              citation={activeCitation}
-              onClose={() => setActiveCitation(null)}
-            />
+        {active && (
+          <div style={{ position: "absolute", top: pos.top, left: pos.left }}>
+            <CitationCard citation={active} onClose={() => setActive(null)} />
           </div>
         )}
       </AnimatePresence>
