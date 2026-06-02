@@ -50,6 +50,26 @@ These shaped the spec itself and are worth recording, since none were in the ver
 
 ## Implementation-time notes
 
+### 2026-06-01 — Docker installed; Phase 0 migration applied live; Docker DB on host port 5433
+First run on a box with Docker Desktop (Win 11, WSL2 backend, engine v29.5.2). Closes the
+"live migration not applied" gap from the Phase 0 entry below: `alembic upgrade head` ran
+against real pgvector for the first time → `0001_baseline (head)`, with **13 relations**
+(12 domain tables + `alembic_version`), `vector` 0.8.2, and the `ix_embeddings_hnsw` HNSW
+index all verified live.
+- **What:** Docker DB published on **host port 5433** (container still 5432). `docker-compose.yml`
+  port mapping and `backend/app/config.py` `database_url` default both updated to 5433; the stale
+  `backend/.env` (pinned to 5432 from a prior `cp .env.example .env`) was removed so the new
+  default applies with no env-var ceremony.
+- **Why:** a **native PostgreSQL 16** Windows service (`postgresql-x64-16`) already owns host
+  `5432` and was intercepting Alembic's `localhost:5432` connection (peer auth inside the
+  container worked, but TCP from the host hit the native server → "password authentication failed
+  for user second_brain"). Owner chose to leave the native install running and move the Docker DB.
+- **Trade-off / what I gave up:** the canonical `5432` default — a fresh checkout on a machine
+  without the clash now also defaults to 5433 (override via `SECOND_BRAIN_DATABASE_URL` or `.env`).
+  `backend/.env.example` still references 5432 and is permission-protected from edits in this
+  harness; update it to 5433 (or always delete `.env` after copying) to avoid reintroducing the clash.
+- **Affects:** `docker-compose.yml`, `backend/app/config.py`, `backend/.env(.example)`, `backend/README.md`.
+
 ### 2026-06-01 — Phase 1 plan finalized (ADRs 0005–0007; no code yet)
 Under `/goal complete phase 1 plan, and prepare for phase 2`. The owner approved the four
 execution forks via the recommended defaults (in-session), so the plan was finalized rather

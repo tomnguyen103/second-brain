@@ -23,6 +23,18 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-01 — Docker installed; Phase 0 migration applied live (DB on host port 5433)
+- **Docker Desktop** installed (Win 11, WSL2 backend, engine v29.5.2); `docker compose up -d`
+  brings up `pgvector/pgvector:pg16` (container `second_brain_db`, healthy).
+- **Phase 0 migration applied for real** (first time — was offline-only before): `alembic
+  upgrade head` → `0001_baseline (head)`. Verified live: 13 relations (12 tables +
+  `alembic_version`), `vector` 0.8.2 extension, `ix_embeddings_hnsw` HNSW index.
+- **Port moved to 5433:** a native PostgreSQL 16 service owns host 5432, so the Docker DB now
+  publishes on **5433** (container 5432). `docker-compose.yml` + `app/config.py` default updated;
+  stale `backend/.env` removed. `backend/.env.example` still says 5432 (harness-protected) —
+  update to 5433 manually. Detail in `implementation-notes.md`.
+- **Next:** Phase 1 implementation per `docs/phase-1-plan.md` — DB-bound tasks (2, 9–12) now unblocked.
+
 ### 2026-06-01 — Phase 1 PLAN complete (ADRs 0005–0007, TDD plan, Phase 2 prep)
 - **ADRs** → `docs/adr/`: 0005 hybrid retrieval + RRF (pgvector cosine + Postgres full-text,
   RRF `k=60`, `top_k=8`), 0006 prompt + citation contract (`[n]` markers, zero-context refusal,
@@ -68,5 +80,5 @@ Add a dated entry per working session. Most recent on top.
 ## Open questions / parking lot
 - Which VPS provider to buy (Hetzner ~€4 vs DO/Vultr/Linode ~$5–6). Decide before Phase 6.
 - ~~Chunking strategy specifics (size/overlap)~~ — RESOLVED in ADR-0003 (~512 tok / ~15% overlap, semantic boundaries).
-- **Install Docker Desktop** before Phase 1 end-to-end / integration tests (DB-bound tasks) — not on this machine yet.
+- ~~**Install Docker Desktop** before Phase 1 end-to-end / integration tests~~ — DONE 2026-06-01: installed, Phase 0 migration applied live; Docker DB on host **5433** (native PG holds 5432).
 - Whether to do the optional managed-cluster (GKE/EKS) capstone in Phase 7.
