@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.briefing.service import build_briefing
 from app.db.models import Briefing
+from app.research.service import research_topic
 
 # type -> handler(db, payload, *, embedder, llm) -> dict | None
 HANDLERS: dict[str, Callable] = {}
@@ -40,3 +41,21 @@ def handle_briefing(db: Session, payload: dict, *, embedder, llm) -> dict:
 
 
 register("briefing", handle_briefing)
+
+
+def handle_research(db: Session, payload: dict, *, embedder, llm) -> dict:
+    """`research` job: research a topic and file the note back into the brain — the async
+    path for ADR-0010's research_topic (closes the Phase-5 deferral). The inline MCP path
+    stays; this is the queued one. Returns a JSON-able summary of what was stored."""
+    res = research_topic(db, embedder, llm, (payload or {}).get("topic", ""))
+    return {
+        "topic": res.topic,
+        "document_id": res.document_id,
+        "source_id": res.source_id,
+        "status": res.status,
+        "chunk_count": res.chunk_count,
+        "searchable": res.searchable,
+    }
+
+
+register("research", handle_research)

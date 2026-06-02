@@ -6,10 +6,14 @@ effect path.
 """
 from __future__ import annotations
 
-from app.db.models import Briefing
+from sqlalchemy import select
+
+from app.config import Settings
+from app.db.models import Briefing, Chunk
 from app.ingest.service import DocumentInput, SourceSpec, ingest_documents
 from app.jobs import queue, worker
 from app.llm.fake import FakeLLMClient
+from app.retrieval.hybrid import hybrid_search
 
 
 def _run(db, embedder):
@@ -49,3 +53,26 @@ def test_briefing_handler_second_run_advances_since(db_session, fake_embedder):
     assert b2.period_start == b1.period_end   # picks up where the first ended
     assert b2.document_count == 0
     assert b2.model is None                    # nothing new -> no LLM call
+
+
+def test_research_handler_via_run_once_stores_searchable_note(db_session, fake_embedder):
+    topic = "Async research via the worker queue"
+    queue.enqueue(db_session, type="research", payload={"topic": topic})
+
+    job = _run(db_session, fake_embedder)
+
+    assert job is not None and job.type == "research"
+    assert job.status == "done"
+    result = job.payload["result"]
+    assert result["status"] == "embedded"
+    assert result["searchable"] is True
+    assert result["source_id"] is not None
+
+    # the stored research note was auto-ingested and is findable via hybrid search
+    chunk = db_session.scalar(select(Chunk).where(Chunk.document_id == result["document_id"]))
+    hits, _meta = hybrid_search(
+        db_session, fake_embedder, Settings(_env_file=None),
+        chunk.content, source_ids=[result["source_id"]],
+    )
+    assert len(hits) >= 1
+
