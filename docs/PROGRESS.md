@@ -9,7 +9,7 @@ session — the master prompt treats it as the source of truth for "where we are
 |---|---|---|
 | Planning | Project design, stack, cost model, roadmap | ✅ Complete |
 | 0 | Data model + ER diagram + Alembic migrations + pgvector/full-text indexes | ✅ Complete |
-| 1 | RAG MVP: FastAPI /ingest + /chat, hybrid retrieval, Gemini via LLMClient | 🟡 Plan complete |
+| 1 | RAG MVP: FastAPI /ingest + /chat, hybrid retrieval, Gemini via LLMClient | ✅ Complete |
 | 2 | Next.js chat UI (streaming, citations, semantic search) | ⬜ Not started |
 | 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ⬜ Not started |
 | 4 | MCP server + agentic actions incl. self-research tool | ⬜ Not started |
@@ -22,6 +22,23 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-01 — Phase 1 COMPLETE: RAG MVP shipped (POST /ingest + POST /chat)
+- **Branch:** `phase-1-impl` (28 tests, 0 failures). Merge to main when ready.
+- **What shipped:** Python 3.12 venv (uv); `LLMClient` seam (Gemini/Ollama/fake); local
+  MiniLM-384 embeddings (`sentence-transformers`); content hashing + semantic chunking
+  (ADR-0003); hybrid pgvector + full-text retrieval fused with RRF (ADR-0005); cited
+  answers (ADR-0006); inline ingest (source→dedupe→chunk→embed→store); chat service
+  (retrieve→prompt→generate→persist conversations/messages/retrievals); FastAPI app with
+  `/health`, `/ingest`, `/chat` routers + Pydantic v2 schemas (ADR-0007).
+- **Off-spec fixes recorded in `implementation-notes.md`:** `tsv` column marked `Computed`
+  in ORM (was causing INSERT errors on GENERATED ALWAYS column); chunking overlap falls
+  back to word-level when unit-level step-back can't reach the overlap budget; psycopg3
+  NULL array params need explicit `bindparam` types (`ARRAY(BigInteger/Text)`);
+  `test_defaults` now uses `monkeypatch.delenv` to isolate from CI shell env vars.
+- **Verified:** `pytest -v` → 28 passed (16 unit + 12 integration) against live pgvector DB.
+- **Next:** Phase 2 — Next.js chat UI (streaming, citations, semantic search). DB-bound
+  integration tests (Tasks 2, 9–12) require `SECOND_BRAIN_TEST_DATABASE_URL` set.
 
 ### 2026-06-01 — Docker installed; Phase 0 migration applied live (DB on host port 5433)
 - **Docker Desktop** installed (Win 11, WSL2 backend, engine v29.5.2); `docker compose up -d`

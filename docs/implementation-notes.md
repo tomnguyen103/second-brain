@@ -50,6 +50,32 @@ These shaped the spec itself and are worth recording, since none were in the ver
 
 ## Implementation-time notes
 
+### 2026-06-01 — Phase 1 implementation fixes (four off-spec corrections)
+
+1. **`tsv` ORM column marked `Computed`** — the `chunks.tsv` column is a PostgreSQL
+   `GENERATED ALWAYS AS ... STORED` column. SQLAlchemy didn't know this and included it
+   in every `INSERT chunks ...` with `tsv=NULL`, causing `psycopg.errors.GeneratedAlways`.
+   Fix: added `Computed("to_tsvector('english', content)", persisted=True)` to the
+   `mapped_column` in `app/db/models.py`. *Affects:* `models.py`.
+
+2. **Chunking word-level overlap fallback** — the unit-level overlap step-back in `_pack`
+   only works when each sentence/paragraph is smaller than the overlap budget (~18 tokens).
+   When every unit is larger (e.g., 101-word paragraphs with an 18-token overlap budget),
+   the step-back loop exits immediately and adjacent chunks don't overlap. Fix: after
+   `_pack` returns spans, `chunk_text` post-processes them with `_word_overlap_start` to
+   enforce overlap at word boundaries. *Affects:* `app/ingest/chunking.py`.
+
+3. **psycopg3 NULL array bind types** — psycopg3 raises `AmbiguousParameter` when a SQL
+   parameter that might be NULL is typed as an array (e.g., `source_ids IS NULL OR ...
+   ANY(:source_ids)`). Fix: added explicit `bindparam("source_ids", type_=ARRAY(BigInteger))`
+   and `bindparam("tags", type_=ARRAY(Text))` to both SQL text objects in `hybrid.py`.
+   *Affects:* `app/retrieval/hybrid.py`.
+
+4. **`test_defaults` env isolation** — when the full suite runs with
+   `SECOND_BRAIN_LLM_PROVIDER=fake` in the shell (required for integration tests),
+   `Settings()` picks it up and `test_defaults` fails. Fix: `monkeypatch.delenv` clears
+   the relevant keys so the test sees true defaults. *Affects:* `tests/unit/test_config.py`.
+
 ### 2026-06-01 — Docker installed; Phase 0 migration applied live; Docker DB on host port 5433
 First run on a box with Docker Desktop (Win 11, WSL2 backend, engine v29.5.2). Closes the
 "live migration not applied" gap from the Phase 0 entry below: `alembic upgrade head` ran
