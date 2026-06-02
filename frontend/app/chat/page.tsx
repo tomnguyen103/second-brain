@@ -23,7 +23,6 @@ function ChatPage() {
   const [tags, setTags] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Load existing conversation history when a cid is in the URL
   const { data: history } = useQuery({
     queryKey: ["conversation", conversationId],
     queryFn: () => api.getConversation(conversationId!),
@@ -78,23 +77,30 @@ function ChatPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isPending]);
 
   return (
-    <div className="flex flex-col h-full">
-      <header className="px-4 py-2 border-b flex items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground">Chat</span>
+    <div className="flex flex-col h-full bg-zinc-50">
+      {/* Header */}
+      <header className="px-6 py-3 border-b border-zinc-200 bg-white flex items-center justify-between">
+        <span className="text-sm font-medium text-zinc-500 tracking-tight">
+          {conversationId ? `Chat #${conversationId}` : "New conversation"}
+        </span>
       </header>
 
-      <MessageList messages={messages} />
+      {/* Messages */}
+      <MessageList messages={messages} isLoading={isPending} />
       <div ref={bottomRef} />
 
+      {/* Filters */}
       <SourceFilter
         sourceIds={sourceIds}
         tags={tags}
         onChangeSourceIds={setSourceIds}
         onChangeTags={setTags}
       />
+
+      {/* Composer */}
       <ChatComposer
         onSend={(msg, privateMode) => sendMessage({ message: msg, privateMode })}
         disabled={isPending}
@@ -105,7 +111,13 @@ function ChatPage() {
 
 export default function ChatPageWrapper() {
   return (
-    <Suspense fallback={<div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Loading…</div>}>
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-xs text-zinc-400">Loading…</div>
+        </div>
+      }
+    >
       <ChatPage />
     </Suspense>
   );
