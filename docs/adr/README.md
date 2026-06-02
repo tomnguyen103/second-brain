@@ -15,3 +15,4 @@ older ones explicitly; we don't edit history.
 | [0007](0007-phase1-api-and-execution-model.md) | Phase 1 API surface and execution model | Accepted |
 | [0008](0008-evaluation-and-mlflow.md) | Evaluation methodology + MLflow tracking (local file store) | Accepted |
 | [0009](0009-prompt-versioning-ab-rollback.md) | Prompt versioning, A/B, and rollback (in-code registry + env-var selection) | Accepted |
+| [0010](0010-mcp-server-and-agentic-actions.md) | MCP server (FastMCP/stdio) + agentic actions: search, tasks, digest, research-this-topic | Accepted |
