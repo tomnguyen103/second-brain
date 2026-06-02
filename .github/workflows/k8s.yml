@@ -1,0 +1,110 @@
+# Phase 7 — Kubernetes (kind) smoke pipeline (D8).
+# Stands the full stack up on a throwaway multi-node kind cluster, applies the SAME manifests +
+# add-ons used locally, waits for every rollout, smokes /health + the UI through ingress, then
+# tears the cluster down (helm/kind-action deletes it in its post step — D10, nothing left running).
+# This is SEPARATE from the eval-gated ci.yml (which stays untouched). HPA load-scaling is proven
+# locally (D13, docs/k8s-evidence/08) — not asserted here, to keep CI deterministic.
+name: k8s-kind
+
+on:
+  push:
+    paths:
+      - "deploy/**"
+      - ".github/workflows/k8s.yml"
+      - "backend/**"
+      - "frontend/**"
+  pull_request:
+    paths:
+      - "deploy/**"
+      - ".github/workflows/k8s.yml"
+      - "backend/**"
+      - "frontend/**"
+  workflow_dispatch: {}
+
+jobs:
+  kind-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Multi-node cluster from the committed config (ingress-ready label + host 80/443 maps).
+      # Versions pinned to match local (kind v0.31.0 -> node v1.35.0). Name via flag only.
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.31.0
+          node_image: kindest/node:v1.35.0
+          cluster_name: second-brain
+          config: deploy/k8s/kind-cluster.yaml
+
+      - name: Build images
+        run: |
+          docker build -f deploy/Dockerfile.backend -t second-brain-api:phase7 .
+          docker build -f deploy/Dockerfile.frontend \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=http://api.second-brain.local \
+            -t second-brain-web:phase7 .
+
+      - name: Load images into kind (no registry, D2)
+        run: |
+          kind load docker-image second-brain-api:phase7 --name second-brain
+          kind load docker-image second-brain-web:phase7 --name second-brain
+
+      - name: Namespace + Secret (throwaway CI values) + monitoring ConfigMaps
+        run: |
+          kubectl apply -f deploy/k8s/namespace.yaml
+          kubectl -n second-brain create secret generic second-brain-secrets \
+            --from-literal=POSTGRES_PASSWORD=ci_postgres_pw \
+            --from-literal=SECOND_BRAIN_ADMIN_TOKEN=ci-admin-token \
+            --from-literal=SECOND_BRAIN_GEMINI_API_KEY= \
+            --from-literal=GRAFANA_ADMIN_PASSWORD=ci-admin
+          kubectl -n second-brain create configmap prometheus-config \
+            --from-file=prometheus.yml=deploy/prometheus/prometheus.yml \
+            --from-file=alerts.yml=deploy/prometheus/alerts.yml --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n second-brain create configmap grafana-datasources \
+            --from-file=deploy/grafana/provisioning/datasources/datasource.yml --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n second-brain create configmap grafana-dashboard-provider \
+            --from-file=deploy/grafana/provisioning/dashboards/dashboards.yml --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n second-brain create configmap grafana-dashboard-json \
+            --from-file=deploy/grafana/dashboards/second-brain.json --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Install ingress-nginx + metrics-server (pinned)
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.3/deploy/static/provider/kind/deploy.yaml
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.2/components.yaml
+          kubectl -n kube-system patch deployment metrics-server --type=json \
+            -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+          kubectl wait -n ingress-nginx --for=condition=ready pod \
+            -l app.kubernetes.io/component=controller --timeout=180s
+
+      - name: Apply manifests
+        run: kubectl apply -k deploy/k8s
+
+      - name: Wait for rollouts
+        run: |
+          kubectl -n second-brain rollout status statefulset/db --timeout=300s
+          kubectl -n second-brain wait --for=condition=complete job/migrate --timeout=300s
+          for d in pgbouncer redis api worker frontend prometheus grafana; do
+            kubectl -n second-brain rollout status deploy/$d --timeout=300s
+          done
+
+      - name: Smoke /health + UI through ingress
+        run: |
+          set -euo pipefail
+          ok=""
+          for i in $(seq 1 15); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: api.second-brain.local" http://localhost/health || true)
+            if [ "$code" = "200" ]; then ok="yes"; break; fi
+            echo "attempt $i: api /health -> $code (retrying)"; sleep 5
+          done
+          test "$ok" = "yes" || { echo "api /health never returned 200"; exit 1; }
+          echo "api /health body:"; curl -s -H "Host: api.second-brain.local" http://localhost/health; echo
+          fcode=$(curl -s -L -o /dev/null -w "%{http_code}" -H "Host: second-brain.local" http://localhost/)
+          echo "frontend / (followed) -> $fcode"; test "$fcode" = "200"
+
+      - name: Dump state (always)
+        if: always()
+        run: |
+          kubectl -n second-brain get deploy,statefulset,job,svc,ingress,hpa,pods -o wide || true
+          kubectl -n second-brain get events --sort-by=.lastTimestamp | tail -30 || true
+      # Teardown: helm/kind-action deletes the cluster in its post-job step (D10).
