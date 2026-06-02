@@ -10,7 +10,7 @@ session — the master prompt treats it as the source of truth for "where we are
 | Planning | Project design, stack, cost model, roadmap | ✅ Complete |
 | 0 | Data model + ER diagram + Alembic migrations + pgvector/full-text indexes | ✅ Complete |
 | 1 | RAG MVP: FastAPI /ingest + /chat, hybrid retrieval, Gemini via LLMClient | ✅ Complete |
-| 2 | Next.js chat UI (streaming, citations, semantic search) | ⬜ Not started |
+| 2 | Next.js chat UI (citations, semantic search, feedback; streaming deferred) | ✅ Complete |
 | 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ⬜ Not started |
 | 4 | MCP server + agentic actions incl. self-research tool | ⬜ Not started |
 | 5 | Daily briefing + scheduled pipelines | ⬜ Not started |
@@ -22,6 +22,49 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-02 — Phase 2 COMPLETE: verified end-to-end + history-citation fix
+- **Branch:** `phase-2-impl`. Verified Phase 2 against its Definition of Done before flipping
+  status to ✅ — ran the commands, didn't trust the prior log.
+- **Static gates (all green):** backend `pytest` **37 passed** (was 36; +1 new test); frontend
+  `tsc --noEmit` exit 0; `next build` exit 0 (`/chat` + `/search` static).
+- **Live E2E (real DB on 5433, `fake` LLM for determinism):** ingest→`/search` (5 ranked hybrid
+  hits)→`/chat` (answer with clickable `[1][2]` → CitationCard showing title/source/snippet/method/
+  score)→`/feedback` (201). Conversation sidebar loads live `/conversations`; dark mode works.
+- **Gap found & fixed during verification:** replaying a past conversation from the sidebar
+  rendered **dead, non-clickable `[n]` markers** and dropped the feedback/source/latency footer —
+  because `GET /conversations/{id}` returned raw `retrievals` (chunk_id/rank/score) but not
+  reconstructed `citations`, and the chat page mapped history to `{role, content}` only. Fixed:
+  the detail endpoint now reconstructs `citations` (marker→document/source/snippet, mirroring
+  `chat.service`'s marker logic via `parse_citations` + `load_display_chunks`); the chat page
+  rehydrates the live-chat shape so replayed turns get clickable citations + working thumbs.
+  Verified live: conversation #34 replay shows 2 clickable cards + feedback "Saved". Detail in
+  `implementation-notes.md`.
+- **Files:** `backend/app/api/conversations.py`, `backend/app/schemas/conversations.py`,
+  `backend/tests/integration/test_search.py` (new test), `frontend/app/chat/page.tsx`,
+  `frontend/lib/api/types.ts`. (Plus the prior uncommitted `ConversationSidebar.tsx` dark-mode fix.)
+- **Deferred (not blockers, per DoD):** SSE streaming; `npm run gen-types` (hand-written
+  `types.ts` intentionally diverges from openapi-typescript's `paths`/`components` shape — running
+  codegen would break current imports); feedback analytics (Phase 3/6); auth/deploy (Phase 6).
+- **Note:** live smoke seeded the dev DB with a `Phase2 Verify Seed` source + conversations
+  #34/#35 + feedback rows (harmless on dev; not committed).
+- **Next:** Phase 3 — Evaluation + MLOps (eval set, MLflow harness, A/B, prompt versioning + rollback).
+
+### 2026-06-01 — Phase 2 IN PROGRESS: backend deltas + Next.js UI scaffold
+- **Branch:** `phase-2-impl` (off main, which now has Phase 1 merged).
+- **Backend deltas shipped:** `GET /search` (hybrid_search wrapper), `GET /conversations`,
+  `GET /conversations/{id}`, `POST /feedback` — all with Pydantic v2 schemas + integration tests.
+- **Frontend scaffold shipped:** Next.js 16 + TypeScript + Tailwind v4 + shadcn/ui + TanStack Query.
+  Routes: `/chat` (message → cited answer → [n] → CitationCard popover; SourceFilter; conversation
+  history load), `/search` (full-text+vector results with source/tag filters). Conversation sidebar
+  with 15s auto-refresh. Private-mode toggle. Feedback thumbs per message.
+- **Build status:** `tsc --noEmit` clean; `next build` clean (both routes static-generate).
+- **Open decisions resolved:** non-streaming first; openapi-typescript codegen script added
+  (`npm run gen-types`); TanStack Query; Tailwind + shadcn/ui; hosting deferred to Phase 6.
+- **Not yet done:** E2E smoke against live backend (requires `docker compose up -d` + backend
+  running); `npm run gen-types` to sync types from live `/openapi.json`; streaming (deferred).
+- **Next:** run backend + frontend together, take the MVP screenshot, then decide on Phase 2 polish
+  (streaming SSE, Vitest component tests) vs moving to Phase 3.
 
 ### 2026-06-01 — Phase 1 COMPLETE: RAG MVP shipped (POST /ingest + POST /chat)
 - **Branch:** `phase-1-impl` (28 tests, 0 failures). Merge to main when ready.
