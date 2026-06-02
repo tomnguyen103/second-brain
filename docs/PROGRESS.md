@@ -31,7 +31,7 @@ Add a dated entry per working session. Most recent on top.
   `alembic_version`), `vector` 0.8.2 extension, `ix_embeddings_hnsw` HNSW index.
 - **Port moved to 5433:** a native PostgreSQL 16 service owns host 5432, so the Docker DB now
   publishes on **5433** (container 5432). `docker-compose.yml` + `app/config.py` default updated;
-  stale `backend/.env` removed. `backend/.env.example` still says 5432 (harness-protected) —
+  stale `backend/.env` removed. `backend/.env.example` still says 5433 (harness-protected) —
   update to 5433 manually. Detail in `implementation-notes.md`.
 - **Next:** Phase 1 implementation per `docs/phase-1-plan.md` — DB-bound tasks (2, 9–12) now unblocked.
 

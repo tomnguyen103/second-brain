@@ -33,7 +33,9 @@ docker compose up -d db
 cd backend
 python -m venv .venv && . .venv/Scripts/activate   # Windows; use bin/activate on *nix
 pip install -r requirements.txt
-cp .env.example .env
+# .env is optional: config.py already defaults to the Docker DB on host port 5433.
+# Only create one to override defaults — and if you copy the example, change :5432 → :5433
+# first, since .env.example still pins 5432 (which clashes with a native Postgres on that port).
 alembic upgrade head
 
 # 3. Verify objects exist
