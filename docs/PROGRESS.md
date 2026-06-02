@@ -11,7 +11,7 @@ session — the master prompt treats it as the source of truth for "where we are
 | 0 | Data model + ER diagram + Alembic migrations + pgvector/full-text indexes | ✅ Complete |
 | 1 | RAG MVP: FastAPI /ingest + /chat, hybrid retrieval, Gemini via LLMClient | ✅ Complete |
 | 2 | Next.js chat UI (citations, semantic search, feedback; streaming deferred) | ✅ Complete |
-| 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ⬜ Not started |
+| 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ✅ Complete |
 | 4 | MCP server + agentic actions incl. self-research tool | ⬜ Not started |
 | 5 | Daily briefing + scheduled pipelines | ⬜ Not started |
 | 6 | Productionize on VPS + data-ops hardening | ⬜ Not started |
@@ -22,6 +22,35 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-02 — Phase 3 COMPLETE: evaluation + MLOps (eval set, MLflow, A/B, prompt versioning)
+- **Branch:** `phase-3-impl` (off main, which now has Phase 2 merged via PR #6). Planned in
+  `docs/phase-3-plan.md`; decisions in ADR-0008 (eval methodology + MLflow) and ADR-0009 (prompt
+  versioning + A/B + rollback).
+- **What shipped (`backend/app/eval/` + `backend/eval/`):** a fixed eval set (6-topic markdown
+  corpus + 13-case `dataset.yaml`, incl. a multi-source case and one off-corpus refusal); a pure
+  metrics module (retrieval hit@k/recall@k/MRR, citation validity, keyword recall, refusal
+  correctness, latency p50/p95); a **read-only** eval pipeline + harness (reuses `hybrid_search` +
+  versioned `build_messages` + `LLMClient`, persists nothing); MLflow logging to a **local file
+  store** (`file:./mlruns`, no server, $0); a runner CLI (`python -m app.eval.runner --configs …`)
+  that ingests the corpus, runs each config, logs an MLflow run, and prints an A/B table.
+- **Prompt versioning + rollback (ADR-0009):** `app/chat/prompt.py` now has a `PromptSpec` registry
+  (`rag-v1` kept byte-for-byte, `rag-v2` variant); `build_messages`/chat select
+  `settings.prompt_version`; rollback = set `SECOND_BRAIN_PROMPT_VERSION` back. A/B configs:
+  `baseline`/`variant` (deterministic, fake) and `gemini`/`gemini-v2` (real prompt A/B).
+- **Verified:** backend `pytest` **64 passed** (unit + integration vs live DB on 5433). Live A/B
+  run (`baseline,variant`, real MiniLM embedder + fake LLM) logged 2 MLflow runs and printed the
+  table: **hit@k = recall@k = 1.000, MRR ≈ 0.917, citation_validity = 1.000, refusal_accuracy =
+  0.923**. `keyword_recall`/`latency` are ~0 on the fake driver by design (D2/ADR-0008) — the real
+  numbers come from the documented `gemini` run.
+- **Verification caught + fixed:** the eval runner writes the corpus into the shared dev/test DB,
+  which broke `test_retrieval` (its "HNSW tuning" query also matched the new eval HNSW note). Fixed
+  by scoping the retrieval tests to their own `source_ids` — the right isolation pattern for a
+  shared DB. Detail in `implementation-notes.md`.
+- **Deferred (per ADR-0008):** LLM-as-judge grading; richer/larger corpus; remote MLflow server
+  (Phase 6). **Note:** the runner seeds an "Eval Corpus" source into the dev DB (idempotent; like
+  the Phase 2 smoke seed) and writes `./mlruns` (gitignored).
+- **Next:** Phase 4 — MCP server + agentic actions (create task, send digest, search, research-this-topic).
 
 ### 2026-06-02 — Phase 2 COMPLETE: verified end-to-end + history-citation fix
 - **Branch:** `phase-2-impl`. Verified Phase 2 against its Definition of Done before flipping
