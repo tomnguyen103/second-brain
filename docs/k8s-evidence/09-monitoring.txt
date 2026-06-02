@@ -1,0 +1,31 @@
+Phase 7 evidence — Task 9: Prometheus + Grafana (D7)
+=====================================================
+Reuses the Phase 6 configs verbatim (deploy/prometheus/*, deploy/grafana/*) via ConfigMaps
+created --from-file (DRY). No local RAM trim needed — node usage stayed low (~4%).
+
+$ kubectl -n second-brain create configmap prometheus-config \
+    --from-file=prometheus.yml=deploy/prometheus/prometheus.yml \
+    --from-file=alerts.yml=deploy/prometheus/alerts.yml --dry-run=client -o yaml | kubectl apply -f -
+configmap/prometheus-config created
+$ # + grafana-datasources, grafana-dashboard-provider, grafana-dashboard-json (from deploy/grafana/*)
+$ kubectl apply -f deploy/k8s/monitoring/prometheus.yaml
+$ kubectl apply -f deploy/k8s/monitoring/grafana.yaml
+$ kubectl -n second-brain rollout status deploy/prometheus --timeout=180s   # success
+$ kubectl -n second-brain rollout status deploy/grafana --timeout=180s      # success
+
+$ kubectl -n second-brain get pods -l 'app in (prometheus,grafana)'
+NAME                          READY   STATUS    RESTARTS   AGE
+grafana-8699c54ddc-gkpnp      1/1     Running   0          59s
+prometheus-799d757588-lfd2k   1/1     Running   0          60s
+
+# Prometheus is scraping the api /metrics — BOTH targets up (value "1"):
+$ kubectl -n second-brain exec pq -- curl -s 'http://prometheus:9090/api/v1/query?query=up'
+... {"metric":{"instance":"localhost:9090","job":"prometheus"},"value":[..,"1"]},
+    {"metric":{"instance":"api:8000","job":"second-brain-api"},"value":[..,"1"]} ...
+
+# Grafana healthy (auto-provisioned Prometheus datasource + the second-brain dashboard):
+$ kubectl -n second-brain exec pq -- curl -s http://grafana:3000/api/health
+HTTP 200
+{ "database": "ok", "version": "13.0.2", "commit": "3fcdbc5a" }
+
+GATE PASSED: prometheus + grafana Ready; api target up=1 in Prometheus; Grafana health 200.

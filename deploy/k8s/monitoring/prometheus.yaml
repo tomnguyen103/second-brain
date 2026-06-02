@@ -1,0 +1,84 @@
+# Prometheus (D7) — reuses the Phase 6 scrape + alert config verbatim (deploy/prometheus/*), which
+# already targets K8s-resolvable names (`api:8000`). The config is supplied by a ConfigMap created
+# --from-file (DRY — single source of truth, no duplicated copy that could drift):
+#
+#   kubectl -n second-brain create configmap prometheus-config \
+#     --from-file=prometheus.yml=deploy/prometheus/prometheus.yml \
+#     --from-file=alerts.yml=deploy/prometheus/alerts.yml \
+#     --dry-run=client -o yaml | kubectl apply -f -
+#
+# TSDB is an emptyDir (ephemeral — fine for the learning track).
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: prometheus
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        app.kubernetes.io/part-of: second-brain
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+          ports:
+            - name: http
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          emptyDir: {}
