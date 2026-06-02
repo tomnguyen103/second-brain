@@ -1,7 +1,8 @@
-# Second Brain — backend (Phase 0: data layer)
+# Second Brain — backend (Phase 1: RAG MVP)
 
-Phase 0 delivers the Postgres data model and Alembic migrations only. FastAPI app, ingest
-worker, and `LLMClient` arrive in Phase 1.
+Phase 1 ships `POST /ingest` and `POST /chat` on the Phase 0 schema: local MiniLM-384
+embeddings, hybrid pgvector + full-text retrieval fused with RRF, and cited answers via an
+`LLMClient` (Gemini default / Ollama / fake). Phase 0 delivered the Postgres data model.
 
 ## Layout
 
@@ -23,7 +24,30 @@ backend/
 Design docs: [`../docs/data-model/er-diagram.md`](../docs/data-model/er-diagram.md) and
 [`../docs/adr/`](../docs/adr/) (ADR-0002 embeddings, 0003 chunking, 0004 job queue).
 
-## Run & verify (from repo root)
+## Phase 1 — run & verify
+
+```powershell
+# 0) DB-free: unit tests (no Docker needed)
+cd backend
+.\.venv\Scripts\Activate.ps1
+pytest tests/unit -v
+
+# 1) Bring up Postgres + pgvector and migrate (already applied — skip if current)
+docker compose up -d db          # from repo root
+alembic upgrade head
+
+# 2) Full suite (unit + integration) against the real DB
+$env:SECOND_BRAIN_TEST_DATABASE_URL = "postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain"
+$env:SECOND_BRAIN_LLM_PROVIDER = "fake"
+pytest -v                        # 28 tests, all pass
+
+# 3) Run the API (fake LLM — no key needed for smoke)
+uvicorn app.main:app --reload
+#   POST /ingest a couple of notes, then POST /chat — see /docs for the schema
+#   For real answers: set SECOND_BRAIN_GEMINI_API_KEY and drop the SECOND_BRAIN_LLM_PROVIDER override
+```
+
+## Phase 0 — run & verify (from repo root)
 
 ```bash
 # 1. Start Postgres + pgvector
