@@ -9,6 +9,75 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Phase 7 — Kubernetes learning track on local kind (2026-06-02)
+
+### Root `.dockerignore` added — the prod images were never actually built before
+- **What:** added `/.dockerignore` excluding `**/.venv/`, `**/node_modules/`, `.git/`, `**/.next/`,
+  `**/mlruns/`, `**/.env`, agent dirs.
+- **Why:** the `deploy/Dockerfile.*` build context is the **repo root**, and both Dockerfiles do
+  `COPY backend/ ./` / `COPY frontend/ ./`. With no `.dockerignore`, Docker shipped the host
+  `backend/.venv` (1.3G, Windows) and `frontend/node_modules` (660M, wrong-OS native binaries) as
+  context AND copied them into the images — bloating the backend image and **breaking** the frontend
+  image (platform-mismatched modules). Phase 6 only ran `docker compose config` (lint), never a real
+  build, so this latent bug first surfaced when Phase 7 actually built the images.
+- **Trade-off:** none — strictly correct. *Affects:* `/.dockerignore`, both images.
+
+### `NEXT_PUBLIC_API_BASE_URL` is build-time baked → additive `ARG` on Dockerfile.frontend (D11)
+- **What / why:** Next.js inlines `NEXT_PUBLIC_*` at `next build`; a runtime ConfigMap value is
+  ignored by the browser bundle (`frontend/lib/api/client.ts` reads `process.env.NEXT_PUBLIC_API_BASE_URL`).
+  For K8s the browser must call the API's **ingress** host, so `Dockerfile.frontend` gained
+  `ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` + `ENV` before `npm run build`; the K8s image
+  is built with `--build-arg ...=http://api.second-brain.local`. Verified the host is in BOTH the
+  client and server `.next` bundles.
+- **Trade-off:** one Phase-6 file touched, but **additively** (default preserves compose behaviour).
+  *Affects:* `deploy/Dockerfile.frontend`, `deploy/k8s/frontend.yaml`.
+
+### pgbouncer configured by env, not a committed `userlist.txt` (D12)
+- **What / why:** the compose stack mounts `pgbouncer/userlist.txt` (which embeds the DB credential).
+  Committing that to a manifest/ConfigMap would leak a secret, so the K8s pgbouncer uses
+  `edoburu/pgbouncer`'s env config (`DB_HOST/DB_USER/DB_PASSWORD` from the Secret; it auto-generates
+  the userlist). `AUTH_TYPE=scram-sha-256` (PG16 default) + `POOL_MODE=session` (psycopg3 prepared
+  statements, ADR-0012). Verified `SELECT 1` through `pgbouncer:6432`.
+- **Trade-off:** diverges from the file-mounted compose config; keeps the credential in the Secret only.
+
+### Migrations are a Job; the password stays out of DSNs via `$(VAR)` assembly (D3/D4)
+- **What:** the api compose `command` prefixes `alembic upgrade head`; in K8s that's a one-shot
+  **Job** (`migrate-job.yaml`) talking to `db:5432` directly, and the api/worker run only their
+  process. Each pod assembles `SECOND_BRAIN_DATABASE_URL` from `POSTGRES_USER/PASSWORD/DB` (Secret +
+  ConfigMap) via Kubernetes dependent-env `$(VAR)` substitution, so the password never appears in a
+  ConfigMap or a committed DSN. `extra="ignore"` in `Settings` means the helper `POSTGRES_*` env vars
+  are harmless to the app.
+- **Trade-off:** `apply -k` doesn't order resources, so the Job can start before Postgres is Ready —
+  covered by `restartPolicy: OnFailure` + `backoffLimit` (and the layered path waits for db first).
+
+### Worker eager-loads the embedder; api lazy-loads it
+- **What / why:** `worker.main()` calls `get_embedder()` at startup (loads MiniLM), so the worker pod
+  carries the model resident; the api loads it lazily on first ingest/chat (`/health` reported
+  `embedder:"unloaded"`, RSS ~88Mi). Drove the HPA with `/health` (no model load) so scaling reflects
+  request-handling CPU, not a one-time model load. *Affects:* HPA load target choice (D6).
+
+### HPA load-scaling proven locally, not in CI (D13)
+- **What / why:** a load-driven autoscale is timing-sensitive and the torch image is slow to build +
+  RAM-heavy per replica, so asserting "pods went 1→N" in CI would be flaky. CI proves the manifests
+  stand up and serve (`k8s.yml`); the scaling proof is the local evidence (`docs/k8s-evidence/08`,
+  api 1→4→1 under `hey`). *Trade-off:* CI doesn't gate scaling — acceptable for a learning track.
+
+### kind cluster name via `--name` flag only; monitoring ConfigMaps via `--from-file`
+- **What / why (name):** `helm/kind-action` passes `--name`, and kind rejects a name set in **both**
+  the config and the flag. Removed `name:` from `kind-cluster.yaml` so the name is supplied only by
+  `--name second-brain` (local command + CI `cluster_name`), keeping local and CI aligned.
+- **What / why (configmaps):** kustomize's `configMapGenerator` refuses file sources above the
+  kustomization root (`../prometheus/...`), and `kubectl apply -k` has no `--load-restrictor`. So the
+  Prometheus/Grafana configs stay an explicit `kubectl create configmap --from-file ... | apply -f -`
+  step (reusing the Phase 6 files — DRY, no duplicated copy), documented in the kustomization header,
+  README, and CI. *Affects:* `deploy/k8s/kustomization.yaml`, `deploy/k8s/README.md`, `k8s.yml`.
+
+### Pinned versions for reproducibility
+- kind **v0.31.0** → node **kindest/node:v1.35.0** (kubectl v1.34 client ↔ v1.35 server is within the
+  ±1 skew); ingress-nginx **controller-v1.12.3**; metrics-server **v0.7.2** (+ `--kubelet-insecure-tls`,
+  required on kind). The manifests use only stable APIs (`apps/v1`, `batch/v1`, `autoscaling/v2`,
+  `networking.k8s.io/v1`), so they're robust across these versions.
+
 ## Phase 5 — daily briefing + scheduled pipelines (2026-06-02)
 
 ### Worker transaction model: one commit per attempt, queue primitives only flush

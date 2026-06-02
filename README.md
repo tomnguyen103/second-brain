@@ -60,13 +60,13 @@ and everything else is self-hosted in Docker Compose on a single ~$4–6/mo VPS.
 | Phase | Description | Status |
 |:---:|---|:---:|
 | **0** | Data model · ER diagram · Alembic migrations · pgvector/full-text indexes | ✅ Complete |
-| 1 | RAG MVP — FastAPI `/ingest` + `/chat`, hybrid retrieval, `LLMClient` | ⬜ Next |
-| 2 | Next.js chat UI — streaming, citations, semantic search | ⬜ |
-| 3 | Evaluation + MLOps — eval set, MLflow, A/B, prompt versioning + rollback | ⬜ |
-| 4 | MCP server + agentic actions (incl. self-research) | ⬜ |
-| 5 | Daily briefing + scheduled pipelines | ⬜ |
-| 6 | Productionize on VPS + data-ops hardening (RLS, retention, pooling, tuning) | ⬜ |
-| 7 | Kubernetes learning track on local k3s/kind | ⬜ |
+| 1 | RAG MVP — FastAPI `/ingest` + `/chat`, hybrid retrieval, `LLMClient` | ✅ Complete |
+| 2 | Next.js chat UI — streaming, citations, semantic search | ✅ Complete |
+| 3 | Evaluation + MLOps — eval set, MLflow, A/B, prompt versioning + rollback | ✅ Complete |
+| 4 | MCP server + agentic actions (incl. self-research) | ✅ Complete |
+| 5 | Daily briefing + scheduled pipelines | ✅ Complete |
+| 6 | Productionize on VPS + data-ops hardening (RLS, retention, pooling, tuning) | ✅ Complete |
+| 7 | Kubernetes learning track on local k3s/kind | ✅ Complete |
 
 Live status & dated log: [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
@@ -81,6 +81,9 @@ second-brain/
 │   ├── app/db/               # SQLAlchemy models, settings
 │   ├── migrations/           # Alembic env + versioned migrations
 │   └── README.md             # backend run & verify guide
+├── deploy/                   # prod Docker Compose stack + Phase 7 Kubernetes manifests
+│   ├── docker-compose.prod.yml
+│   └── k8s/                  # kind learning-track manifests + README (run/verify/teardown)
 └── docs/
     ├── project-plan.md       # complete plan + JD-coverage matrix
     ├── PROGRESS.md           # running status log
@@ -112,6 +115,34 @@ docker exec -it second_brain_db psql -U second_brain -d second_brain -c "\dt"
 
 Full verification steps (HNSW index, generated tsvector column) are in
 [`backend/README.md`](backend/README.md).
+
+## ☸️ Phase 7 — Kubernetes learning track (run & verify)
+
+Kubernetes here is a **learning track, not the production runtime** (prod stays the single-VPS
+Docker Compose stack). The manifests in [`deploy/k8s/`](deploy/k8s/) prove the whole stack runs on
+real K8s — Postgres StatefulSet+PVC, a migrate Job, api/worker/frontend Deployments, ingress-nginx,
+an HPA that scales `api` under load, and Prometheus+Grafana — then the cluster is **torn down** so
+nothing keeps running ($0). Decisions in [ADR-0014](docs/adr/0014-kubernetes-learning-track.md);
+captured evidence in [`docs/k8s-evidence/`](docs/k8s-evidence/); CI in
+[`.github/workflows/k8s.yml`](.github/workflows/k8s.yml).
+
+```bash
+# Requires Docker Desktop + kind + kubectl. Full guide: deploy/k8s/README.md
+kind create cluster --name second-brain --config deploy/k8s/kind-cluster.yaml
+docker build -f deploy/Dockerfile.backend  -t second-brain-api:phase7 .
+docker build -f deploy/Dockerfile.frontend -t second-brain-web:phase7 \
+  --build-arg NEXT_PUBLIC_API_BASE_URL=http://api.second-brain.local .
+kind load docker-image second-brain-api:phase7 --name second-brain
+kind load docker-image second-brain-web:phase7 --name second-brain
+# ... create Secret + monitoring ConfigMaps + install ingress-nginx/metrics-server (see deploy/k8s/README.md) ...
+kubectl apply -k deploy/k8s
+
+# Verify (host 80 maps into the cluster):
+curl -H 'Host: api.second-brain.local' http://localhost/health    # {"status":"ok","db":"ok",...}
+curl -L -H 'Host: second-brain.local'  http://localhost/          # UI (/ -> /chat)
+
+kind delete cluster --name second-brain                           # teardown — leave nothing running
+```
 
 ## 📐 Architecture & Decisions
 

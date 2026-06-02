@@ -19,3 +19,4 @@ older ones explicitly; we don't edit history.
 | [0011](0011-vps-provider.md) | VPS provider: Oracle Always Free (Singapore) primary, Contabo SG paid fallback | Accepted |
 | [0012](0012-productionization-and-data-governance.md) | Productionization + data governance: RLS, audit, retention, GDPR erasure, metrics, eval-gated CI, PgBouncer | Accepted |
 | [0013](0013-briefing-scheduling-and-worker.md) | Daily briefing: durable poll-based worker, OS-cron scheduling, store-and-display, briefings table | Accepted |
+| [0014](0014-kubernetes-learning-track.md) | Kubernetes learning track on local kind (manifests + HPA + ingress + CI/CD), then torn down | Accepted |
