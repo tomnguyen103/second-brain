@@ -9,6 +9,36 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Hosted Gemini embeddings provider — fit the box on a 2 GB VPS (2026-06-02)
+
+### `embedding_provider=gemini` drops the local torch/MiniLM footprint
+- **What:** added a hosted embeddings option behind the existing embedder seam — `app/embeddings/gemini.py`
+  (`GeminiEmbedder`, google-genai `embed_content`), `app/embeddings/factory.py` (`build_embedder`
+  picks `local` vs `gemini`), config `embedding_provider` (default `local`) + `gemini_embedding_model`
+  (`gemini-embedding-001`); `deps.get_embedder()` now routes through the factory, and compose passes
+  `SECOND_BRAIN_EMBEDDING_PROVIDER` to **api + worker**.
+- **Why:** the local sentence-transformers/torch embedder is ~1.5–2 GB resident (api lazy-loads it,
+  worker eager-loads it), forcing a 4 GB+ box. The owner is US-based on **DigitalOcean**, where 4 GB
+  ≈ $24/mo; offloading embeddings to the Gemini API removes torch from the runtime entirely, so the
+  stack fits a **2 GB (~$12/mo)** droplet. Verified live: with `embedding_provider=gemini` the
+  api/worker never import torch (`/health` `embedder:unloaded`), ingest embeds via the API, and chat
+  retrieves the new note **via vector** (Gemini query-vec vs Gemini doc-vec in pgvector) → cited answer.
+- **Details:** requested at `output_dimensionality=384` so it drops into the existing `vector(384)`
+  schema with **no migration**; vectors are **L2-normalized** in-process because Gemini doesn't
+  normalize when the dim is reduced below the model's native size and retrieval uses cosine.
+  `count_tokens` uses a chars/4 heuristic (no local tokenizer — avoiding torch is the point). One
+  symmetric `task_type=RETRIEVAL_DOCUMENT` for ingest and query in v1 (asymmetric RETRIEVAL_QUERY is
+  a future quality tweak). **Eval runner/gate still import the local `Embedder` directly**, so CI
+  stays offline/deterministic (no Gemini key) — at the cost of eval not exercising the prod embedding
+  model (acceptable for the small eval set).
+- **Trade-off (privacy):** note text now goes to Google at **ingest**, not just chat. Small delta
+  (chat already sends retrieved chunks to Gemini), but a real change to the privacy story — so it's
+  owner-approved and config-gated (`local` remains the default + the fully-private path).
+  *Affects:* `app/config.py`, `app/deps.py`, `app/embeddings/{gemini,factory}.py`,
+  `deploy/docker-compose.prod.yml`, `tests/unit/test_gemini_embedder.py`.
+
+---
+
 ## Local prod-stack deploy on Docker Desktop — Gemini 1.5 retired (2026-06-02)
 
 ### Default LLM model `gemini-1.5-flash` → `gemini-2.5-flash`

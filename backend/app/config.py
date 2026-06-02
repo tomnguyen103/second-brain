@@ -25,9 +25,14 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
 
-    # Embeddings (ADR-0002)
+    # Embeddings (ADR-0002). Provider: `local` (sentence-transformers/torch, runs on the box) or
+    # `gemini` (hosted API — drops the ~2 GB torch RAM footprint so the stack fits a small VPS).
+    embedding_provider: str = "local"     # local | gemini
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dim: int = 384
+    # Used when embedding_provider=gemini; requested at output_dimensionality=embedding_dim (384)
+    # so it drops into the existing vector(384) schema with no migration.
+    gemini_embedding_model: str = "gemini-embedding-001"
 
     # Chunking (ADR-0003)
     chunk_target_tokens: int = 512
