@@ -1,0 +1,104 @@
+# FastAPI backend. Runs ONLY uvicorn (the image's default CMD) — migrations are the migrate Job's
+# job (D3), so this never runs alembic. Connects to Postgres via pgbouncer:6432. CPU `requests`
+# are set so the HPA (api-hpa.yaml) can compute a CPU-utilisation %. The embedder (MiniLM/torch)
+# loads lazily on first ingest/chat, NOT at startup, so /health stays cheap.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: api
+spec:
+  selector:
+    app: api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+    app: api
+spec:
+  replicas: 1            # HPA owns the replica count from here (minReplicas: 1)
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+        app.kubernetes.io/part-of: second-brain
+    spec:
+      containers:
+        - name: api
+          image: second-brain-api:phase7
+          imagePullPolicy: IfNotPresent      # use the kind-loaded image; never pull from a registry (D2)
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: second-brain-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: second-brain-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: second-brain-config
+                  key: POSTGRES_DB
+            # App traffic goes through PgBouncer (session pooling). Assembled via $(VAR) so the
+            # password lives only in the Secret.
+            - name: SECOND_BRAIN_DATABASE_URL
+              value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@pgbouncer:6432/$(POSTGRES_DB)
+            - name: SECOND_BRAIN_LLM_PROVIDER
+              valueFrom:
+                configMapKeyRef:
+                  name: second-brain-config
+                  key: SECOND_BRAIN_LLM_PROVIDER
+            - name: SECOND_BRAIN_GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: second-brain-secrets
+                  key: SECOND_BRAIN_GEMINI_API_KEY
+            - name: SECOND_BRAIN_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: second-brain-secrets
+                  key: SECOND_BRAIN_ADMIN_TOKEN
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "250m"          # HPA target is a % of this
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
