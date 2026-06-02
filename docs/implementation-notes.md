@@ -47,6 +47,16 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
   `-p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod`.
   The deploy-checklist + the briefing cron were corrected accordingly; documented in `docs/USAGE.md`.
 
+### CI ingress-nginx admission race
+- **What:** PR #14 head checks reproduced the Phase-7 `kind-smoke` flake twice: `kubectl apply -k`
+  reached the Ingress while the ingress-nginx admission service existed but its HTTPS endpoint still
+  returned `connect: connection refused`.
+- **Fix:** changed `.github/workflows/k8s.yml` to retry `kubectl apply -k deploy/k8s` with short
+  sleeps. The first apply may create all non-Ingress resources, and a later retry creates/updates
+  the Ingress once the webhook is actually serving.
+- **Trade-off:** the workflow can spend up to about a minute longer on this step, but it avoids
+  hiding real rollout failures because the later rollout/status/smoke steps still fail normally.
+
 ### `sources.type` is constrained
 - The `sources_type_check` constraint allows only `notes_folder | github | rss | pdf_upload |
   bookmark | research_note | manual`. Ad-hoc ingest must use **`manual`** (the value all tests use);

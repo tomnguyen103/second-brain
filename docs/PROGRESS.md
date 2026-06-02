@@ -49,6 +49,9 @@ Add a dated entry per working session. Most recent on top.
   correct `-p second-brain` invocation — the runbook's old line would've hit the project-name bug).
   Grafana/Prometheus stay bound to `127.0.0.1` (SSH-tunnel only). PR #14 follow-up also made the
   VPS override bind direct API/frontend ports to `127.0.0.1`, leaving Caddy 80/443 as the public surface.
+- **PR #14 verification fix:** the fresh head reproduced the Phase-7 `kind-smoke` ingress-nginx
+  admission webhook race twice (`connect: connection refused` during `kubectl apply -k`). Patched
+  `.github/workflows/k8s.yml` to retry the apply through that transient readiness gap.
 - **Known follow-ups:** briefing `body_markdown` has mojibake em-dash/middot (cosmetic, app-code,
   spawned as a separate task); enable `ufw` (USAGE.md §hardening).
 
