@@ -12,6 +12,8 @@ backend/.env
 # Phase 6 production secrets — only the *.example templates are committed
 deploy/.env.prod
 deploy/pgbouncer/userlist.txt
+# Box-specific compose override (carries the public host/IP) — commit the .example only
+deploy/docker-compose.vps.yml
 # Phase 7 K8s secret — only secret.example.yaml is committed (D4)
 deploy/k8s/secret.yaml
 

@@ -1,0 +1,21 @@
+# Caddy reverse proxy for the single-VPS prod stack.
+# One public origin, auto-HTTPS (Let's Encrypt). The site address is injected from the
+# environment so this file stays host-agnostic:
+#   CADDY_SITE_ADDRESS=YOUR_VPS_IP.sslip.io   (sslip.io maps <ip>.sslip.io -> <ip>,
+#   so Caddy can get a publicly-trusted cert without owning a domain).
+# Swap in a real domain later by changing CADDY_SITE_ADDRESS — no other change needed.
+{$CADDY_SITE_ADDRESS} {
+	encode zstd gzip
+
+	# API: strip the /api prefix and forward to the FastAPI service.
+	#   https://<host>/api/chat        -> api:8000/chat
+	#   https://<host>/api/health      -> api:8000/health
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Everything else: the Next.js frontend (served same-origin, so no CORS).
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

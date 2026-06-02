@@ -5,6 +5,14 @@
 - **Deciders:** project owner (low cost is the stated priority)
 - **Context phase:** Phase 6 (productionize on a VPS)
 
+> **Update 2026-06-02 — supersedes the region & fallback below.** The owner is in the **USA**,
+> not SEA — the "SEA (Vietnam)" premise in Context #2 and the Singapore region choice are
+> incorrect. **Corrected:** Oracle Cloud Always Free, home region **US Central (Chicago,
+> `us-chicago-1`)** ($0, up to 4 ARM OCPU / 24 GB). Paid fallback flips to **Hetzner US**
+> (Ashburn VA / Hillsboro OR, ~$5/mo, x86, no ARM-capacity lottery) — Hetzner was dismissed
+> below *only* for Vietnam latency, which no longer applies. The RAM-constraint analysis,
+> multi-arch note, and $0-baseline rationale all still stand.
+
 ## Context
 
 The whole stack runs as one Docker Compose project on a single always-on box (AGENTS.md).

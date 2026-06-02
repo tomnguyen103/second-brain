@@ -88,7 +88,15 @@ jobs:
             -l app.kubernetes.io/component=controller --timeout=180s
 
       - name: Apply manifests
-        run: kubectl apply -k deploy/k8s
+        run: |
+          # ingress-nginx can mark the controller pod Ready before the admission webhook
+          # accepts HTTPS. Retry the apply so the Ingress resource survives that CI race.
+          for i in 1 2 3 4 5; do
+            kubectl apply -k deploy/k8s && exit 0
+            echo "kubectl apply failed on attempt $i; waiting for admission webhook"
+            sleep 15
+          done
+          kubectl apply -k deploy/k8s
 
       - name: Wait for rollouts
         run: |

@@ -1,0 +1,59 @@
+# VPS-specific override TEMPLATE for the single-box prod stack.
+# Copy to deploy/docker-compose.vps.yml (gitignored — it carries your public host/IP) and
+# replace YOUR_VPS_IP with the droplet's public IP, then deploy:
+#   docker compose -p second-brain \
+#     -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml \
+#     --env-file deploy/.env.prod up -d
+#
+# What it does on top of docker-compose.prod.yml:
+#   - bakes the public API base URL into the Next.js bundle at BUILD time (NEXT_PUBLIC_* is
+#     inlined by `next build`; a runtime env var is ignored by the browser). The browser calls
+#     the API through Caddy at https://<host>/api, same-origin.
+#   - allows that origin in the API's CORS list (belt-and-suspenders; same-origin needs none).
+#   - keeps Prometheus/Grafana bound to localhost only (reach them via SSH tunnel).
+#   - adds Caddy as the public entrypoint on 80/443 with auto-HTTPS.
+# Using <ip>.sslip.io gives Caddy a real Let's Encrypt cert without owning a domain
+# (sslip.io resolves <ip>.sslip.io -> <ip>). Swap in a real domain by changing these values.
+services:
+  frontend:
+    build:
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://YOUR_VPS_IP.sslip.io/api
+    ports: !override
+      - "127.0.0.1:3000:3000"
+
+  api:
+    environment:
+      SECOND_BRAIN_CORS_ORIGINS: '["https://YOUR_VPS_IP.sslip.io"]'
+    ports: !override
+      - "127.0.0.1:8000:8000"
+
+  # !override REPLACES the base file's port list (compose concatenates by default, which would
+  # bind 0.0.0.0:PORT and 127.0.0.1:PORT both -> "address already in use"). Localhost-only here.
+  prometheus:
+    ports: !override
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    ports: !override
+      - "127.0.0.1:3001:3000"
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - api
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:-YOUR_VPS_IP.sslip.io}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
