@@ -10,13 +10,16 @@ pytestmark = pytest.mark.skipif(
 
 def test_hybrid_search_returns_results_and_meta(db_session, fake_embedder):
     spec = SourceSpec(type="manual", name="retrieval-test")
-    ingest_documents(db_session, fake_embedder, source=spec, documents=[
+    result = ingest_documents(db_session, fake_embedder, source=spec, documents=[
         DocumentInput(title="HNSW doc", content="HNSW tuning parameters m ef_construction. " * 15),
         DocumentInput(title="Unrelated", content="completely unrelated topic about cooking. " * 15),
     ])
 
     settings = Settings()
-    hits, meta = hybrid_search(db_session, fake_embedder, settings, "HNSW tuning")
+    # Scope to this test's own source so committed ambient data (e.g. the Phase 3 eval corpus,
+    # which also has an HNSW note) can't leak into the results — the shared dev DB is the test DB.
+    hits, meta = hybrid_search(db_session, fake_embedder, settings, "HNSW tuning",
+                               source_ids=[result.source_id])
 
     assert len(hits) >= 1
     assert meta["fused_returned"] == len(hits)
@@ -33,12 +36,13 @@ def test_hybrid_search_returns_results_and_meta(db_session, fake_embedder):
 
 def test_hybrid_search_fulltext_finds_exact_term(db_session, fake_embedder):
     spec = SourceSpec(type="manual", name="fts-test")
-    ingest_documents(db_session, fake_embedder, source=spec, documents=[
+    result = ingest_documents(db_session, fake_embedder, source=spec, documents=[
         DocumentInput(title="Rare term doc",
                       content="xyzquux is a very rare token that only appears here. " * 10),
     ])
 
     settings = Settings()
-    hits, meta = hybrid_search(db_session, fake_embedder, settings, "xyzquux")
+    hits, meta = hybrid_search(db_session, fake_embedder, settings, "xyzquux",
+                               source_ids=[result.source_id])
     assert meta["candidates_fulltext"] >= 1
     assert any(h.method in ("fulltext", "hybrid") for h in hits)
