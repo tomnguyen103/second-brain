@@ -13,7 +13,7 @@ session — the master prompt treats it as the source of truth for "where we are
 | 2 | Next.js chat UI (citations, semantic search, feedback; streaming deferred) | ✅ Complete |
 | 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ✅ Complete |
 | 4 | MCP server + agentic actions incl. self-research tool | ✅ Complete |
-| 5 | Daily briefing + scheduled pipelines | ⬜ Not started |
+| 5 | Daily briefing + scheduled pipelines | ✅ Complete |
 | 6 | Productionize on VPS + data-ops hardening | ✅ Complete |
 | 7 | Kubernetes learning track on local k3s/kind | ⬜ Not started |
 
@@ -22,6 +22,37 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-02 — Phase 5 COMPLETE: daily briefing + scheduled pipelines (durable worker)
+- **Branch:** `phase-5-impl` (off main, Phase 6 merged via PR #9). Plan in `docs/phase-5-plan.md`;
+  decisions in ADR-0013. Phase 5 was skipped on the 4 → 6 jump; this picks up the deferred items
+  and the roadmap's scheduled-summarization feature. TDD throughout (red → green → commit).
+- **What shipped:** the **durable job worker** finally exercising ADR-0004's `jobs` table —
+  `app/jobs/queue.py` (enqueue / `claim_next` with `FOR UPDATE SKIP LOCKED` / mark_done /
+  mark_failed-with-retry), `app/jobs/worker.py` (`run_once` + resident `--loop`), and a handler
+  registry (`app/jobs/handlers.py`). A **briefing** service (`app/briefing/service.py`) that
+  summarizes documents ingested since the last briefing's `period_end` (else a 24h lookback) via
+  the `LLMClient`, composes markdown, and persists a **`Briefing`** (migration **`0004`**).
+  `GET /briefing` (latest) + `GET /briefing/history`. **Async `research_topic`** now runs through
+  the same worker (`research` job) — closes the ADR-0010 Phase-4 deferral. Tiny enqueue CLI
+  (`app/jobs/enqueue.py`) for OS cron.
+- **Decisions (D1–D7, ADR-0013):** poll-based worker (NOTIFY deferred); **OS cron** scheduler
+  (no APScheduler/pg_cron); **store-and-display** delivery (no email/secret in v1);
+  briefing scope = docs-since-last-briefing; new `briefings` table; async research via the worker;
+  `fake` LLM for deterministic tests. Empty window → "nothing new" briefing, **no LLM call**
+  (idempotent re-enqueue).
+- **Verified:** backend `pytest` **146 passed** (was 118; +28 across config/queue/worker/briefing-
+  format/build_briefing/handlers/API). Live `--once` smoke: `enqueue briefing` → `worker --once`
+  → stored Briefing (12 docs in the 24h window, markdown body); second run on the empty queue →
+  "no eligible job". Prod compose validates with the new `worker` service (`docker compose config`
+  OK). DB: migration `0004_briefings` applied live (`alembic upgrade head`).
+- **Deploy wiring:** `worker` service in `deploy/docker-compose.prod.yml`
+  (`python -m app.jobs.worker --loop`, same env/DSN as api via PgBouncer); cron snippet in
+  `docs/runbooks/deploy-checklist.md` §7 enqueues the daily briefing.
+- **Deferred (per ADR-0013):** `LISTEN/NOTIFY` wake-up (latency optimization); RSS/GitHub
+  connector sources; email/SMTP delivery; a savepoint-wrapped reaper for poisoned-session jobs.
+- **Next:** Phase 7 — Kubernetes learning track on local k3s/kind, or provision the Oracle box
+  and execute the deploy runbook.
 
 ### 2026-06-02 — Phase 6 COMPLETE: productionize + data-ops hardening (code/config; live deploy = runbook)
 - **Branch:** `phase-6-impl` (off main). Plan in `docs/phase-6-plan.md`; decisions in ADR-0011

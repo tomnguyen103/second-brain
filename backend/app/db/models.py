@@ -273,6 +273,26 @@ class Job(Base):
     created_at: Mapped[datetime] = _created()
 
 
+class Briefing(Base):
+    """A stored morning briefing (Phase 5, ADR-0013).
+
+    Produced by the `briefing` job: summarizes documents ingested in `(period_start,
+    period_end]` via the LLMClient and persisted for store-and-display at GET /briefing.
+    `model` is NULL for a "nothing new" briefing (no LLM call was made)."""
+    __tablename__ = "briefings"
+    __table_args__ = (Index("ix_briefings_generated_at", "generated_at"),)
+    id: Mapped[int] = _pk()
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    body_markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    document_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    model: Mapped[str | None] = mapped_column(Text)
+
+
 class Task(Base):
     """A user task created via the MCP create_task action (Phase 4, ADR-0010).
     Distinct from a pipeline Job — this is the user's to-do, not internal work."""

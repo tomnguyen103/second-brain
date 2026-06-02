@@ -1,4 +1,4 @@
-# Second Brain — backend (through Phase 6: RAG MVP + eval/MLOps + MCP + data-ops/observability)
+# Second Brain — backend (RAG MVP + eval/MLOps + MCP + briefing/worker + data-ops/observability)
 
 Phase 1 ships `POST /ingest` and `POST /chat` on the Phase 0 schema: local MiniLM-384
 embeddings, hybrid pgvector + full-text retrieval fused with RRF, and cited answers via an
@@ -114,6 +114,47 @@ mcp dev app/mcp_server.py        # opens the Inspector; call search_notes / crea
 > Notes: `research_topic` with the `fake` driver stores a deterministic note (still embedded +
 > searchable); set `SECOND_BRAIN_GEMINI_API_KEY` + drop the `fake` override for real research.
 > `create_task`/`research_topic` write to the configured DB.
+
+## Phase 5 — daily briefing + scheduled pipelines (run & verify)
+
+A durable job **worker** (the ADR-0004 `jobs` table, finally used) drains queued work: a
+**briefing** that summarizes documents ingested since the last briefing via the `LLMClient`
+and stores it, plus async **`research_topic`**. Scheduling is OS cron (D2 — no resident
+scheduler). Logic in `app/jobs/*` + `app/briefing/*`; surfaced at `GET /briefing`. See ADR-0013.
+
+```powershell
+cd backend; .\.venv\Scripts\Activate.ps1
+
+# 0) Apply migration 0004 (briefings table), then run the Phase 5 tests
+docker compose up -d db          # from repo root, if not already up
+alembic upgrade head             # -> 0004_briefings
+$env:SECOND_BRAIN_TEST_DATABASE_URL = "postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain"
+$env:SECOND_BRAIN_LLM_PROVIDER = "fake"
+pytest tests/unit/test_config_phase5.py tests/unit/test_briefing_format.py `
+       tests/integration/test_jobs_queue.py tests/integration/test_jobs_worker.py `
+       tests/integration/test_briefing.py tests/integration/test_job_handlers.py `
+       tests/integration/test_briefing_api.py -v
+
+# 1) Produce a briefing end-to-end (fake LLM = keyless): enqueue -> run the worker once
+python -m app.jobs.enqueue briefing
+python -m app.jobs.worker --once          # -> "job N (briefing) -> done"
+
+# 2) Read it back
+uvicorn app.main:app --reload             # then: curl http://localhost:8000/briefing
+#   curl http://localhost:8000/briefing/history?limit=5
+
+# 3) Async research through the same worker
+python -m app.jobs.enqueue research --topic "reciprocal rank fusion"
+python -m app.jobs.worker --once          # stores a research_note source, now searchable
+
+# 4) Real briefings/research: set a Gemini key + drop the fake override
+$env:SECOND_BRAIN_GEMINI_API_KEY = "..."; Remove-Item Env:\SECOND_BRAIN_LLM_PROVIDER
+```
+
+> Notes: with the `fake` driver the briefing summary is a deterministic canned line (still
+> stored, `model="fake"`); an empty window yields a "nothing new" briefing with **no LLM call**
+> (`model` NULL). In production the `worker` service runs `python -m app.jobs.worker --loop` and
+> host cron enqueues the daily briefing — see [`../docs/runbooks/deploy-checklist.md`](../docs/runbooks/deploy-checklist.md) §7.
 
 ## Phase 6 — productionization + data-ops (run & verify)
 

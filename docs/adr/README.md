@@ -18,3 +18,4 @@ older ones explicitly; we don't edit history.
 | [0010](0010-mcp-server-and-agentic-actions.md) | MCP server (FastMCP/stdio) + agentic actions: search, tasks, digest, research-this-topic | Accepted |
 | [0011](0011-vps-provider.md) | VPS provider: Oracle Always Free (Singapore) primary, Contabo SG paid fallback | Accepted |
 | [0012](0012-productionization-and-data-governance.md) | Productionization + data governance: RLS, audit, retention, GDPR erasure, metrics, eval-gated CI, PgBouncer | Accepted |
+| [0013](0013-briefing-scheduling-and-worker.md) | Daily briefing: durable poll-based worker, OS-cron scheduling, store-and-display, briefings table | Accepted |

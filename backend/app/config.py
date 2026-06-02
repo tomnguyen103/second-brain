@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     # API
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Daily briefing + scheduled pipelines (Phase 5, ADR-0013)
+    briefing_lookback_hours: int = 24       # first-ever briefing window when no prior period_end
+    job_max_attempts: int = 3               # worker retries a failing job up to this many times
+    worker_poll_seconds: float = 5.0        # --loop poll interval (OS cron enqueues; D2)
+
     # Productionization + data governance (Phase 6, ADR-0012)
     admin_token: str | None = None          # bearer token guarding destructive/admin endpoints
     retention_raw_text_days: int = 180      # null documents.raw_text this long after embedding

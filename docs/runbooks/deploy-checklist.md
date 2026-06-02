@@ -61,7 +61,21 @@ curl -s localhost:8000/metrics | head
 #   Prometheus http://<host>:9090/alerts → rules loaded
 ```
 
-## 7. Rollback
+## 7. Schedule the daily briefing (OS cron — ADR-0013 D2)
+The `worker` service drains the jobs queue continuously; a host cron line enqueues the
+`briefing` job once a day. No resident scheduler (no APScheduler/pg_cron) — `$0`, one box.
+```cron
+# /etc/cron.d/second-brain-briefing  — 07:00 server time, daily
+# /etc/cron.d format requires a user field (here: root) between the schedule and the command.
+0 7 * * *  root  cd /path/to/second-brain && docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod exec -T worker python -m app.jobs.enqueue briefing >> /var/log/second-brain-briefing.log 2>&1
+```
+Read it next morning at `GET /briefing` (or the frontend page). Each run summarizes documents
+ingested since the previous briefing's `period_end`; a re-run over an empty tail is a cheap
+"nothing new" briefing (no LLM call), so an accidental double-enqueue is harmless. Inspect the
+queue any time: `SELECT id,type,status,attempts,last_error FROM jobs ORDER BY id DESC LIMIT 10;`
+(`status='failed'` is the dead-letter view).
+
+## 8. Rollback
 ```bash
 git checkout <previous-green-sha>
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
