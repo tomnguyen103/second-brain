@@ -9,6 +9,53 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Phase 5 — daily briefing + scheduled pipelines (2026-06-02)
+
+### Worker transaction model: one commit per attempt, queue primitives only flush
+- **What:** `queue.enqueue/claim_next/mark_done/mark_failed` call `db.flush()` only; the worker's
+  `run_once` owns the single `db.commit()` (claim → dispatch → mark → commit). A handler result is
+  stashed under `payload.result` because the `jobs` table has no result column. `build_briefing`
+  flushes (caller commits); `research_topic` commits internally (via `ingest_documents`, Phase 4).
+- **Why:** keeps each job attempt one transaction and keeps the primitives composable + cleanly
+  testable with the rolled-back `db_session` fixture (commits there are savepoint releases, like
+  the existing `ingest_documents` commit — proven safe by the Phase 4 tests).
+- **Trade-off:** `research_topic`'s internal commit means a `research` attempt isn't strictly one
+  transaction (an extra mid-attempt commit) — harmless for a single worker.
+
+### No savepoint wrapper around handler dispatch (poisoned-session edge accepted)
+- **What:** `run_once` catches any handler exception and calls `mark_failed` directly — no
+  `begin_nested()` around the handler.
+- **Why:** the realistic failure is `llm.generate` raising **before** any DB write (clean session →
+  `mark_failed` works). Wrapping in a savepoint would conflict with `research_topic`'s internal
+  `commit()` (committing inside an open savepoint closes it). 
+- **Trade-off:** a handler that poisons the session mid-write would leave a `running` row to
+  recover by hand. Acceptable at single-user scale; ADR-0013 notes a `NOTIFY`+reaper as the
+  scale-up path.
+
+### `BriefingOut.model` needs `protected_namespaces=()`
+- **What:** the schema field is literally named `model` (honest column name); Pydantic v2 reserves
+  the `model_` namespace and warns. Set `model_config = ConfigDict(from_attributes=True,
+  protected_namespaces=())` to allow it cleanly. *Affects:* `app/schemas/briefing.py`.
+
+### Briefing window lower bound is strictly-greater (`created_at > since`)
+- **What / why:** `since` = the prior briefing's `period_end`; a document created exactly at that
+  instant was already in the prior briefing, so `(since, now]` (exclusive lower) avoids
+  double-counting the boundary doc across consecutive briefings.
+
+### Worker tests use the allowed `embed` job type for fake handlers
+- **What / why:** `jobs.type` has a CHECK (`ingest|embed|briefing|research`), so a fake-handler
+  test can't invent a type. `embed` is allowed but intentionally **out of scope** (inline ingest
+  covers it), so it's the safe stand-in for dispatch/failure tests without colliding with a real
+  handler. Tests inject a handler dict into `run_once(..., handlers=...)` rather than mutating the
+  global registry (DI = no cross-test state).
+
+### Deploy-only wiring is not unit-tested (consistent with the MCP stdio server)
+- **What:** `worker.run_loop`, `worker.main` (`--once/--loop`), and the `enqueue` CLI are thin
+  wiring over tested services, marked `# pragma: no cover`. The resident `--loop` is never started
+  in a test (it doesn't terminate); `run_once` carries the logic and is fully covered.
+- **Why:** mirrors the Phase 4 treatment of `app/mcp_server.py` (smoke-tested, not unit-tested).
+  Validated instead by a live `--once` smoke + `docker compose config`.
+
 ## Phase 6 — productionize + data-ops hardening (2026-06-02)
 
 ### CodeRabbit review on PR #9: no code issues; docstring advisory handled with judgment
