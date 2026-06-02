@@ -60,6 +60,29 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
+  # Durable-job worker (Phase 5, ADR-0013). Drains the jobs queue continuously: the daily
+  # briefing (enqueued by host cron — see runbooks/deploy-checklist.md) and async research_topic
+  # jobs. Same image/env/DSN as api (traffic via PgBouncer); applies no migrations (api does) and
+  # exposes no ports. depends_on api so the briefings table (migration 0004) exists first; a job
+  # that still loses the race just retries (attempts) once the migration lands.
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    depends_on:
+      db:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_started
+      api:
+        condition: service_started
+    environment:
+      SECOND_BRAIN_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-second_brain}:${POSTGRES_PASSWORD:-second_brain}@pgbouncer:6432/${POSTGRES_DB:-second_brain}
+      SECOND_BRAIN_LLM_PROVIDER: ${SECOND_BRAIN_LLM_PROVIDER:-gemini}
+      SECOND_BRAIN_GEMINI_API_KEY: ${SECOND_BRAIN_GEMINI_API_KEY:-}
+    command: ["python", "-m", "app.jobs.worker", "--loop"]
+    restart: unless-stopped
+
   frontend:
     build:
       context: ..
