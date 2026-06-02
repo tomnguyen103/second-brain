@@ -1,0 +1,38 @@
+# North-south ingress (D5) via ingress-nginx. Host-based routing:
+#   http://second-brain.local      -> frontend Service :3000   (the UI)
+#   http://api.second-brain.local  -> api Service :8000        (the API; /health smoked through it)
+#
+# On the kind cluster the ingress-nginx controller listens on the control-plane node's host ports
+# 80/443 (see kind-cluster.yaml extraPortMappings), so these hosts resolve at http://localhost.
+# For a browser, add to your hosts file:  127.0.0.1  second-brain.local api.second-brain.local
+# For curl smoke tests no hosts edit is needed: curl -H 'Host: api.second-brain.local' http://localhost/health
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: second-brain
+  namespace: second-brain
+  labels:
+    app.kubernetes.io/part-of: second-brain
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.second-brain.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+    - host: second-brain.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
