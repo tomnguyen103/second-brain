@@ -20,3 +20,4 @@ older ones explicitly; we don't edit history.
 | [0012](0012-productionization-and-data-governance.md) | Productionization + data governance: RLS, audit, retention, GDPR erasure, metrics, eval-gated CI, PgBouncer | Accepted |
 | [0013](0013-briefing-scheduling-and-worker.md) | Daily briefing: durable poll-based worker, OS-cron scheduling, store-and-display, briefings table | Accepted |
 | [0014](0014-kubernetes-learning-track.md) | Kubernetes learning track on local kind (manifests + HPA + ingress + CI/CD), then torn down | Accepted |
+| [0015](0015-local-first-obsidian-memory.md) | Local-first Obsidian memory: Markdown is canonical, Postgres/VPS are derived/demo for private data | Accepted |

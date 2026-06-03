@@ -71,5 +71,12 @@ class Settings(BaseSettings):
     audit_enabled: bool = True              # write audit_log rows on governed data actions
     pgbouncer_url: str | None = None         # optional pooled DSN for the always-on service
 
+    # Local-first Obsidian pivot (ADR-0015). The vault is the canonical private memory;
+    # Postgres is a rebuildable derived index over these Markdown files.
+    vault_path: str = r"C:\Users\huuth\Documents\SecondBrainVault"
+    vault_index_include_dirs: list[str] = []  # empty = all vault folders, after excludes
+    vault_index_exclude_dirs: list[str] = [".obsidian", "Templates", "90 Archive"]
+    mcp_approval_token: str | None = None  # optional local human token for approve_tool_call
+
 
 settings = Settings()

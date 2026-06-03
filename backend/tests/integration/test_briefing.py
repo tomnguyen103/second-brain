@@ -82,7 +82,9 @@ def test_build_briefing_since_filter_excludes_old_docs(db_session, fake_embedder
     res = _ingest(db_session, fake_embedder, ["Fresh Doc", "Stale Doc"])
     stale_id = next(r.document_id for r in res.documents if r.title == "Stale Doc")
     stale = db_session.get(Document, stale_id)
-    stale.created_at = start - timedelta(hours=2)   # back-date before the window
+    stale_time = start - timedelta(hours=2)
+    stale.ingested_at = stale_time
+    stale.created_at = stale_time
     db_session.flush()
 
     b = build_briefing(db_session, FakeLLMClient(), since=start)

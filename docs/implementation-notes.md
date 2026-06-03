@@ -9,6 +9,184 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Local-first Obsidian pivot (2026-06-03)
+
+### Vault indexer skips noisy daily-use folders by default
+- **What:** added configurable vault indexing filters. Full-vault indexing now excludes
+  `.obsidian`, `Templates`, and `90 Archive` by default; selected reindex requests fail clearly if
+  they target a path outside the configured include/exclude policy. The MCP surface also has a
+  direct read-only `vault_status` tool that reports vault existence, index source/document counts,
+  pending approvals, and eligible/excluded Markdown counts.
+- **Why:** Obsidian config, templates, and old archived notes create noisy search results in daily
+  use. The derived Postgres index should reflect the useful working vault by default, while still
+  being fully rebuildable from Markdown and configurable when archived notes should be searchable.
+- **Trade-off / what I gave up:** `90 Archive` is excluded by default even though archived notes can
+  still be valuable. Override `SECOND_BRAIN_VAULT_INDEX_EXCLUDE_DIRS` or set
+  `SECOND_BRAIN_VAULT_INDEX_INCLUDE_DIRS` when a broader or narrower index is desired.
+- **Affects:** `app/config.py`, `app/vault/service.py`, `app/vault/indexer.py`,
+  `app/mcp_server.py`, `tests/unit/test_config.py`, `tests/unit/test_vault_paths.py`,
+  `tests/unit/test_mcp_server.py`, `tests/integration/test_vault_indexer.py`.
+
+### Legacy DB MCP mutators now share the approval gate
+- **What:** kept the legacy/demo MCP tools registered under their existing names, but changed
+  `create_task` and `research_topic` so they enqueue approval requests instead of writing to
+  Postgres immediately. `approve_tool_call` now handles those legacy DB mutations alongside vault
+  writes. `search_notes` and `send_digest` remain direct read-only legacy/demo DB tools and are
+  documented that way in their tool descriptions.
+- **Why:** removing/renaming the old tools would break existing clients, but leaving them as direct
+  mutators created a confusing bypass around the local-first approval model. Sharing the approval
+  queue gives one obvious rule: durable writes happen only after approval.
+- **Trade-off / what I gave up:** the approval queue is still process-local and the legacy tool names
+  remain visible. That preserves compatibility, but the names still carry Phase-4 history; future UI
+  polish could group or hide legacy/demo tools from daily private-memory workflows.
+- **Affects:** `app/mcp_server.py`, `tests/unit/test_mcp_server.py`.
+
+### Codex MCP smoke test is idempotent when the note already exists
+- **What:** during local Codex MCP setup verification, the create-mode smoke write for
+  `00 Inbox/Codex MCP Smoke Test.md` reached the MCP approval gate but failed because the note
+  already existed. The smoke was rerun in `overwrite` mode with the canonical smoke-test body and
+  approved with the configured local token.
+- **Why:** the setup guide's happy path assumes a fresh vault, but repeated verification should still
+  exercise the same MCP write approval path and leave a predictable smoke note behind.
+- **Trade-off / what I gave up:** the known smoke-test file content was replaced with the canonical
+  test body rather than preserving any prior edits in that one file. No VPS export, purge, or remote
+  mutation was involved.
+- **Affects:** `C:\Users\huuth\Documents\SecondBrainVault\00 Inbox\Codex MCP Smoke Test.md`.
+
+### NotebookLM-to-Obsidian workflow uses manual capture plus templates
+- **What:** added a repo workflow doc and vault templates for `Research Brief`, `NotebookLM Session`,
+  and `Source Digest`.
+- **Why:** NotebookLM is useful for manual deep research, but Obsidian needs durable, source-aware
+  Markdown. The templates make agents produce consistent notes without automating NotebookLM or
+  saving raw dumps by default.
+- **Trade-off / what I gave up:** no programmatic NotebookLM integration and no automatic source
+  import. The user still chooses sources, studies manually, and approves what becomes memory.
+- **Affects:** `docs/notebooklm-to-obsidian-workflow.md`, `docs/USAGE.md`,
+  `C:\Users\huuth\Documents\SecondBrainVault\Templates\*.md`.
+
+### Optional MCP approval token hardens approve_tool_call
+- **What:** added `SECOND_BRAIN_MCP_APPROVAL_TOKEN`. If set, `approve_tool_call` requires the token
+  before approving or rejecting a pending vault action; invalid attempts return
+  `approval_token_required` and leave the approval queued.
+- **Why:** the earlier approval queue improved UX and auditability, but an MCP client with access to
+  both `pending_approvals` and `approve_tool_call` could self-approve. A local token gives the human
+  a simple out-of-band checkpoint without changing the MCP transport or persisting approvals.
+- **Trade-off / what I gave up:** the token is optional so local tests/dev remain frictionless. If a
+  real Claude/Codex MCP client is configured without it, approvals remain a soft workflow gate rather
+  than a hard security boundary.
+- **Affects:** `app/config.py`, `app/mcp_server.py`, `tests/unit/test_config.py`,
+  `tests/unit/test_mcp_server.py`.
+
+### MCP vault approval outputs hide raw write arguments
+- **What:** changed public approval payloads and `pending_approvals` so they expose `id`, `tool`,
+  `effect`, `summary`, and `created_at`, but keep raw tool arguments process-local until
+  `approve_tool_call` executes or rejects them. Write summaries include path/mode/size/hash instead
+  of full Markdown content; approved writes return note metadata, while approved reads return bounded
+  note content.
+- **Why:** Claude/Codex need ergonomic, structured tool results, but raw proposed note bodies can
+  contain private research or secrets and should not be echoed into every MCP result/log.
+- **Trade-off / what I gave up:** the approval gate remains process-local and not an out-of-band
+  human-only boundary. The MCP client must still avoid auto-approving `approve_tool_call` if the user
+  wants a hard human checkpoint.
+- **Affects:** `app/vault/approvals.py`, `app/mcp_server.py`, `tests/unit/test_vault_approvals.py`,
+  `tests/unit/test_mcp_server.py`.
+
+### Generated vault notes use clearer templates
+- **What:** research notes now wrap generated body text under `## Synthesis`; NotebookLM captures
+  wrap pasted output under `## NotebookLM Capture`; rendered frontmatter quotes/escapes titles and
+  tags.
+- **Why:** structured note bodies are easier to scan in Obsidian and less brittle for future parsing.
+  Escaped frontmatter avoids malformed YAML-ish metadata from titles/tags containing quotes or
+  newlines.
+- **Trade-off / what I gave up:** generic `propose_note_write` still writes caller-provided Markdown
+  verbatim because it is the low-level escape hatch for hand-authored notes.
+- **Affects:** `app/vault/markdown.py`, `app/vault/service.py`, `tests/unit/test_vault_markdown.py`,
+  `tests/unit/test_vault_service.py`.
+
+### Vault indexer uses existing columns plus JSONB metadata
+- **What:** expanded vault-derived `Document` rows so `external_id` is the Obsidian-relative path,
+  `content_hash` is the note hash, `title` is the parsed note title, document tags mirror
+  frontmatter/inline tags, and JSONB metadata stores `vault_path`, `content_hash`, `mtime`, `title`,
+  `tags`, `frontmatter`, `kind`, and `canonical`.
+- **Why:** this satisfies the Phase L1 index contract while keeping Postgres rebuildable from the
+  vault. The current schema already has the required durable places for path/hash/title/tags and a
+  flexible JSONB field for vault metadata, so a migration would add surface area without a clear
+  benefit.
+- **Trade-off / what I gave up:** vault file tracking is still convention-based (`external_id` +
+  metadata) rather than enforced by a dedicated vault-files table or unique `(source_id,
+  external_id)` constraint. Changed files are handled by deleting/re-ingesting the derived document.
+- **Affects:** `app/vault/indexer.py`, `tests/integration/test_vault_indexer.py`.
+
+### Selected vault reindexing validates requested note paths
+- **What:** changed selected `reindex_vault(paths=[...])` handling so every requested path is resolved
+  against `SECOND_BRAIN_VAULT_PATH`, must be an existing `.md` file, and is counted in the result as
+  `requested`.
+- **Why:** silent no-op reindexing is dangerous in an approval-gated MCP workflow: a user could
+  approve a path that escaped the vault, had a typo, or was not Markdown and receive a successful but
+  misleading result.
+- **Trade-off / what I gave up:** selected reindexing now fails the whole request on the first bad
+  path rather than partially indexing the valid paths. That is stricter, but safer for v1.
+- **Affects:** `app/vault/indexer.py`, `tests/unit/test_vault_paths.py`,
+  `tests/integration/test_vault_indexer.py`.
+
+### Vault search results include the Obsidian-relative path
+- **What:** `search_vault` now formats hits with `document_id` and `vault_path` in addition to title,
+  source, snippet, score, and method.
+- **Why:** the MCP loop needs a stable bridge from "I found this chunk" to "read this Markdown note."
+  `vault_path` is the human/audit-friendly handle for the canonical Obsidian file.
+- **Trade-off / what I gave up:** this still uses the existing `documents.external_id` convention
+  instead of adding a first-class vault-files table. That keeps Phase L1/L2 small and aligns with the
+  current derived-index model.
+- **Affects:** `app/mcp_server.py`, `tests/unit/test_mcp_server.py`.
+
+### Obsidian is canonical; Postgres is a rebuildable derived index
+- **What:** added `docs/local-first-agentic-research-plan.md` and ADR-0015, created the local vault
+  folder structure, and introduced backend vault support (`app/vault/*`) plus `SECOND_BRAIN_VAULT_PATH`.
+- **Why:** the existing VPS/Postgres app is strong portfolio infrastructure, but private daily
+  research is safer and cheaper as local Markdown. Postgres remains useful for hybrid retrieval, but
+  it can now be rebuilt from the vault.
+- **Trade-off / what I gave up:** no schema migration in this first slice. Vault-relative paths live
+  in `documents.external_id` and metadata for now. This is enough for idempotent local indexing, but a
+  future migration could make vault file tracking more explicit.
+- **Affects:** `AGENTS.md`, `docs/local-first-agentic-research-plan.md`, ADR-0015, `app/config.py`,
+  `app/vault/*`, `app/mcp_server.py`.
+
+### Approval-gated vault MCP tools are process-local in v1
+- **What:** added `search_vault`, `read_note`, `propose_note_write`, `create_research_note`,
+  `capture_notebooklm_session`, `reindex_vault`, `pending_approvals`, and `approve_tool_call`.
+  New vault actions create an in-memory approval request; `approve_tool_call` performs the action.
+- **Why:** this matches the security posture for local agents: no durable vault write happens silently.
+  The first implementation is intentionally local and simple.
+- **Trade-off / what I gave up:** approvals disappear if the MCP server process restarts. A later
+  LangGraph/workflow phase can persist approvals/checkpoints locally if needed.
+- **Affects:** `app/mcp_server.py`, `app/vault/approvals.py`.
+
+### No automatic VPS export/purge
+- **What:** documented export-then-purge as required, but did not execute it.
+- **Why:** deleting remote personal data is destructive and must be preceded by verified Markdown
+  export into Obsidian.
+- **Trade-off / what I gave up:** the pivot is not fully operationally complete until that runbook is
+  performed deliberately.
+
+---
+
+## Verification fixes (2026-06-03)
+
+### Briefing windows use ingested_at when available
+- **What:** changed `build_briefing` to filter/order by `coalesce(documents.ingested_at,
+  documents.created_at)` instead of `created_at` alone, and updated the integration test that
+  backdates a stale document to backdate both timestamps.
+- **Why:** the service describes "documents ingested" and ingestion already stamps
+  `ingested_at` with application time. In tests, `created_at` is a Postgres `now()` default that can
+  reflect transaction start, which made the briefing window flaky when `since` was captured after
+  the test transaction began.
+- **Trade-off / what I gave up:** the deferred index note for briefing scans now applies to the
+  coalesced ingestion-time expression rather than plain `created_at`. This is still acceptable for
+  the small local/private corpus.
+- **Affects:** `app/briefing/service.py`, `tests/integration/test_briefing.py`.
+
+---
+
 ## Going live on the VPS — Caddy HTTPS + compose override gotchas (2026-06-02)
 
 ### Caddy reverse proxy with no-domain HTTPS via `sslip.io`

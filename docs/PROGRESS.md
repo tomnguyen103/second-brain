@@ -16,12 +16,161 @@ session — the master prompt treats it as the source of truth for "where we are
 | 5 | Daily briefing + scheduled pipelines | ✅ Complete |
 | 6 | Productionize on VPS + data-ops hardening | ✅ Complete |
 | 7 | Kubernetes learning track on local k3s/kind | ✅ Complete |
+| 8 | Local-first pivot: Obsidian canonical memory + local vault MCP/indexer | 🟡 In progress |
 
 Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-03 - Local-first vault documentation refreshed
+- **What:** updated the cross-agent and local-first docs after the vault indexing/status work:
+  `AGENTS.md`, `docs/project-plan.md`, ADR-0015, the local-first plan, usage guide, local setup
+  guide, NotebookLM workflow, and export/purge runbook now describe `vault_status`, the default
+  `.obsidian`/`Templates`/`90 Archive` exclusions, configurable include/exclude behavior, and clear
+  `reindex_vault` result counts.
+- **Why:** future agents and daily-use prompts should see the current vault behavior without needing
+  to infer it from code or test history.
+- **Important:** documentation-only pass; no VPS export, purge, or remote/private-data destructive
+  action was run.
+
+### 2026-06-03 - Vault indexing exclusions and status view
+- **What:** made vault indexing safer for daily use. Full-vault reindex now excludes `.obsidian`,
+  `Templates`, and `90 Archive` by default, with configurable include/exclude lists via
+  `SECOND_BRAIN_VAULT_INDEX_INCLUDE_DIRS` and `SECOND_BRAIN_VAULT_INDEX_EXCLUDE_DIRS`. Selected
+  reindex requests now fail clearly if they target a configured-excluded path.
+- **MCP ergonomics:** added direct read-only `vault_status`, reporting vault path/existence,
+  indexed source id/URI/existence, indexed document count, pending approval count, Markdown
+  eligible/excluded counts, and the active index config. `reindex_vault` approval summaries include
+  the active include/exclude policy, and approved results include `requested`, `indexed`, `skipped`,
+  `removed_stale`, and `excluded`.
+- **Verification fix:** while rerunning the full backend suite, fixed a pre-existing briefing-window
+  flake by filtering briefings on `coalesce(documents.ingested_at, documents.created_at)` instead of
+  `created_at` alone.
+- **Verification:** local Docker Postgres was running; ran `alembic upgrade head`; focused unit
+  vault/MCP tests passed; vault indexer integration tests passed; final backend suite:
+  `188 passed, 4 warnings`.
+- **Important:** no VPS export, purge, or remote/private-data destructive action was run. Postgres
+  remains a rebuildable derived index over canonical Obsidian Markdown.
+
+### 2026-06-03 - MCP legacy DB mutators approval-gated
+- **What:** reviewed the legacy MCP tools `create_task`, `research_topic`, `send_digest`, and
+  `search_notes`. Kept `search_notes` and `send_digest` as direct read-only legacy/demo DB tools,
+  but made `create_task` and `research_topic` return approval requests instead of mutating Postgres
+  immediately.
+- **Security boundary:** `approve_tool_call` is now the single execution path for legacy DB task
+  creation and automated research-note ingestion. Rejection performs no mutation, invalid/missing
+  approval tokens leave the pending action queued, and public approval summaries do not expose raw
+  task detail. Vault tools remain local-first and vault-root restricted.
+- **Verification:** local Docker Postgres was already running; ran `alembic upgrade head`; backend
+  suite with local `SECOND_BRAIN_TEST_DATABASE_URL` set: `183 passed`.
+- **Important:** no VPS export, purge, or remote/private-data destructive action was run.
+
+### 2026-06-03 - Local Codex MCP setup verified
+- **What:** verified `C:\Users\huuth\.codex\config.toml` already contains
+  `[mcp_servers.second_brain_local]` with the local backend venv, vault path, local Postgres DSN,
+  `fake` LLM provider, and `SECOND_BRAIN_MCP_APPROVAL_TOKEN=local-human-ok`.
+- **Local runtime:** confirmed Docker Desktop/Compose are available; ran `docker compose up -d db`
+  and the `second_brain_db` container was already running healthy on host port 5433. Ran
+  `alembic upgrade head` and confirmed `alembic current` is `0004_briefings (head)`.
+- **MCP:** Codex discovered the `second_brain_local` MCP tools in this thread, including
+  `search_vault`, `read_note`, `propose_note_write`, `reindex_vault`, `pending_approvals`, and
+  `approve_tool_call`; no Codex restart was needed for this running session.
+- **Smoke workflow:** proposed `00 Inbox/Codex MCP Smoke Test.md`; create-mode approval id
+  `d31b0ab69765429d89cadb31fcca8358` reached the server but failed because the note already
+  existed. Re-ran the known smoke write in overwrite mode, approval id
+  `d113566310b54e5c949ceb36d141fd98`, and approved it with `local-human-ok`. Reindexed the vault
+  with approval id `41bae861610047de8700b7c886d42988`. `search_vault("Codex MCP Smoke Test")`
+  first timed out during approval after 120s, then a retry with approval id
+  `6edc117612e540da8a90e5e85377dd01` succeeded and returned the smoke note as the top hit with
+  `vault_path: 00 Inbox/Codex MCP Smoke Test.md`.
+- **Important:** no VPS commands, exports, purges, or remote/private-data destructive actions were
+  run.
+
+### 2026-06-03 — NotebookLM-to-Obsidian workflow designed
+- **What:** added `docs/notebooklm-to-obsidian-workflow.md` and three Obsidian vault templates:
+  `Templates/Research Brief.md`, `Templates/NotebookLM Session.md`, and
+  `Templates/Source Digest.md`.
+- **Workflow:** NotebookLM remains manual. Agents prepare briefs, clean selected NotebookLM output,
+  save approved Markdown through `capture_notebooklm_session` or related vault tools, reindex the
+  saved note, and verify searchability/readability locally.
+- **Conventions:** documented keeper/save rules, frontmatter fields, tag conventions, and the safe
+  MCP approval flow including optional `SECOND_BRAIN_MCP_APPROVAL_TOKEN`.
+- **Important:** no NotebookLM automation, remote export, VPS purge, or remote mutation was
+  executed.
+
+### 2026-06-03 — MCP approval token gate for local vault actions
+- **What:** added optional `SECOND_BRAIN_MCP_APPROVAL_TOKEN` support for local MCP vault approvals.
+  When configured, `approve_tool_call` requires the token for both approve and reject decisions; bad
+  or missing tokens do not consume the pending approval.
+- **Why:** keeps the existing ergonomic queue, but gives Claude/Codex setups a real local human
+  checkpoint instead of allowing the same MCP client to trivially self-approve queued vault actions.
+- **Verification:** focused config/vault/MCP/indexer suite `28 passed`; backend unit suite
+  `90 passed`; backend integration suite with local Postgres `89 passed`.
+- **Important:** no VPS export/purge was executed.
+
+### 2026-06-03 — MCP vault tools made safer and more ergonomic
+- **What:** reshaped local vault MCP approvals so action tools return compact
+  `approval_required` payloads with summaries, not raw arguments. Pending approvals no longer expose
+  full write bodies; approved writes return note metadata only; approved reads return structured note
+  metadata plus bounded content.
+- **Templates:** generated research notes now include a `## Synthesis` section, NotebookLM captures
+  include a `## NotebookLM Capture` section, and generated frontmatter quotes/escapes titles and tags.
+- **Tests:** added coverage that all vault action tools queue approvals, pending approvals hide raw
+  args, invalid write modes do not queue, rejected write/research/capture actions do not create
+  files, and approved generated-note writes use the expected templates.
+- **Verification:** focused vault/MCP suite `24 passed`; backend unit suite `88 passed`; backend
+  integration suite with local Postgres `89 passed`.
+- **Important:** no VPS export/purge was executed.
+
+### 2026-06-03 — Vault indexer stores full note metadata and handles changed/deleted notes
+- **What:** improved the Obsidian vault indexer without a schema migration. Vault-derived
+  documents now store the vault-relative path in `external_id`, the hash in `content_hash`, title in
+  `documents.title`, tags through the existing tag join, and path/hash/mtime/title/tags/frontmatter
+  in JSONB metadata. The index remains rebuildable from Markdown.
+- **Behavior:** unchanged notes skip re-embedding while refreshing metadata; changed notes replace
+  the prior derived document/chunks/embeddings for the same vault path; full-vault reindex removes
+  stale rows when Markdown files are deleted.
+- **Verification:** vault indexer tests `3 passed`; focused vault/MCP suite `17 passed`; backend unit
+  suite `81 passed`; backend integration suite with local Postgres `89 passed`.
+- **Important:** no schema migration was needed and no VPS export/purge was executed.
+
+### 2026-06-03 — Phase L1/L2 vault workflow hardening
+- **What:** tightened the local Obsidian vault workflow so selected reindex requests validate
+  vault-relative paths instead of silently ignoring unsafe, missing, or non-Markdown files. Vault
+  search results now include `document_id` and `vault_path`, making the loop searchable -> readable
+  through the approval-gated MCP tools.
+- **MCP safety:** expanded tests to cover the new vault tools, including approval-gated note write,
+  approval-gated read, and rejected writes that leave the vault untouched.
+- **Verification:** local pgvector DB started with `docker compose up -d db`; migrations were current.
+  Targeted Phase L1/L2 suite: `16 passed`. Backend unit suite: `81 passed`. Backend integration
+  suite with `SECOND_BRAIN_TEST_DATABASE_URL` set: `88 passed`.
+- **Important:** no VPS export or purge was executed. No remote/private-data destructive action was
+  taken.
+
+### 2026-06-03 — Local-first Obsidian pivot started: plan, ADR, vault, MCP tools, indexer
+- **Setup guide revision:** simplified `docs/local-first-local-setup-guide.md` for Windows +
+  Codex MCP first. It now focuses on Obsidian, Docker DB, backend migration, the
+  `~/.codex/config.toml` MCP block, smoke-test note creation, reindex/search, and when API keys
+  are actually needed. It is organized as one-time initial setup, daily setup, where to use the
+  workflow (Codex project folder, regular chat, Claude), important reminders, and troubleshooting.
+- **What:** added the new north-star plan (`docs/local-first-agentic-research-plan.md`) and
+  **ADR-0015** making Obsidian Markdown the canonical private memory. Updated the ADR index,
+  AGENTS.md, and usage docs so future work treats Postgres/VPS data as derived/demo for private
+  knowledge.
+- **Local vault:** created `C:\Users\huuth\Documents\SecondBrainVault` with folders `00 Inbox`,
+  `10 Research`, `20 Projects`, `30 Decisions`, `40 Sources`, `50 Agent Outputs`, `90 Archive`,
+  and `Templates`.
+- **Code:** added `SECOND_BRAIN_VAULT_PATH`, vault path-safety helpers, minimal Markdown/frontmatter
+  parsing, note creation/capture helpers, a vault indexer that writes Obsidian notes into the
+  existing ingest/chunk/embed pipeline, and approval-gated MCP tools for vault search/read/write,
+  research-note creation, NotebookLM capture, and reindexing.
+- **Verification:** backend unit suite `78 passed`; integration suite without
+  `SECOND_BRAIN_TEST_DATABASE_URL` cleanly skipped DB-bound tests (`1 passed, 86 skipped`). Targeted
+  vault tests passed (`11 passed, 1 skipped`).
+- **Important:** no VPS export or purge was executed. That remains a gated runbook step after local
+  Markdown export verification.
 
 ### 2026-06-02 — LIVE on the VPS: full stack up + Caddy HTTPS, end-to-end verified
 - **What:** brought the production stack fully live on the **DigitalOcean droplet**

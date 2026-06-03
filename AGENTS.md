@@ -6,24 +6,29 @@ full detail. If you make an off-spec decision, append it to `docs/implementation
 
 ## Project in one paragraph
 
-Second Brain is a personal AI assistant (RAG + Agent + MCP). It ingests my notes, PDFs,
-and bookmarks into Postgres + pgvector, lets me chat over them with cited answers, runs
-hybrid (vector + full-text) search, sends an automated morning briefing, takes actions via
-an MCP server (create task, send digest, search, and "research this topic"), and does its
-own automated research via the Gemini API. NotebookLM stays a separate manual tool — not
-integrated.
+Second Brain is pivoting into a local-first personal AI research cockpit (RAG + Agent + MCP).
+Obsidian Markdown is the canonical private memory at `C:\Users\huuth\Documents\SecondBrainVault`;
+local Postgres + pgvector is a rebuildable search index over that vault; NotebookLM stays a
+manual deep-research room; agents/Codex/Claude operate through approval-gated local MCP tools;
+and the VPS deployment is demo/portfolio infrastructure only for private data. See
+`docs/local-first-agentic-research-plan.md` and ADR-0015 before changing architecture.
 
 ## Fixed decisions (do not relitigate unless I ask)
 
 - **LLM driver:** Gemini Flash API (free tier) as default, behind an `LLMClient` interface;
   local Ollama wired as an alternate "private mode". Embeddings: local sentence-transformers,
   run on ingest only.
-- **Datastore:** self-hosted Postgres doing relational + pgvector + full-text (tsvector) +
-  JSONB + materialized-view analytics + RLS/audit. Redis for caching/rate-limit only.
+- **Datastore:** Obsidian Markdown is canonical for private knowledge. Local/self-hosted
+  Postgres remains the derived/rebuildable index doing relational + pgvector + full-text
+  (tsvector) + JSONB + analytics + RLS/audit. Redis for caching/rate-limit only.
+- **Vault indexing:** daily-use vault indexing excludes `.obsidian/`, `Templates/`, and
+  `90 Archive/` by default; use `vault_status` before/after `reindex_vault` to check the
+  configured vault path, indexed source, document counts, pending approvals, and excluded counts.
 - **Backend:** Python + FastAPI. **Frontend:** Next.js + TypeScript. **Agent tools:** MCP server.
 - **MLOps:** MLflow for eval + prompt/model versioning. **CI/CD:** GitHub Actions, eval-gated.
 - **Observability:** self-hosted Prometheus + Grafana.
-- **Runtime:** ONE small VPS (~$4–6/mo), everything in Docker Compose. Keep cost minimal.
+- **Runtime:** local-first for private data. ONE small VPS remains the Docker Compose
+  demo/portfolio runtime only; keep cost minimal.
 - **Kubernetes** is a LEARNING TRACK only (Phase 7): real manifests + HPA + ingress + CI/CD
   proven on free local k3s/kind, then torn down. NOT the production runtime. Managed-cluster
   (GKE/EKS) demo is optional and must be deleted immediately after.
@@ -38,6 +43,7 @@ integrated.
 5. Daily briefing + scheduled pipelines
 6. Productionize on VPS + data-ops hardening (RLS, retention, pooling, query tuning)
 7. Kubernetes learning track on local k3s/kind
+8. Local-first pivot: Obsidian canonical memory + local vault MCP/indexer
 
 ## How to work
 
@@ -56,6 +62,9 @@ integrated.
 - **Keep records current:** update `docs/PROGRESS.md` at the end of each session (status +
   dated log), and append to `docs/implementation-notes.md` whenever you make a decision,
   change, or trade-off that wasn't in the spec (what / why / what I gave up).
+- **Local-first privacy:** do not put private research/chat history on the VPS by default.
+  Export and verify keeper notes into Obsidian before purging remote data. Never automate
+  destructive VPS purge without explicit confirmation.
 
 ## My environment
 

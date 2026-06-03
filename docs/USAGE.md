@@ -35,6 +35,12 @@ produces a **daily briefing** and exposes **agentic tools** over MCP. The LLM
 (`gemini-2.5-flash`) and embeddings (`gemini-embedding-001`) are hosted Gemini API calls, so the
 box needs no GPU and fits in 2 GB RAM.
 
+> **Local-first pivot (ADR-0015):** for private daily use, Obsidian Markdown is now the canonical
+> memory at `C:\Users\huuth\Documents\SecondBrainVault`. Local Postgres is a rebuildable search
+> index over the vault. The VPS should be treated as a demo/portfolio environment for private data,
+> not the durable home for personal research.
+> Local setup guide: [`docs/local-first-local-setup-guide.md`](local-first-local-setup-guide.md).
+
 **Architecture:** one Docker Compose project (`second-brain`) on one DigitalOcean droplet, 9
 services: `caddy` (HTTPS reverse proxy) → `frontend` (Next.js) + `api` (FastAPI); `worker`
 (daily briefing + async research); `db` (pgvector), `pgbouncer`, `redis`; `prometheus` +
@@ -124,6 +130,29 @@ The MCP server (`backend/app/mcp_server.py`, stdio) exposes five tools: `search_
 stores it as a note, and auto-indexes it so it's permanently searchable). Wire it into a local
 MCP client (e.g. Claude Desktop) — run it on the box or locally with the DB DSN + Gemini key in
 its `env`. Set `SECOND_BRAIN_LLM_PROVIDER=fake` for a keyless smoke test.
+
+For the local-first workflow it also exposes approval-gated vault tools:
+`search_vault`, `read_note`, `propose_note_write`, `create_research_note`,
+`capture_notebooklm_session`, `reindex_vault`, `pending_approvals`, and `approve_tool_call`,
+plus direct read-only `vault_status`.
+These tools are intended to run locally over stdio; file access is restricted to
+`SECOND_BRAIN_VAULT_PATH`, defaulting to `C:\Users\huuth\Documents\SecondBrainVault`.
+`search_vault` returns each hit's Obsidian-relative `vault_path`, which can be passed to
+`read_note` after approval. In v1, vault action tools return compact approval requests; raw write
+bodies stay process-local until `approve_tool_call` approves or rejects the pending action. For a
+harder local human checkpoint, set `SECOND_BRAIN_MCP_APPROVAL_TOKEN` in the MCP server environment;
+`approve_tool_call` will then require that token and will not consume pending approvals on failed
+attempts.
+Vault reindexing excludes `.obsidian`, `Templates`, and `90 Archive` by default; override
+`SECOND_BRAIN_VAULT_INDEX_EXCLUDE_DIRS` or set `SECOND_BRAIN_VAULT_INDEX_INCLUDE_DIRS` in the local
+MCP environment if you want a narrower or broader daily index.
+Use `vault_status` before and after indexing to check the configured vault path, whether the vault
+and indexed source exist, indexed document count, pending approvals count, and eligible/excluded
+Markdown counts. Approved `reindex_vault` calls return `requested`, `indexed`, `skipped`,
+`removed_stale`, and `excluded` so daily indexing does not feel like a black box.
+
+For the manual deep-research loop, use `docs/notebooklm-to-obsidian-workflow.md` plus the vault
+templates in `C:\Users\huuth\Documents\SecondBrainVault\Templates`.
 
 ---
 

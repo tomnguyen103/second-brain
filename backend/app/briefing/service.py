@@ -12,14 +12,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db.models import Briefing, Document, Source
 from app.llm.base import LLMMessage
 
-# title, source name, created_at
+# title, source name, ingested_at/created_at fallback
 DocRow = tuple[str, str, datetime]
 
 BRIEFING_SYSTEM = (
@@ -89,13 +89,14 @@ def build_briefing(
     if since is None:
         since = now - timedelta(hours=settings.briefing_lookback_hours)
 
+    document_time = func.coalesce(Document.ingested_at, Document.created_at)
     rows = db.execute(
-        select(Document.title, Source.name, Document.created_at)
+        select(Document.title, Source.name, document_time.label("document_time"))
         .join(Source, Source.id == Document.source_id)
-        .where(Document.created_at > since, Document.created_at <= now)
-        .order_by(Document.created_at.asc(), Document.id.asc())
+        .where(document_time > since, document_time <= now)
+        .order_by(document_time.asc(), Document.id.asc())
     ).all()
-    docs: list[DocRow] = [(r.title, r.name, r.created_at) for r in rows]
+    docs: list[DocRow] = [(r.title, r.name, r.document_time) for r in rows]
 
     if docs:
         resp = llm.generate(build_briefing_messages(since, now, docs))

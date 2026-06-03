@@ -10,6 +10,15 @@ An always-on personal AI assistant you talk to every day: it ingests your notes,
 
 You are the user. The "tangible value to users" the JD asks for is real on day one because you use it daily.
 
+### Current local-first addendum
+
+As of ADR-0015, private daily memory is local-first: Obsidian Markdown at
+`C:\Users\huuth\Documents\SecondBrainVault` is canonical, local Postgres/pgvector is a rebuildable
+derived index over that vault, and the VPS is demo/portfolio infrastructure only for private data.
+The local vault MCP workflow now includes `vault_status` for before/after checks, approval-gated
+`reindex_vault`, and safer daily indexing defaults that exclude `.obsidian/`, `Templates/`, and
+`90 Archive/` unless the local include/exclude config is changed.
+
 ---
 
 ## Why this beats a generic CRUD/dashboard project for the JD
