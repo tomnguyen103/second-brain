@@ -11,6 +11,40 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ## Local-first Obsidian pivot (2026-06-03)
 
+### Vault config default is portable, local path remains environment-specific
+- **What:** changed the code default for `vault_path` from a user-specific Windows path to
+  `<home>/SecondBrainVault`; the actual vault on this machine is still supplied through
+  `SECOND_BRAIN_VAULT_PATH` in the local MCP environment.
+- **Why:** repo defaults should not embed personal filesystem paths, while local-first operation
+  still needs the user-specific Obsidian vault configured explicitly.
+- **Trade-off / what I gave up:** a fresh clone without `SECOND_BRAIN_VAULT_PATH` now points to a
+  generic home-relative folder that may not exist. The indexer fails clearly when the vault root is
+  missing instead of silently indexing nothing.
+- **Affects:** `app/config.py`, `tests/unit/test_config.py`, `docs/USAGE.md`.
+
+### Full-vault reindex aborts suspicious empty runs before stale cleanup
+- **What:** full-vault indexing now verifies the configured vault root exists and is a directory
+  before touching derived rows. If an existing derived index would be cleaned but the current full
+  scan finds zero eligible Markdown notes, the run raises an explicit error and leaves rows intact.
+- **Why:** missing/unmounted vault folders or overly broad include/exclude config should not look
+  like "delete every stale row" to the rebuildable Postgres index.
+- **Trade-off / what I gave up:** deliberately deleting every eligible Markdown note will no longer
+  clear all derived vault rows through an ordinary full reindex. That edge case should be handled
+  with an explicit maintenance action once the operator has verified the vault state.
+- **Affects:** `app/vault/indexer.py`, `tests/integration/test_vault_indexer.py`.
+
+### Approval and admin tokens stay out of model-visible examples
+- **What:** local setup examples now use placeholder approval-token values and instruct humans to
+  pass real MCP approval tokens only through a trusted local/manual step. The export/purge runbook
+  now shows the required `Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>` header before governed
+  export, delete, and retention purge calls.
+- **Why:** the MCP approval token and admin bearer token are meant to protect destructive or durable
+  actions; pasting real values into model-visible prompts weakens that boundary.
+- **Trade-off / what I gave up:** the examples are slightly less copy-paste direct, but safer for a
+  multi-agent workflow.
+- **Affects:** `docs/local-first-local-setup-guide.md`,
+  `docs/runbooks/local-first-export-purge.md`, `docs/PROGRESS.md`.
+
 ### Vault indexer skips noisy daily-use folders by default
 - **What:** added configurable vault indexing filters. Full-vault indexing now excludes
   `.obsidian`, `Templates`, and `90 Archive` by default; selected reindex requests fail clearly if

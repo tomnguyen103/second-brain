@@ -44,3 +44,16 @@ def test_write_note_create_refuses_existing(tmp_path):
     write_note(str(tmp_path), "00 Inbox/a.md", "# A")
     with pytest.raises(FileExistsError):
         write_note(str(tmp_path), "00 Inbox/a.md", "# B")
+
+
+def test_write_note_append_new_file_has_no_leading_blank_lines(tmp_path):
+    note = write_note(str(tmp_path), "00 Inbox/a.md", "# A", mode="append")
+
+    assert note.content == "# A\n"
+
+
+def test_write_note_append_existing_file_inserts_single_separator(tmp_path):
+    write_note(str(tmp_path), "00 Inbox/a.md", "# A")
+    note = write_note(str(tmp_path), "00 Inbox/a.md", "# B", mode="append")
+
+    assert note.content == "# A\n\n# B\n"

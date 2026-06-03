@@ -23,11 +23,23 @@ exported, reviewed, and verified locally.
   - briefings
   - high-value chat answers
   - source documents worth preserving
+- Set `SECOND_BRAIN_ADMIN_TOKEN` on the app/VPS before using governed export, delete, or
+  retention endpoints. Every request to those endpoints must include:
+
+```http
+Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>
+```
 
 ## 2. Export
 
 Export data from the current app/VPS using existing admin export endpoints or direct reviewed SQL.
 Prefer source-level export first because it matches the current data-ops model.
+If you use the app endpoint, include the admin bearer token:
+
+```bash
+curl -H "Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>" \
+  "https://<app-host>/data/export?source_id=<source_id>"
+```
 
 For each exported item, create Markdown in the vault rather than bulk-copying raw JSON. Suggested
 destinations:
@@ -63,9 +75,27 @@ Record the verification result in `docs/PROGRESS.md`.
 Only after verification:
 
 - Back up the VPS database.
+- Confirm `SECOND_BRAIN_ADMIN_TOKEN` is set and every governed request includes
+  `Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>`.
 - Use source-level delete/export endpoints or reviewed SQL to remove private data.
 - Keep a sanitized demo corpus for the public app.
 - Verify `/search`, `/chat`, and screenshots still work against demo data.
+
+Example source deletion request:
+
+```bash
+curl -X DELETE \
+  -H "Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>" \
+  "https://<app-host>/data/sources/<source_id>"
+```
+
+Example retention purge request:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>" \
+  "https://<app-host>/admin/retention/purge?older_than_days=180"
+```
 
 Do not purge automatically from an agent workflow. Destructive remote operations require explicit
 human confirmation in the current session.

@@ -22,6 +22,11 @@ def test_resolve_vault_path_allows_nested_note(tmp_path):
     assert path == (tmp_path / "10 Research" / "note.md").resolve()
 
 
+def test_resolve_vault_path_normalizes_windows_separators(tmp_path):
+    path = resolve_vault_path(str(tmp_path), r"10 Research\note.md")
+    assert path == (tmp_path / "10 Research" / "note.md").resolve()
+
+
 def test_selected_markdown_files_rejects_invalid_requests(tmp_path):
     settings = Settings(_env_file=None, vault_path=str(tmp_path))
     (tmp_path / "10 Research").mkdir()
@@ -33,6 +38,14 @@ def test_selected_markdown_files_rejects_invalid_requests(tmp_path):
         _selected_markdown_files(settings, ["10 Research/note.txt"])
     with pytest.raises(FileNotFoundError):
         _selected_markdown_files(settings, ["10 Research/missing.md"])
+
+
+def test_selected_markdown_files_requires_existing_vault_root(tmp_path):
+    missing = tmp_path / "missing"
+    settings = Settings(_env_file=None, vault_path=str(missing))
+
+    with pytest.raises(FileNotFoundError, match="vault root does not exist"):
+        _selected_markdown_files(settings, None)
 
 
 def test_selected_markdown_files_uses_default_excluded_folders(tmp_path):

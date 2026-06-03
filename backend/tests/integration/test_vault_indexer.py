@@ -1,7 +1,9 @@
+import pytest
+
 from app.config import Settings
-from app.db.models import Document
+from app.db.models import Document, Source
 from app.retrieval.hybrid import hybrid_search
-from app.vault.indexer import index_vault
+from app.vault.indexer import VAULT_SOURCE_NAME, index_vault
 from sqlalchemy import select
 
 
@@ -80,6 +82,28 @@ def test_index_vault_excludes_noisy_default_folders(db_session, fake_embedder, t
     assert [doc.external_id for doc in docs] == ["10 Research/keeper.md"]
 
 
+def test_index_vault_missing_root_aborts_before_creating_source(
+    db_session, fake_embedder, tmp_path
+):
+    existing_sources = db_session.scalars(
+        select(Source).where(Source.name == VAULT_SOURCE_NAME)
+    ).all()
+    existing_ids = {source.id for source in existing_sources}
+    missing_path = str(tmp_path / "missing")
+    settings = Settings(
+        _env_file=None,
+        llm_provider="fake",
+        vault_path=missing_path,
+    )
+
+    with pytest.raises(FileNotFoundError, match="vault root does not exist"):
+        index_vault(db_session, fake_embedder, settings)
+
+    sources = db_session.scalars(select(Source).where(Source.name == VAULT_SOURCE_NAME)).all()
+    assert {source.id for source in sources} == existing_ids
+    assert all(source.uri != missing_path for source in sources)
+
+
 def test_index_vault_selects_paths_and_removes_stale(db_session, fake_embedder, tmp_path):
     note_dir = tmp_path / "10 Research"
     note_dir.mkdir()
@@ -111,6 +135,24 @@ def test_index_vault_selects_paths_and_removes_stale(db_session, fake_embedder, 
     beta.unlink()
     cleaned = index_vault(db_session, fake_embedder, settings)
     assert cleaned.removed_stale == 1
+
+
+def test_index_vault_empty_eligible_set_does_not_remove_existing_docs(
+    db_session, fake_embedder, tmp_path
+):
+    note_dir = tmp_path / "10 Research"
+    note_dir.mkdir()
+    note = note_dir / "keeper.md"
+    note.write_text("# Keeper\n\nSearchable note.", encoding="utf-8")
+    settings = Settings(_env_file=None, llm_provider="fake", vault_path=str(tmp_path))
+    first = index_vault(db_session, fake_embedder, settings)
+    note.unlink()
+
+    with pytest.raises(RuntimeError, match="zero eligible Markdown notes"):
+        index_vault(db_session, fake_embedder, settings)
+
+    docs = _vault_documents(db_session, first.source_id)
+    assert [doc.external_id for doc in docs] == ["10 Research/keeper.md"]
 
 
 def test_index_vault_replaces_changed_note_and_removes_deleted_note(

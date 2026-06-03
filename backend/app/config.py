@@ -1,6 +1,8 @@
 """Application settings."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -73,7 +75,7 @@ class Settings(BaseSettings):
 
     # Local-first Obsidian pivot (ADR-0015). The vault is the canonical private memory;
     # Postgres is a rebuildable derived index over these Markdown files.
-    vault_path: str = r"C:\Users\huuth\Documents\SecondBrainVault"
+    vault_path: str = str(Path.home() / "SecondBrainVault")
     vault_index_include_dirs: list[str] = []  # empty = all vault folders, after excludes
     vault_index_exclude_dirs: list[str] = [".obsidian", "Templates", "90 Archive"]
     mcp_approval_token: str | None = None  # optional local human token for approve_tool_call

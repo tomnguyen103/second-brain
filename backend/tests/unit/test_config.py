@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.config import Settings
 
 
@@ -10,8 +12,10 @@ def test_defaults(monkeypatch):
         "SECOND_BRAIN_LLM_PROVIDER",
         "SECOND_BRAIN_RETRIEVAL_TOP_K",
         "SECOND_BRAIN_GEMINI_API_KEY",
+        "SECOND_BRAIN_VAULT_PATH",
         "SECOND_BRAIN_VAULT_INDEX_INCLUDE_DIRS",
         "SECOND_BRAIN_VAULT_INDEX_EXCLUDE_DIRS",
+        "SECOND_BRAIN_MCP_APPROVAL_TOKEN",
     ]:
         monkeypatch.delenv(key, raising=False)
     s = Settings(_env_file=None)
@@ -20,7 +24,7 @@ def test_defaults(monkeypatch):
     assert s.retrieval_top_k == 8
     assert s.prompt_version == "rag-v1"
     assert s.mlflow_tracking_uri == "file:./mlruns"
-    assert s.vault_path == r"C:\Users\huuth\Documents\SecondBrainVault"
+    assert s.vault_path == str(Path.home() / "SecondBrainVault")
     assert s.vault_index_include_dirs == []
     assert s.vault_index_exclude_dirs == [".obsidian", "Templates", "90 Archive"]
     assert s.mcp_approval_token is None

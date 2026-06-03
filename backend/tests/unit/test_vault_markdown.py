@@ -17,6 +17,15 @@ Body #agent/security
     assert note_tags(content, metadata) == ["agent/security", "ai", "research"]
 
 
+def test_split_frontmatter_handles_crlf():
+    content = "---\r\ntitle: Windows Note\r\ntags: [vault]\r\n---\r\n# Heading\r\n\r\nBody"
+
+    metadata, body = split_frontmatter(content)
+
+    assert metadata == {"title": "Windows Note", "tags": ["vault"]}
+    assert body == "# Heading\n\nBody"
+
+
 def test_render_note_labels_derived_sources():
     note = render_note(
         title="NotebookLM Session",

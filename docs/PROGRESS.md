@@ -24,6 +24,20 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-03 - CodeRabbit follow-up for vault indexing safety
+- **What:** addressed PR #17 review feedback. The code default for `SECOND_BRAIN_VAULT_PATH` is
+  now portable (`<home>/SecondBrainVault`) while this machine still configures the concrete
+  Obsidian path through the MCP environment. Full-vault reindexing now fails before stale cleanup
+  if the vault root is missing/not a directory, and refuses to delete all existing derived rows when
+  a full reindex finds zero eligible Markdown files.
+- **Quality fixes:** vault path resolution now normalizes Windows-style separators, frontmatter
+  parsing handles CRLF notes, append-mode writes no longer add leading blank lines for new notes,
+  and config default tests clear the new vault/token env vars.
+- **Docs:** setup/runbook examples now use an idempotent smoke-test write, keep approval tokens
+  out of model-visible prompts, and show the required admin bearer token for export/delete/purge
+  endpoints.
+- **Important:** no VPS export, purge, or remote/private-data destructive action was run.
+
 ### 2026-06-03 - Local-first vault documentation refreshed
 - **What:** updated the cross-agent and local-first docs after the vault indexing/status work:
   `AGENTS.md`, `docs/project-plan.md`, ADR-0015, the local-first plan, usage guide, local setup
@@ -70,7 +84,7 @@ Add a dated entry per working session. Most recent on top.
 ### 2026-06-03 - Local Codex MCP setup verified
 - **What:** verified `C:\Users\huuth\.codex\config.toml` already contains
   `[mcp_servers.second_brain_local]` with the local backend venv, vault path, local Postgres DSN,
-  `fake` LLM provider, and `SECOND_BRAIN_MCP_APPROVAL_TOKEN=local-human-ok`.
+  `fake` LLM provider, and a configured local MCP approval token.
 - **Local runtime:** confirmed Docker Desktop/Compose are available; ran `docker compose up -d db`
   and the `second_brain_db` container was already running healthy on host port 5433. Ran
   `alembic upgrade head` and confirmed `alembic current` is `0004_briefings (head)`.
@@ -80,7 +94,7 @@ Add a dated entry per working session. Most recent on top.
 - **Smoke workflow:** proposed `00 Inbox/Codex MCP Smoke Test.md`; create-mode approval id
   `d31b0ab69765429d89cadb31fcca8358` reached the server but failed because the note already
   existed. Re-ran the known smoke write in overwrite mode, approval id
-  `d113566310b54e5c949ceb36d141fd98`, and approved it with `local-human-ok`. Reindexed the vault
+  `d113566310b54e5c949ceb36d141fd98`, and approved it with the configured local token. Reindexed the vault
   with approval id `41bae861610047de8700b7c886d42988`. `search_vault("Codex MCP Smoke Test")`
   first timed out during approval after 120s, then a retry with approval id
   `6edc117612e540da8a90e5e85377dd01` succeeded and returned the smoke note as the top hit with

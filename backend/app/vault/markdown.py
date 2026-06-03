@@ -18,13 +18,15 @@ def slugify_title(title: str) -> str:
 
 def split_frontmatter(content: str) -> tuple[dict, str]:
     """Parse a small YAML-like frontmatter subset without adding a dependency."""
-    if not content.startswith("---\n"):
-        return {}, content
-    end = content.find("\n---", 4)
+    normalized = content.replace("\r\n", "\n").replace("\r", "\n")
+    if not normalized.startswith("---\n"):
+        return {}, normalized
+    end = normalized.find("\n---", 4)
     if end == -1:
-        return {}, content
-    raw = content[4:end].strip()
-    body = content[content.find("\n", end + 1) + 1:]
+        return {}, normalized
+    raw = normalized[4:end].strip()
+    close_end = normalized.find("\n", end + 1)
+    body = normalized[close_end + 1:] if close_end != -1 else ""
     meta: dict = {}
     for line in raw.splitlines():
         if ":" not in line:

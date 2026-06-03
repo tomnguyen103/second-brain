@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -34,8 +35,17 @@ def _vault_source_config(settings: Settings) -> dict:
     }
 
 
-def _selected_markdown_files(settings: Settings, paths: list[str] | None) -> list:
+def _require_vault_root(settings: Settings) -> Path:
     root = vault_root(settings.vault_path)
+    if not root.exists():
+        raise FileNotFoundError(f"vault root does not exist: {settings.vault_path}")
+    if not root.is_dir():
+        raise NotADirectoryError(f"vault root is not a directory: {settings.vault_path}")
+    return root
+
+
+def _selected_markdown_files(settings: Settings, paths: list[str] | None) -> list:
+    root = _require_vault_root(settings)
     if paths is None:
         return list_markdown_files(
             settings.vault_path,
@@ -111,11 +121,20 @@ def index_vault(
     The DB is a derived index. A changed vault file replaces prior indexed rows for the same
     vault-relative path; unchanged files are skipped.
     """
+    root = _require_vault_root(settings)
     source = _get_or_create_vault_source(db, settings)
-    root = vault_root(settings.vault_path)
     total_markdown = len(list_markdown_files(settings.vault_path)) if paths is None else None
     files = _selected_markdown_files(settings, paths)
     excluded = max(0, total_markdown - len(files)) if total_markdown is not None else 0
+    if paths is None and not files:
+        indexed_count = db.scalar(
+            select(func.count()).select_from(Document).where(Document.source_id == source.id)
+        )
+        if indexed_count:
+            raise RuntimeError(
+                "vault reindex found zero eligible Markdown notes while derived rows exist; "
+                "aborting stale cleanup. Verify the vault path and include/exclude config."
+            )
 
     seen_paths: set[str] = set()
     indexed = 0

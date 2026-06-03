@@ -16,7 +16,8 @@ def vault_root(path: str) -> Path:
 def resolve_vault_path(root_path: str, relative_path: str) -> Path:
     """Resolve a vault-relative path and ensure it stays inside the vault root."""
     root = vault_root(root_path)
-    requested = Path(relative_path)
+    normalized = str(relative_path).replace("\\", "/")
+    requested = Path(normalized)
     windows_requested = PureWindowsPath(relative_path)
     if requested.is_absolute() or windows_requested.is_absolute() or windows_requested.drive:
         raise VaultPathError("vault paths must be relative")

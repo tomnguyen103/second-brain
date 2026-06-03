@@ -98,7 +98,7 @@ PYTHONPATH = 'C:\Users\huuth\Desktop\second-brain\backend'
 SECOND_BRAIN_DATABASE_URL = 'postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain'
 SECOND_BRAIN_VAULT_PATH = 'C:\Users\huuth\Documents\SecondBrainVault'
 SECOND_BRAIN_LLM_PROVIDER = 'fake'
-SECOND_BRAIN_MCP_APPROVAL_TOKEN = 'local-human-ok'
+SECOND_BRAIN_MCP_APPROVAL_TOKEN = '<choose-a-local-approval-token>'
 # Optional JSON lists. Defaults exclude .obsidian, Templates, and 90 Archive.
 # SECOND_BRAIN_VAULT_INDEX_EXCLUDE_DIRS = '[".obsidian", "Templates", "90 Archive"]'
 # SECOND_BRAIN_VAULT_INDEX_INCLUDE_DIRS = '[]'
@@ -137,6 +137,7 @@ Ask Codex:
 Use `propose_note_write` to create this note:
 
 path: 00 Inbox/Codex MCP Smoke Test.md
+mode: overwrite
 content:
 # Codex MCP Smoke Test
 
@@ -148,7 +149,8 @@ Do not approve it yet. Show me the approval id first.
 Then approve:
 
 ```md
-Approve that pending Second Brain MCP action with approval_token = local-human-ok.
+After I confirm the pending id, call `approve_tool_call` for that id.
+If a token is configured, I will provide it out-of-band; do not put the real token in this chat.
 ```
 
 Open Obsidian and confirm this file exists:
@@ -174,7 +176,8 @@ Use `reindex_vault` for all vault notes. Show me the approval id first.
 Approve it:
 
 ```md
-Approve that pending action with approval_token = local-human-ok.
+After I confirm the pending id, call `approve_tool_call` for that id.
+Use the approval token only through a trusted local/manual step, not in model-visible chat.
 ```
 
 Then ask:
@@ -244,7 +247,8 @@ Use `reindex_vault` for all vault notes. Show me the approval id first.
 Then approve with:
 
 ```md
-approval_token = local-human-ok
+Call `approve_tool_call` only after I confirm the pending id.
+Keep any configured approval token out of the model-visible transcript.
 ```
 
 ## Where To Use It
@@ -281,7 +285,7 @@ env:
   SECOND_BRAIN_DATABASE_URL=postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain
   SECOND_BRAIN_VAULT_PATH=C:\Users\huuth\Documents\SecondBrainVault
   SECOND_BRAIN_LLM_PROVIDER=fake
-  SECOND_BRAIN_MCP_APPROVAL_TOKEN=local-human-ok
+  SECOND_BRAIN_MCP_APPROVAL_TOKEN=<choose-a-local-approval-token>
 ```
 
 Use Claude for long research conversations or writing polished notes. Use Codex when code or repo
@@ -347,7 +351,8 @@ approval_required
 Approve with:
 
 ```text
-approval_token = local-human-ok
+Use `approve_tool_call` after personally confirming the pending id.
+Keep the real approval token out of model-visible chat; enter it only in a trusted local/manual step.
 ```
 
 This is annoying on purpose. It protects your vault while the workflow is new.

@@ -136,7 +136,9 @@ For the local-first workflow it also exposes approval-gated vault tools:
 `capture_notebooklm_session`, `reindex_vault`, `pending_approvals`, and `approve_tool_call`,
 plus direct read-only `vault_status`.
 These tools are intended to run locally over stdio; file access is restricted to
-`SECOND_BRAIN_VAULT_PATH`, defaulting to `C:\Users\huuth\Documents\SecondBrainVault`.
+`SECOND_BRAIN_VAULT_PATH`. If the variable is not set, the app uses a portable home-relative
+default of `<home>/SecondBrainVault`; this machine should still set
+`SECOND_BRAIN_VAULT_PATH=C:\Users\huuth\Documents\SecondBrainVault` in the MCP environment.
 `search_vault` returns each hit's Obsidian-relative `vault_path`, which can be passed to
 `read_note` after approval. In v1, vault action tools return compact approval requests; raw write
 bodies stay process-local until `approve_tool_call` approves or rejects the pending action. For a

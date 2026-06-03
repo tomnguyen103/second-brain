@@ -101,7 +101,8 @@ def write_note(root_path: str, relative_path: str, content: str, *, mode: str = 
         raise FileExistsError(f"note already exists: {relative_path}")
     if mode == "append":
         prior = path.read_text(encoding="utf-8") if path.exists() else ""
-        path.write_text(prior.rstrip() + "\n\n" + content.strip() + "\n", encoding="utf-8")
+        separator = "\n\n" if prior else ""
+        path.write_text(prior.rstrip() + separator + content.strip() + "\n", encoding="utf-8")
     elif mode in {"create", "overwrite"}:
         path.write_text(content.rstrip() + "\n", encoding="utf-8")
     else:
