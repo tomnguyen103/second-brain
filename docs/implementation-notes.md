@@ -27,6 +27,17 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
   `app/mcp_server.py`, `tests/unit/test_config.py`, `tests/unit/test_vault_paths.py`,
   `tests/unit/test_mcp_server.py`, `tests/integration/test_vault_indexer.py`.
 
+### Vault path safety rejects Windows drive paths cross-platform
+- **What:** `resolve_vault_path` now rejects Windows drive-qualified paths such as
+  `C:/outside.md` even when tests or tooling run on Linux, where `pathlib.Path` would otherwise
+  treat that string as relative.
+- **Why:** the project is Windows-first locally but CI runs on Linux. Vault path safety should not
+  depend on the operating system that happens to execute the MCP server or tests.
+- **Trade-off / what I gave up:** drive-qualified relative Windows paths like `C:note.md` are also
+  rejected. That is the right bias for vault-root safety; MCP callers should always use plain
+  vault-relative paths such as `10 Research/note.md`.
+- **Affects:** `app/vault/paths.py`, `tests/unit/test_vault_paths.py`.
+
 ### Legacy DB MCP mutators now share the approval gate
 - **What:** kept the legacy/demo MCP tools registered under their existing names, but changed
   `create_task` and `research_topic` so they enqueue approval requests instead of writing to

@@ -1,7 +1,7 @@
 """Vault path safety helpers."""
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 
 class VaultPathError(ValueError):
@@ -17,7 +17,8 @@ def resolve_vault_path(root_path: str, relative_path: str) -> Path:
     """Resolve a vault-relative path and ensure it stays inside the vault root."""
     root = vault_root(root_path)
     requested = Path(relative_path)
-    if requested.is_absolute():
+    windows_requested = PureWindowsPath(relative_path)
+    if requested.is_absolute() or windows_requested.is_absolute() or windows_requested.drive:
         raise VaultPathError("vault paths must be relative")
     target = (root / requested).resolve()
     try:
