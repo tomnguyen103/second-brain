@@ -11,6 +11,7 @@ def test_phase6_defaults(monkeypatch):
         "SECOND_BRAIN_PGBOUNCER_URL",
         "SECOND_BRAIN_MIN_RETENTION_PURGE_DAYS",
         "SECOND_BRAIN_DATA_ENVIRONMENT",
+        "SECOND_BRAIN_MCP_WRITE_REQUIRES_APPROVAL",
         "SECOND_BRAIN_MCP_WRITE_APPROVAL_TOKEN",
     ]:
         monkeypatch.delenv(key, raising=False)

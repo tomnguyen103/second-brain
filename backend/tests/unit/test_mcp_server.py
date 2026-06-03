@@ -33,23 +33,29 @@ def test_every_tool_has_a_description():
 def test_write_tool_requires_approval_without_db(monkeypatch):
     monkeypatch.setattr(mcp_server.settings, "mcp_write_requires_approval", True)
     approvals._PENDING.clear()
-    res = create_task("Review vault note", "safe detail")
-    assert res["approval_required"] is True
-    assert res["approval"]["tool"] == "create_task"
-    assert res["approval"]["approved"] is False
+    try:
+        res = create_task("Review vault note", "safe detail")
+        assert res["approval_required"] is True
+        assert res["approval"]["tool"] == "create_task"
+        assert res["approval"]["approved"] is False
+    finally:
+        approvals._PENDING.clear()
 
 
 def test_approval_requires_configured_token(monkeypatch):
     monkeypatch.setattr(mcp_server.settings, "mcp_write_requires_approval", True)
     approvals._PENDING.clear()
-    res = create_task("Review vault note", "safe detail")
-    approval_id = res["approval"]["id"]
-    with pytest.raises(approvals.ApprovalError):
-        approve_pending_action(approval_id, "anything")
+    try:
+        res = create_task("Review vault note", "safe detail")
+        approval_id = res["approval"]["id"]
+        with pytest.raises(approvals.ApprovalError):
+            approve_pending_action(approval_id, "anything")
 
-    monkeypatch.setattr(mcp_server.settings, "mcp_write_approval_token", "ok")
-    approved = approve_pending_action(approval_id, "ok")
-    assert approved["approved"] is True
-    assert approved["approval"]["approved"] is True
-    assert mcp_server.list_pending_approvals() == []
-    monkeypatch.setattr(mcp_server.settings, "mcp_write_approval_token", None)
+        monkeypatch.setattr(mcp_server.settings, "mcp_write_approval_token", "ok")
+        approved = approve_pending_action(approval_id, "ok")
+        assert approved["approved"] is True
+        assert approved["approval"]["approved"] is True
+        assert mcp_server.list_pending_approvals() == []
+    finally:
+        approvals._PENDING.clear()
+        monkeypatch.setattr(mcp_server.settings, "mcp_write_approval_token", None)
