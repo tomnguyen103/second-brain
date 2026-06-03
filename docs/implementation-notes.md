@@ -9,6 +9,98 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Local-first MCP/Obsidian security hardening (2026-06-03)
+
+### MCP writes now require token-backed approval
+- **What:** `create_task` and `research_topic` return a pending approval instead of writing
+  immediately. A pending action must be approved with `approve_pending_action` and
+  `SECOND_BRAIN_MCP_WRITE_APPROVAL_TOKEN`, then re-run with the matching approval id.
+- **Why:** a Markdown prompt injection should not be able to turn retrieval context into an MCP
+  write. The token is intentionally out-of-band from the model-visible note content.
+- **Trade-off:** MCP writes are less convenient until a local approval token is configured. Existing
+  read-only tools still work without it.
+
+### Vault and ingest safety moved from procedure into code
+- **What:** restored the missing `app.vault` source modules, including safe path resolution,
+  symlink/absolute-path rejection, Markdown/frontmatter parsing, approved-note validation, and
+  approved vault indexing. Generic `/ingest` now fails `notes_folder` documents unless their
+  Markdown frontmatter says `status: approved`.
+- **Why:** ADR-0015 says Obsidian is the approval surface. That rule is now enforced before a note
+  can enter the searchable index.
+- **Trade-off:** older ad-hoc `notes_folder` ingest requests without frontmatter now fail and need
+  the Obsidian approval metadata.
+
+### Secret/private-data scanning is conservative and dependency-free
+- **What:** added `app.security` for common credential, API key, bearer token, DB URL password,
+  email, phone, and payment-card detection/redaction. Ingest/research rejects sensitive content;
+  MCP, chat context, JSON export, and Markdown export redact on output.
+- **Why:** once text is embedded or returned to an MCP client, cleanup is much harder. Blocking on
+  ingest and redacting on egress reduces accidental leakage.
+- **Trade-off:** some legitimate notes with emails or phone numbers may need manual cleanup before
+  ingest. That is deliberate for this local-first privacy pass.
+
+### Destructive data-ops now have preview/confirmation gates
+- **What:** retention purge is a dry-run by default, rejects `older_than_days < 1`, and requires
+  `dry_run=false&confirm=purge raw_text` to mutate. Source delete now requires
+  `confirm_source_name` matching the current source name. Markdown export requires
+  `--confirm-local-export local-only` unless the operator explicitly uses the non-local override.
+- **Why:** the runbook already required backups and explicit approval; the API/CLI should make the
+  dangerous path noisy too.
+- **Trade-off:** the gates prevent casual one-command purges/deletes. Operators need one extra
+  preview/confirm step.
+
+## Local-first keeper export dry-run (2026-06-03)
+
+### Missing export-purge runbook created
+- **What:** the session request referenced `docs/runbooks/local-first-export-purge.md`, but that
+  file was not present. Created it as a prep-only runbook with keeper checklists, Markdown formats,
+  local dry-run commands, verification steps, backup-before-purge, and an explicit future purge gate.
+- **Why:** export-and-purge needs a human approval path before any destructive action. The runbook
+  separates review/reindex/search verification from future source delete or retention purge commands.
+- **Trade-off:** this is a new source of truth, not a recovered historical document. It intentionally
+  stops before any remote/VPS command or purge command.
+
+### Markdown exporter reads the local DB directly instead of using `/data/export`
+- **What:** added `python -m app.dataops.export_markdown`, which writes candidate keeper Markdown
+  files to a local folder from a read-only transaction and rolls the transaction back. It refuses
+  database URLs whose host is not `localhost`, `127.0.0.1`, or `::1`.
+- **Why:** the existing admin JSON export endpoint is safe for user data but commits an `audit_log`
+  row, so it is not a pure dry-run. A local DB reader avoids API side effects and cannot accidentally
+  hit the VPS when the configured DB URL is remote.
+- **Trade-off:** the exporter is an operator tool, not an app endpoint. It must be run from the
+  backend environment, and it exports review candidates rather than deciding what is truly worth
+  keeping.
+
+### Keeper selection defaults are conservative review candidates
+- **What:** research notes export from `source.type = research_note`; briefings export newest rows;
+  chat answers default to positive-feedback assistant messages; source-document candidates export
+  from `notes_folder`, `pdf_upload`, `bookmark`, and `manual` sources. Long document bodies are
+  capped at 50,000 characters by default and marked `truncated: true`.
+- **Why:** the schema has no first-class "keeper" flag, so the exporter should preserve provenance
+  and make review easy instead of pretending it can infer importance perfectly.
+- **Trade-off:** local dev exports can include eval corpus rows, smoke-test seeds, or templates.
+  The runbook now calls those out as review candidates to skip unless intentionally useful.
+
+## NotebookLM -> Obsidian manual workflow (2026-06-03)
+
+### Missing workflow docs created at the requested paths
+- **What:** the session request referenced `docs/local-first-agentic-research-plan.md`,
+  `docs/adr/0015-local-first-obsidian-memory.md`, and
+  `docs/notebooklm-to-obsidian-workflow.md`, but those files were not present in this checkout.
+  Created them rather than trying to infer deleted history.
+- **Why:** the daily NotebookLM -> Obsidian process needed one obvious source of truth, and the
+  requested paths are the natural place to document it.
+- **Trade-off:** these are fresh docs, not recovered originals. They preserve the existing
+  project boundary: NotebookLM is manual, and only reviewed Markdown is reindexed.
+
+### Vault templates configured for built-in Obsidian Templates
+- **What:** updated the three requested vault templates and added `.obsidian/templates.json`
+  pointing the Templates plugin at `Templates` with `YYYY-MM-DD` dates.
+- **Why:** the vault had template files and the core Templates plugin enabled, but no template
+  folder config. Adding it makes the templates available immediately from Obsidian.
+- **Trade-off:** the templates use simple core-template variables and manual fields instead of
+  requiring the third-party Templater plugin.
+
 ## Going live on the VPS — Caddy HTTPS + compose override gotchas (2026-06-02)
 
 ### Caddy reverse proxy with no-domain HTTPS via `sslip.io`

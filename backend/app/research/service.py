@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.ingest.service import DocumentInput, SourceSpec, ingest_documents
 from app.llm.base import LLMMessage
+from app.security import ensure_no_sensitive_content
 
 # All automated research notes live under one source so they're easy to find and filter.
 RESEARCH_SOURCE = "Automated Research"
@@ -51,9 +52,11 @@ def research_topic(db: Session, embedder, llm, topic: str) -> ResearchResult:
     topic = (topic or "").strip()
     if not topic:
         raise ValueError("research topic is required")
+    ensure_no_sensitive_content(topic, context="research topic")
 
     resp = llm.generate(build_research_messages(topic))
     summary = resp.text or ""
+    ensure_no_sensitive_content(summary, context="research summary")
 
     result = ingest_documents(
         db, embedder,

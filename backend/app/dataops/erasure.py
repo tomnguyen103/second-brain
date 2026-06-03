@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.dataops import audit
 from app.db.models import Chunk, Document, Source
+from app.security import redact_sensitive_text, redact_sensitive_value
 
 
 class SourceNotFound(Exception):
@@ -42,12 +43,12 @@ def export_source(
         documents.append(
             {
                 "id": d.id,
-                "title": d.title,
+                "title": redact_sensitive_text(d.title),
                 "content_type": d.content_type,
                 "content_hash": d.content_hash,
                 "status": d.status,
-                "raw_text": d.raw_text,  # may be None after retention purge
-                "metadata": d.metadata_,
+                "raw_text": redact_sensitive_text(d.raw_text) if d.raw_text else None,
+                "metadata": redact_sensitive_value(d.metadata_),
                 "tags": [t.name for t in d.tags],
                 "chunk_count": chunk_count,
                 "ingested_at": d.ingested_at.isoformat() if d.ingested_at else None,
@@ -59,9 +60,9 @@ def export_source(
         "source": {
             "id": src.id,
             "type": src.type,
-            "name": src.name,
-            "uri": src.uri,
-            "config": src.config,
+            "name": redact_sensitive_text(src.name),
+            "uri": redact_sensitive_text(src.uri) if src.uri else None,
+            "config": redact_sensitive_value(src.config),
             "created_at": src.created_at.isoformat() if src.created_at else None,
         },
         "documents": documents,
@@ -78,6 +79,23 @@ def export_source(
     )
     db.flush()
     return export
+
+
+def preview_delete_source(db: Session, source_id: int) -> dict:
+    """Return a delete preview used by the API confirmation gate."""
+    src = db.get(Source, source_id)
+    if src is None:
+        raise SourceNotFound(f"source {source_id} not found")
+    doc_count = db.scalar(
+        select(func.count(Document.id)).where(Document.source_id == source_id)
+    ) or 0
+    return {
+        "source_id": src.id,
+        "source_type": src.type,
+        "source_name": redact_sensitive_text(src.name),
+        "documents_deleted": doc_count,
+        "confirmation_required": "resubmit with confirm_source_name set to the exact source name",
+    }
 
 
 def delete_source(

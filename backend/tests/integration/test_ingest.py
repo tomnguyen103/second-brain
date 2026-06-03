@@ -45,3 +45,37 @@ def test_partial_failure_isolates_bad_doc(db_session, fake_embedder):
     statuses = {d.title: d.status for d in result.documents}
     assert statuses["Good"] == "embedded"
     assert statuses["Bad"] == "failed"
+
+
+def test_notes_folder_requires_approved_frontmatter(db_session, fake_embedder):
+    spec = SourceSpec(type="notes_folder", name="SecondBrainVault")
+    result = ingest_documents(
+        db_session,
+        fake_embedder,
+        source=spec,
+        documents=[
+            DocumentInput(
+                title="Draft",
+                content='---\ntitle: "Draft"\nstatus: draft\n---\n# Draft\nsafe content',
+            ),
+            DocumentInput(
+                title="Approved",
+                content='---\ntitle: "Approved"\nstatus: approved\n---\n# Approved\nsafe content',
+            ),
+        ],
+    )
+    statuses = {d.title: d.status for d in result.documents}
+    assert statuses["Draft"] == "failed"
+    assert statuses["Approved"] == "embedded"
+
+
+def test_ingest_rejects_sensitive_document_without_indexing(db_session, fake_embedder):
+    spec = SourceSpec(type="manual", name="Sensitive")
+    result = ingest_documents(
+        db_session,
+        fake_embedder,
+        source=spec,
+        documents=[DocumentInput(title="Secret", content="password=verysecretvalue")],
+    )
+    assert result.documents[0].status == "failed"
+    assert "verysecretvalue" not in result.documents[0].error

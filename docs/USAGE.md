@@ -117,13 +117,32 @@ docker compose -p second-brain \
 
 ---
 
+## Daily NotebookLM -> Obsidian research
+
+NotebookLM is still a manual study tool. The repeatable workflow is documented in
+`docs/notebooklm-to-obsidian-workflow.md`:
+
+1. Ask the question in an Obsidian `Research Brief`.
+2. Search Second Brain first and decide whether NotebookLM is needed.
+3. Use NotebookLM manually only when long-context source work helps.
+4. Paste selected, source-aware output into `NotebookLM Session` or `Source Digest`.
+5. Save approved Markdown in the vault.
+6. Reindex the approved note through `/ingest`.
+7. Search verify before marking the note `approved`.
+
+Do not automate NotebookLM, and do not save raw NotebookLM transcripts by default.
+
+---
+
 ## Agentic tools (MCP)
 
-The MCP server (`backend/app/mcp_server.py`, stdio) exposes five tools: `search_notes`,
-`create_task`, `list_tasks`, `send_digest`, and `research_topic` (the LLM researches a topic,
-stores it as a note, and auto-indexes it so it's permanently searchable). Wire it into a local
-MCP client (e.g. Claude Desktop) — run it on the box or locally with the DB DSN + Gemini key in
-its `env`. Set `SECOND_BRAIN_LLM_PROVIDER=fake` for a keyless smoke test.
+The MCP server (`backend/app/mcp_server.py`, stdio) exposes read tools (`search_notes`,
+`list_tasks`, `send_digest`) and write tools (`create_task`, `research_topic`) plus
+`list_pending_approvals` / `approve_pending_action`. Write tools first return an approval id; set
+`SECOND_BRAIN_MCP_WRITE_APPROVAL_TOKEN` and approve the pending action before re-running the write
+with that approval id. Wire it into a local MCP client (e.g. Claude Desktop) — run it on the box or
+locally with the DB DSN + Gemini key in its `env`. Set `SECOND_BRAIN_LLM_PROVIDER=fake` for a
+keyless smoke test.
 
 ---
 

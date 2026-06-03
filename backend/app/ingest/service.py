@@ -10,6 +10,8 @@ from app.config import settings
 from app.db.models import Chunk, Document, DocumentTag, Embedding, Source, Tag
 from app.ingest.chunking import chunk_text
 from app.ingest.hashing import content_hash
+from app.security import SensitiveContentError, ensure_no_sensitive_content
+from app.vault.markdown import split_frontmatter
 
 
 @dataclass
@@ -49,6 +51,7 @@ class IngestResult:
 
 
 def _get_or_create_source(db: Session, spec: SourceSpec) -> Source:
+    ensure_no_sensitive_content(spec.name, spec.uri, spec.config, context="source metadata")
     src = db.scalar(select(Source).where(Source.type == spec.type, Source.name == spec.name))
     if src:
         return src
@@ -77,6 +80,25 @@ def ingest_documents(db: Session, embedder, *, source: SourceSpec,
 
     for doc_in in documents:
         chash = content_hash(doc_in.content)
+        try:
+            ensure_no_sensitive_content(
+                doc_in.title,
+                doc_in.content,
+                doc_in.external_id,
+                doc_in.metadata,
+                doc_in.tags,
+                context=f"document {doc_in.title!r}",
+            )
+            if source.type == "notes_folder":
+                metadata, _body = split_frontmatter(doc_in.content)
+                status = str(metadata.get("status", "")).strip().casefold()
+                if status != "approved":
+                    raise ValueError(
+                        "notes_folder documents require Markdown frontmatter status: approved"
+                    )
+        except (SensitiveContentError, ValueError) as exc:
+            results.append(DocumentResult(None, doc_in.title, "failed", chash, error=str(exc)))
+            continue
         existing = db.scalar(
             select(Document).where(Document.source_id == src.id,
                                    Document.content_hash == chash))

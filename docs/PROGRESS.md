@@ -23,6 +23,53 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-03 - Local-first MCP/Obsidian security hardening
+- **What:** applied the security review fixes for local-first MCP/Obsidian handling. Restored the
+  missing `backend/app/vault/*.py` source, added safe vault path resolution, Markdown/frontmatter
+  helpers, approved-note checks, and an in-memory MCP approval gate.
+- **Security changes:** MCP write tools now require a pending approval to be approved with
+  `SECOND_BRAIN_MCP_WRITE_APPROVAL_TOKEN` before execution; MCP/search/digest/export responses are
+  redacted for likely secrets/contact/payment data; `/ingest` refuses sensitive documents and
+  requires `notes_folder` Markdown to have `status: approved`; RAG context is marked as untrusted
+  note content; retention purge previews by default and rejects unsafe windows; source delete
+  requires exact source-name confirmation.
+- **Export/VPS guardrails:** local Markdown export now requires `--confirm-local-export local-only`,
+  redacts sensitive output, honors `SECOND_BRAIN_DATA_ENVIRONMENT`, and production compose sets that
+  value to `production`.
+- **Verified:** backend `.venv` full suite: `92 passed, 87 skipped` (DB-backed integration tests
+  skipped because `SECOND_BRAIN_TEST_DATABASE_URL` was not set).
+
+### 2026-06-03 - Local-first export-and-purge prep, dry-run only
+- **What:** added the missing `docs/runbooks/local-first-export-purge.md` with hard rules, current
+  local/VPS export options, keeper checklists for research notes, briefings, chat answers, and
+  source documents, Markdown export formats, verification steps, and a future purge gate. No purge
+  command is part of the prep workflow.
+- **Added:** `backend/app/dataops/export_markdown.py`, a local-only Markdown exporter that refuses
+  non-local database hosts, reads inside a Postgres read-only transaction, rolls the transaction
+  back, and writes review files to a temp/local folder. Added DB-free unit coverage in
+  `backend/tests/unit/test_export_markdown.py`.
+- **Verified locally:** Docker DB was healthy on `localhost:5433`; dry-run wrote to
+  `C:\Users\huuth\AppData\Local\Temp\second-brain-keeper-export-20260603-172207` with
+  0 research notes, 1 briefing, 1 positive-feedback chat answer, 16 source-document candidates,
+  and 1 manifest. Spot-checked briefing/chat/source Markdown. `audit_log` stayed empty
+  (`count = 0`). Unit suite: `76 passed`. No remote/VPS data was touched and nothing was deleted.
+
+### 2026-06-03 - NotebookLM -> Obsidian daily research workflow made repeatable
+- **What:** updated the real Obsidian templates in
+  `C:\Users\huuth\Documents\SecondBrainVault\Templates` for `Research Brief`,
+  `NotebookLM Session`, and `Source Digest`. Each template now has the required frontmatter
+  (`title`, `kind`, `status`, `created`, `derived`, `source_tool`, `tags`) plus review,
+  approval, reindex, and search-verify sections.
+- **Added:** `C:\Users\huuth\Documents\SecondBrainVault\10 Research\Daily Research Prompt.md`,
+  `.obsidian/templates.json` pointing Obsidian Templates at the vault `Templates` folder, and the
+  missing repo docs `docs/local-first-agentic-research-plan.md`,
+  `docs/adr/0015-local-first-obsidian-memory.md`, and
+  `docs/notebooklm-to-obsidian-workflow.md`.
+- **Workflow clarified:** ask the question, search/decide whether NotebookLM is needed, use
+  NotebookLM manually, paste only useful source-aware output, save approved Markdown, reindex
+  through `/ingest`, and search verify. NotebookLM remains manual; raw transcripts are not saved
+  by default.
+
 ### 2026-06-02 — LIVE on the VPS: full stack up + Caddy HTTPS, end-to-end verified
 - **What:** brought the production stack fully live on the **DigitalOcean droplet**
   (`YOUR_VPS_IP`, 2 GB, project **`second-brain`**, files `docker-compose.prod.yml` +

@@ -65,7 +65,15 @@ def test_export_authorized(client):
 def test_delete_authorized_removes_source(client, db_session):
     _enable_admin()
     source_id = _ingest(client, "ApiDelete")
-    r = client.delete(f"/data/sources/{source_id}", headers=ADMIN)
+    preview = client.delete(f"/data/sources/{source_id}", headers=ADMIN)
+    assert preview.status_code == 409
+    assert preview.json()["detail"]["source_id"] == source_id
+
+    r = client.delete(
+        f"/data/sources/{source_id}",
+        params={"confirm_source_name": "ApiDelete"},
+        headers=ADMIN,
+    )
     assert r.status_code == 200
     assert r.json()["documents_deleted"] == 1
     assert db_session.query(Source).filter(Source.id == source_id).count() == 0
@@ -81,5 +89,33 @@ def test_retention_purge_authorized(client):
     r = client.post("/admin/retention/purge", params={"older_than_days": 365}, headers=ADMIN)
     assert r.status_code == 200
     body = r.json()
+    assert body["dry_run"] is True
     assert body["older_than_days"] == 365
-    assert body["purged"] >= 0
+    assert body["would_purge"] >= 0
+
+    blocked = client.post(
+        "/admin/retention/purge",
+        params={"older_than_days": 0, "dry_run": "false"},
+        headers=ADMIN,
+    )
+    assert blocked.status_code == 400
+
+    missing_confirm = client.post(
+        "/admin/retention/purge",
+        params={"older_than_days": 365, "dry_run": "false"},
+        headers=ADMIN,
+    )
+    assert missing_confirm.status_code == 409
+
+    actual = client.post(
+        "/admin/retention/purge",
+        params={
+            "older_than_days": 365,
+            "dry_run": "false",
+            "confirm": "purge raw_text",
+        },
+        headers=ADMIN,
+    )
+    assert actual.status_code == 200
+    assert actual.json()["dry_run"] is False
+    assert actual.json()["purged"] >= 0

@@ -21,8 +21,10 @@ from app.digest.service import build_digest
 from app.llm.factory import get_llm_client
 from app.research.service import research_topic as _research_topic
 from app.retrieval.hybrid import hybrid_search, load_display_chunks
+from app.security import ensure_no_sensitive_content, redact_sensitive_text
 from app.tasks.service import create_task as _create_task
 from app.tasks.service import list_tasks as _list_tasks
+from app.vault import approvals
 
 mcp = FastMCP("second-brain")
 
@@ -34,6 +36,16 @@ def _session():
         yield db
     finally:
         db.close()
+
+
+def _approval_required(tool: str, args: dict, *, effect: str, summary: str,
+                       approval_id: str | None) -> dict | None:
+    if not settings.mcp_write_requires_approval:
+        return None
+    if not approval_id:
+        return approvals.request_approval(tool, args, effect=effect, summary=summary)
+    approvals.pop_approved(approval_id, tool=tool, args=args)
+    return None
 
 
 @mcp.tool()
@@ -49,9 +61,9 @@ def search_notes(query: str, top_k: int = 5) -> list[dict]:
             if dc is None:
                 continue
             out.append({
-                "document_title": dc.document_title,
-                "source_name": dc.source_name,
-                "snippet": (dc.content or "")[:300],
+                "document_title": redact_sensitive_text(dc.document_title),
+                "source_name": redact_sensitive_text(dc.source_name),
+                "snippet": redact_sensitive_text((dc.content or "")[:300]),
                 "score": h.score,
                 "method": h.method,
             })
@@ -59,11 +71,23 @@ def search_notes(query: str, top_k: int = 5) -> list[dict]:
 
 
 @mcp.tool()
-def create_task(title: str, detail: str = "") -> dict:
+def create_task(title: str, detail: str = "", approval_id: str = "") -> dict:
     """Add a task to the user's task list. Returns the created task."""
+    ensure_no_sensitive_content(title, detail, context="MCP create_task")
+    args = {"title": title, "detail": detail or ""}
+    approval = _approval_required(
+        "create_task",
+        args,
+        effect="create a durable task in the Second Brain database",
+        summary=f"Create task: {title}",
+        approval_id=approval_id or None,
+    )
+    if approval is not None:
+        return approval
     with _session() as db:
         t = _create_task(db, title, detail or None)
-        return {"id": t.id, "title": t.title, "detail": t.detail,
+        return {"id": t.id, "title": redact_sensitive_text(t.title),
+                "detail": redact_sensitive_text(t.detail),
                 "status": t.status, "created_at": t.created_at.isoformat()}
 
 
@@ -73,7 +97,8 @@ def list_tasks(status: str = "", limit: int = 20) -> list[dict]:
     limit = max(1, min(limit, 100))   # clamp client-controlled limit (SQL LIMIT)
     with _session() as db:
         tasks = _list_tasks(db, status=status or None, limit=limit)
-        return [{"id": t.id, "title": t.title, "detail": t.detail,
+        return [{"id": t.id, "title": redact_sensitive_text(t.title),
+                 "detail": redact_sensitive_text(t.detail),
                  "status": t.status, "created_at": t.created_at.isoformat()} for t in tasks]
 
 
@@ -82,17 +107,31 @@ def send_digest(limit: int = 10) -> str:
     """Compose a markdown digest of recent activity (recently added documents + counts)."""
     limit = max(1, min(limit, 100))   # clamp client-controlled limit (SQL LIMIT)
     with _session() as db:
-        return build_digest(db, limit=limit)
+        return redact_sensitive_text(build_digest(db, limit=limit))
 
 
 @mcp.tool()
-def research_topic(topic: str) -> dict:
+def research_topic(topic: str, approval_id: str = "") -> dict:
     """Research a topic with the LLM, store it as a research note, and auto-index it so it
     becomes permanently searchable in the second brain."""
+    ensure_no_sensitive_content(topic, context="MCP research_topic")
+    args = {"topic": topic}
+    approval = _approval_required(
+        "research_topic",
+        args,
+        effect="call the configured LLM and store a searchable research_note in Postgres",
+        summary=(
+            f"Research topic via {settings.llm_provider}/{settings.gemini_model}: "
+            f"{redact_sensitive_text(topic)}"
+        ),
+        approval_id=approval_id or None,
+    )
+    if approval is not None:
+        return approval
     with _session() as db:
         res = _research_topic(db, get_embedder(), get_llm_client(settings), topic)
         return {
-            "topic": res.topic,
+            "topic": redact_sensitive_text(res.topic),
             "document_id": res.document_id,
             "source_id": res.source_id,
             "status": res.status,
@@ -100,8 +139,24 @@ def research_topic(topic: str) -> dict:
             "chunk_count": res.chunk_count,
             "model": res.model,
             "searchable": res.searchable,
-            "summary": res.summary,
+            "summary": redact_sensitive_text(res.summary),
         }
+
+
+@mcp.tool()
+def list_pending_approvals() -> list[dict]:
+    """List pending MCP write approvals without exposing raw secrets."""
+    return approvals.list_pending()
+
+
+@mcp.tool()
+def approve_pending_action(approval_id: str, approval_token: str) -> dict:
+    """Approve one pending MCP write action using the local approval token."""
+    return approvals.approve(
+        approval_id,
+        approval_token=approval_token,
+        expected_token=settings.mcp_write_approval_token,
+    )
 
 
 def main() -> None:

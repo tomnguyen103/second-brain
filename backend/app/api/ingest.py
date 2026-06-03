@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import deps
 from app.config import Settings
 from app.ingest.service import DocumentInput, SourceSpec, ingest_documents
+from app.security import SensitiveContentError
 from app.schemas.ingest import (
     DocumentOut, IngestRequest, IngestResponse, IngestSummary,
 )
@@ -35,7 +36,10 @@ def ingest(
         )
         for d in req.documents
     ]
-    result = ingest_documents(db, embedder, source=source_spec, documents=doc_inputs)
+    try:
+        result = ingest_documents(db, embedder, source=source_spec, documents=doc_inputs)
+    except SensitiveContentError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     docs_out = [
         DocumentOut(

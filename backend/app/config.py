@@ -67,9 +67,26 @@ class Settings(BaseSettings):
     # Productionization + data governance (Phase 6, ADR-0012)
     admin_token: str | None = None          # bearer token guarding destructive/admin endpoints
     retention_raw_text_days: int = 180      # null documents.raw_text this long after embedding
+    min_retention_purge_days: int = 1       # reject unsafe 0/negative purge windows
     metrics_enabled: bool = True            # expose Prometheus /metrics + request middleware
     audit_enabled: bool = True              # write audit_log rows on governed data actions
     pgbouncer_url: str | None = None         # optional pooled DSN for the always-on service
+
+    # Local-first Obsidian memory (ADR-0015)
+    obsidian_vault_path: str = "~/Documents/SecondBrainVault"
+    vault_index_include_dirs: list[str] = [
+        "10 Research",
+        "30 Decisions",
+        "40 Sources",
+        "50 Agent Outputs",
+    ]
+    vault_index_exclude_dirs: list[str] = ["90 Archive", "Templates", ".obsidian"]
+    data_environment: str = "local"          # local | production | test; exporter refuses non-local
+
+    # MCP write safety. When approval is required, write tools first return an approval id.
+    # The id must be approved with this token before the original write call can execute.
+    mcp_write_requires_approval: bool = True
+    mcp_write_approval_token: str | None = None
 
 
 settings = Settings()

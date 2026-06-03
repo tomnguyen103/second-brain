@@ -9,11 +9,30 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.dataops import audit
 from app.db.models import Document
+
+
+def _cutoff(older_than_days: int) -> datetime:
+    if older_than_days < 1:
+        raise ValueError("older_than_days must be at least 1")
+    return datetime.now(timezone.utc) - timedelta(days=older_than_days)
+
+
+def count_purge_candidates(db: Session, *, older_than_days: int) -> int:
+    """Return how many embedded documents would have raw_text nulled."""
+    cutoff = _cutoff(older_than_days)
+    return db.scalar(
+        select(func.count(Document.id)).where(
+            Document.status == "embedded",
+            Document.raw_text.is_not(None),
+            Document.ingested_at.is_not(None),
+            Document.ingested_at < cutoff,
+        )
+    ) or 0
 
 
 def purge_raw_text(
@@ -27,7 +46,7 @@ def purge_raw_text(
 
     Returns the number of documents purged. Does not commit — the caller owns the txn.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+    cutoff = _cutoff(older_than_days)
     stmt = (
         update(Document)
         .where(
