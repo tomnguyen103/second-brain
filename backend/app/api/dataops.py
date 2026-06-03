@@ -36,6 +36,7 @@ def export_data(
 def delete_data(
     source_id: int,
     confirm_source_name: str | None = None,
+    confirm_token: str | None = None,
     db: Session = Depends(deps.get_db),
     settings=Depends(deps.get_settings),
     _: bool = Depends(deps.require_admin),
@@ -44,8 +45,8 @@ def delete_data(
     source = db.get(Source, source_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="source not found")
-    if confirm_source_name != source.name:
-        preview = erasure.preview_delete_source(db, source_id)
+    preview = erasure.preview_delete_source(db, source_id)
+    if confirm_source_name != source.name and confirm_token != preview["confirmation_token"]:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=preview)
     try:
         deleted = erasure.delete_source(db, source_id, audit_enabled=settings.audit_enabled)

@@ -9,6 +9,8 @@ actions write an audit row.
 """
 from __future__ import annotations
 
+import hashlib
+
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
@@ -19,6 +21,12 @@ from app.security import redact_sensitive_text, redact_sensitive_value
 
 class SourceNotFound(Exception):
     """Raised when an export/delete targets a source id that does not exist."""
+
+
+def delete_confirmation_token(source_id: int, source_name: str, document_count: int) -> str:
+    """Return a non-secret token for confirming destructive source deletion."""
+    payload = f"{source_id}:{document_count}:{source_name}".encode("utf-8", errors="replace")
+    return "delete-" + hashlib.sha256(payload).hexdigest()[:16]
 
 
 def export_source(
@@ -93,8 +101,12 @@ def preview_delete_source(db: Session, source_id: int) -> dict:
         "source_id": src.id,
         "source_type": src.type,
         "source_name": redact_sensitive_text(src.name),
+        "confirmation_token": delete_confirmation_token(src.id, src.name, doc_count),
         "documents_deleted": doc_count,
-        "confirmation_required": "resubmit with confirm_source_name set to the exact source name",
+        "confirmation_required": (
+            "resubmit with confirm_token from this preview, or confirm_source_name "
+            "set to the exact source name"
+        ),
     }
 
 

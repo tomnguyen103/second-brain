@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -28,6 +29,7 @@ class PendingApproval:
 
 
 _PENDING: dict[str, PendingApproval] = {}
+_LOCK = threading.Lock()
 
 
 def _args_hash(args: dict) -> str:
@@ -58,8 +60,10 @@ def request_approval(tool: str, args: dict, *, effect: str, summary: str) -> dic
         summary=redact_sensitive_value(summary),
         created_at=datetime.now(timezone.utc).isoformat(),
     )
-    _PENDING[approval.id] = approval
-    return {"approval_required": True, "approval": _public_approval(approval)}
+    with _LOCK:
+        _PENDING[approval.id] = approval
+        public = _public_approval(approval)
+    return {"approval_required": True, "approval": public}
 
 
 def approve(approval_id: str, *, approval_token: str, expected_token: str | None) -> dict:
@@ -67,24 +71,28 @@ def approve(approval_id: str, *, approval_token: str, expected_token: str | None
         raise ApprovalError("MCP write approval token is not configured; write tools are disabled")
     if approval_token != expected_token:
         raise ApprovalError("invalid MCP write approval token")
-    approval = _PENDING.get(approval_id)
-    if approval is None:
-        raise ApprovalError("approval not found or already used")
-    approval.approved = True
-    approval.approved_at = datetime.now(timezone.utc).isoformat()
-    return {"approved": True, "approval": _public_approval(approval)}
+    with _LOCK:
+        approval = _PENDING.get(approval_id)
+        if approval is None:
+            raise ApprovalError("approval not found or already used")
+        approval.approved = True
+        approval.approved_at = datetime.now(timezone.utc).isoformat()
+        public = _public_approval(approval)
+    return {"approved": True, "approval": public}
 
 
 def pop_approved(approval_id: str, *, tool: str, args: dict) -> PendingApproval:
-    approval = _PENDING.get(approval_id)
-    if approval is None:
-        raise ApprovalError("approval not found or already used")
-    if not approval.approved:
-        raise ApprovalError("approval has not been approved yet")
-    if approval.tool != tool or approval.args_hash != _args_hash(args):
-        raise ApprovalError("approval does not match this tool call")
-    return _PENDING.pop(approval_id)
+    with _LOCK:
+        approval = _PENDING.get(approval_id)
+        if approval is None:
+            raise ApprovalError("approval not found or already used")
+        if not approval.approved:
+            raise ApprovalError("approval has not been approved yet")
+        if approval.tool != tool or approval.args_hash != _args_hash(args):
+            raise ApprovalError("approval does not match this tool call")
+        return _PENDING.pop(approval_id)
 
 
 def list_pending() -> list[dict]:
-    return [_public_approval(item) for item in _PENDING.values()]
+    with _LOCK:
+        return [_public_approval(item) for item in _PENDING.values() if not item.approved]

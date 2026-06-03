@@ -126,9 +126,9 @@ NotebookLM is still a manual study tool. The repeatable workflow is documented i
 2. Search Second Brain first and decide whether NotebookLM is needed.
 3. Use NotebookLM manually only when long-context source work helps.
 4. Paste selected, source-aware output into `NotebookLM Session` or `Source Digest`.
-5. Save approved Markdown in the vault.
-6. Reindex the approved note through `/ingest`.
-7. Search verify before marking the note `approved`.
+5. Save reviewed Markdown in the vault with `status: draft` or `status: review`.
+6. Approve it locally by changing frontmatter to `status: approved`, then reindex it through `/ingest`.
+7. Search verify the approved note by title and one important term.
 
 Do not automate NotebookLM, and do not save raw NotebookLM transcripts by default.
 

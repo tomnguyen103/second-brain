@@ -67,11 +67,14 @@ def test_delete_authorized_removes_source(client, db_session):
     source_id = _ingest(client, "ApiDelete")
     preview = client.delete(f"/data/sources/{source_id}", headers=ADMIN)
     assert preview.status_code == 409
-    assert preview.json()["detail"]["source_id"] == source_id
+    detail = preview.json()["detail"]
+    assert detail["source_id"] == source_id
+    assert detail["source_name"] == "ApiDelete"
+    assert detail["confirmation_token"].startswith("delete-")
 
     r = client.delete(
         f"/data/sources/{source_id}",
-        params={"confirm_source_name": "ApiDelete"},
+        params={"confirm_token": detail["confirmation_token"]},
         headers=ADMIN,
     )
     assert r.status_code == 200

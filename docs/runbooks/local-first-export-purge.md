@@ -343,5 +343,5 @@ Before any later purge:
 No purge command belongs in the prep-only workflow.
 
 The live endpoints now add their own guardrails: retention purge previews by default and requires
-`dry_run=false&confirm=purge raw_text` to mutate; source delete requires `confirm_source_name`
-matching the current source name.
+`dry_run=false&confirm=purge raw_text` to mutate; source delete requires either `confirm_token`
+from the delete preview or `confirm_source_name` matching the current source name.

@@ -48,6 +48,14 @@ def _approval_required(tool: str, args: dict, *, effect: str, summary: str,
     return None
 
 
+def _llm_label() -> str:
+    if settings.llm_provider == "gemini":
+        return f"gemini/{settings.gemini_model}"
+    if settings.llm_provider == "ollama":
+        return f"ollama/{settings.ollama_model}"
+    return settings.llm_provider
+
+
 @mcp.tool()
 def search_notes(query: str, top_k: int = 5) -> list[dict]:
     """Search the second brain (hybrid vector + full-text) and return the top matching chunks."""
@@ -121,7 +129,7 @@ def research_topic(topic: str, approval_id: str = "") -> dict:
         args,
         effect="call the configured LLM and store a searchable research_note in Postgres",
         summary=(
-            f"Research topic via {settings.llm_provider}/{settings.gemini_model}: "
+            f"Research topic via {_llm_label()}: "
             f"{redact_sensitive_text(topic)}"
         ),
         approval_id=approval_id or None,

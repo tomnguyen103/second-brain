@@ -9,6 +9,28 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## CodeRabbit follow-up on local-first security hardening (2026-06-03)
+
+### Delete confirmation uses a preview token instead of echoing raw source names
+- **What:** `preview_delete_source` now returns a deterministic `confirm_token` alongside the
+  redacted source name. `DELETE /data/sources/{source_id}` accepts either that token or the exact
+  `confirm_source_name`.
+- **Why:** CodeRabbit correctly caught that a redacted source name made exact-name confirmation
+  awkward. Returning the unredacted name would make the API leak legacy/private source names, so the
+  token keeps the confirmation flow usable without adding a new disclosure path.
+- **Trade-off:** the token is an accident-prevention confirmation, not a second auth factor. The
+  admin bearer token remains the security boundary.
+
+### Vault/MCP edge cases covered after review
+- **What:** added a thread lock around pending MCP approvals, filtered approved approvals out of
+  `list_pending`, preserved leading Markdown whitespace on append, included uppercase `.MD` files,
+  and prevented full-vault stale cleanup when an empty scan indexes no paths. Added regression
+  coverage for the empty full-scan case.
+- **Why:** these were review-found edge cases where concurrency, case-sensitive filesystems, or an
+  empty vault scan could produce surprising behavior.
+- **Trade-off:** the approval registry remains intentionally in-memory for this local-first pass; a
+  durable approval table would be a larger design change.
+
 ## Local-first MCP/Obsidian security hardening (2026-06-03)
 
 ### MCP writes now require token-backed approval
@@ -41,9 +63,10 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ### Destructive data-ops now have preview/confirmation gates
 - **What:** retention purge is a dry-run by default, rejects `older_than_days < 1`, and requires
-  `dry_run=false&confirm=purge raw_text` to mutate. Source delete now requires
-  `confirm_source_name` matching the current source name. Markdown export requires
-  `--confirm-local-export local-only` unless the operator explicitly uses the non-local override.
+  `dry_run=false&confirm=purge raw_text` to mutate. Source delete now requires a delete-preview
+  `confirm_token` or `confirm_source_name` matching the current source name. Markdown export
+  requires `--confirm-local-export local-only` unless the operator explicitly uses the non-local
+  override.
 - **Why:** the runbook already required backups and explicit approval; the API/CLI should make the
   dangerous path noisy too.
 - **Trade-off:** the gates prevent casual one-command purges/deletes. Operators need one extra

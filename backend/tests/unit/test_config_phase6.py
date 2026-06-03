@@ -31,8 +31,10 @@ def test_phase6_env_override(monkeypatch):
     monkeypatch.setenv("SECOND_BRAIN_RETENTION_RAW_TEXT_DAYS", "30")
     monkeypatch.setenv("SECOND_BRAIN_METRICS_ENABLED", "false")
     monkeypatch.setenv("SECOND_BRAIN_MCP_WRITE_APPROVAL_TOKEN", "approve-me")
+    monkeypatch.setenv("SECOND_BRAIN_MCP_WRITE_REQUIRES_APPROVAL", "false")
     s = Settings(_env_file=None)
     assert s.admin_token == "s3cret"
     assert s.retention_raw_text_days == 30
     assert s.metrics_enabled is False
     assert s.mcp_write_approval_token == "approve-me"
+    assert s.mcp_write_requires_approval is False

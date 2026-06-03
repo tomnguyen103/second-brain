@@ -61,8 +61,9 @@ def list_markdown_files(
         return []
     return sorted(
         p
-        for p in root.rglob("*.md")
+        for p in root.rglob("*")
         if p.is_file()
+        and p.suffix.lower() == ".md"
         and is_indexable_vault_path(to_vault_relative(root, p), include_dirs, exclude_dirs)
     )
 
@@ -106,7 +107,7 @@ def write_note(
     elif mode == "append":
         prior = path.read_text(encoding="utf-8") if path.exists() else ""
         separator = "" if not prior else "\n\n"
-        path.write_text(prior.rstrip() + separator + content.strip() + "\n", encoding="utf-8")
+        path.write_text(prior.rstrip("\n") + separator + content.rstrip("\n") + "\n", encoding="utf-8")
     elif mode == "overwrite":
         path.write_text(content.rstrip() + "\n", encoding="utf-8")
     else:

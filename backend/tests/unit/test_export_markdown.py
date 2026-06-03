@@ -7,9 +7,11 @@ import pytest
 
 from app.dataops.export_markdown import (
     build_parser,
+    filename_time,
     frontmatter,
     export_markdown,
     is_local_database_url,
+    iso,
     parse_kinds,
     slugify,
     truncate_content,
@@ -64,6 +66,14 @@ def test_frontmatter_quotes_strings_and_lists():
     assert 'title: "A \\"quoted\\" title"' in md
     assert "derived: true" in md
     assert '  - "briefing"' in md
+
+
+def test_iso_normalizes_naive_datetimes_to_utc():
+    assert iso(datetime(2026, 6, 3, 12, 30)) == "2026-06-03T12:30:00+00:00"
+
+
+def test_filename_time_handles_missing_legacy_timestamp():
+    assert filename_time(None, "%Y%m%d-%H%M") == "00000000-0000"
 
 
 def test_truncate_content_marks_review_exports():

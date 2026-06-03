@@ -44,13 +44,12 @@ def _require_vault_root(settings: Settings) -> Path:
     return root
 
 
-def _selected_markdown_files(settings: Settings, paths: list[str] | None) -> tuple[list[Path], int]:
+def _selected_markdown_files(
+    settings: Settings, paths: list[str] | None, listed_files: list[Path] | None = None
+) -> tuple[list[Path], int]:
     root = _require_vault_root(settings)
     if not paths:
-        files = list_markdown_files(
-            root, settings.vault_index_include_dirs, settings.vault_index_exclude_dirs
-        )
-        return files, 0
+        return sorted(listed_files or []), 0
 
     files: list[Path] = []
     excluded = 0
@@ -97,10 +96,11 @@ def index_vault(
 ) -> VaultIndexResult:
     root = _require_vault_root(settings)
     source = _get_or_create_vault_source(db, settings)
-    total_markdown = len(
-        list_markdown_files(root, settings.vault_index_include_dirs, settings.vault_index_exclude_dirs)
+    listed_files = list_markdown_files(
+        root, settings.vault_index_include_dirs, settings.vault_index_exclude_dirs
     )
-    files, excluded = _selected_markdown_files(settings, paths)
+    total_markdown = len(listed_files)
+    files, excluded = _selected_markdown_files(settings, paths, listed_files)
 
     documents: list[DocumentInput] = []
     seen_paths: set[str] = set()
@@ -145,12 +145,12 @@ def index_vault(
     )
 
     removed_stale = 0
-    if paths is None:
+    if paths is None and seen_paths:
         stale_ids = db.scalars(
             select(Document.id).where(
                 Document.source_id == source.id,
                 Document.external_id.is_not(None),
-                Document.external_id.not_in(seen_paths) if seen_paths else True,
+                Document.external_id.not_in(seen_paths),
             )
         ).all()
         if stale_ids:

@@ -39,7 +39,7 @@ def ingest(
     try:
         result = ingest_documents(db, embedder, source=source_spec, documents=doc_inputs)
     except SensitiveContentError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     docs_out = [
         DocumentOut(

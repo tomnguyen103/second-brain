@@ -68,8 +68,20 @@ def slugify(value: str, *, fallback: str = "untitled", max_length: int = 80) -> 
     return (cleaned[:max_length].strip(".-_") or fallback)
 
 
-def iso(dt: datetime | None) -> str:
-    return dt.astimezone(timezone.utc).isoformat() if dt else ""
+def _utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def iso(dt: datetime) -> str:
+    return _utc(dt).isoformat()
+
+
+def filename_time(dt: datetime | None, fmt: str) -> str:
+    if dt is None:
+        return re.sub(r"\d", "0", datetime(2000, 1, 1).strftime(fmt))
+    return _utc(dt).strftime(fmt)
 
 
 def yaml_scalar(value: object) -> str:
@@ -185,7 +197,10 @@ def export_research_notes(db: Session, base_dir: Path, limit: int, max_chars: in
     ).all()
     files: list[ExportedFile] = []
     for doc in docs:
-        filename = f"{doc.created_at:%Y%m%d}-{doc.id}-{slugify(redact_sensitive_text(doc.title))}.md"
+        filename = (
+            f"{filename_time(doc.created_at, '%Y%m%d')}-{doc.id}-"
+            f"{slugify(redact_sensitive_text(doc.title))}.md"
+        )
         files.append(
             write_markdown(
                 base_dir,
@@ -346,7 +361,7 @@ def export_chat_answers(
     ).all()
     files: list[ExportedFile] = []
     for answer in answers:
-        filename = f"{answer.created_at:%Y%m%d-%H%M}-{answer.id}-chat-answer.md"
+        filename = f"{filename_time(answer.created_at, '%Y%m%d-%H%M')}-{answer.id}-chat-answer.md"
         files.append(
             write_markdown(base_dir, "chat-answers", filename, render_chat_answer(db, answer, mode))
         )
@@ -401,7 +416,10 @@ def export_source_documents(
     ).all()
     files: list[ExportedFile] = []
     for doc in docs:
-        filename = f"{doc.created_at:%Y%m%d}-{doc.id}-{slugify(redact_sensitive_text(doc.title))}.md"
+        filename = (
+            f"{filename_time(doc.created_at, '%Y%m%d')}-{doc.id}-"
+            f"{slugify(redact_sensitive_text(doc.title))}.md"
+        )
         files.append(
             write_markdown(
                 base_dir,

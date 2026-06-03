@@ -23,6 +23,17 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-03 - CodeRabbit security review follow-up
+- **What:** addressed CodeRabbit feedback on PR #18. Added locking around the in-memory MCP
+  approval registry, hid approved approvals from `list_pending`, made vault full scans avoid stale
+  deletion when no paths are successfully indexed, included uppercase `.MD` files, preserved leading
+  Markdown whitespace on append, and chained sensitive-ingest HTTP errors.
+- **Safety polish:** source delete previews now return a redacted display name plus a non-secret
+  `confirm_token`, so operators can confirm destructive deletes without exposing a raw source name
+  that might contain private data. Exact `confirm_source_name` remains supported.
+- **Verified:** backend `.venv` full suite: `96 passed, 88 skipped`; `python -m compileall app`;
+  `git diff --check`.
+
 ### 2026-06-03 - Local-first MCP/Obsidian security hardening
 - **What:** applied the security review fixes for local-first MCP/Obsidian handling. Restored the
   missing `backend/app/vault/*.py` source, added safe vault path resolution, Markdown/frontmatter
@@ -32,7 +43,7 @@ Add a dated entry per working session. Most recent on top.
   redacted for likely secrets/contact/payment data; `/ingest` refuses sensitive documents and
   requires `notes_folder` Markdown to have `status: approved`; RAG context is marked as untrusted
   note content; retention purge previews by default and rejects unsafe windows; source delete
-  requires exact source-name confirmation.
+  requires a delete-preview token or exact source-name confirmation.
 - **Export/VPS guardrails:** local Markdown export now requires `--confirm-local-export local-only`,
   redacts sensitive output, honors `SECOND_BRAIN_DATA_ENVIRONMENT`, and production compose sets that
   value to `production`.
