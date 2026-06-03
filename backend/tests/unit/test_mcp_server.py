@@ -79,7 +79,6 @@ def test_vault_status_reports_path_index_and_pending_counts(tmp_path, monkeypatc
     (tmp_path / "10 Research" / "keeper.md").write_text("# Keeper", encoding="utf-8")
     (tmp_path / "Templates" / "template.md").write_text("# Template", encoding="utf-8")
     monkeypatch.setattr(mcp_server.settings, "vault_path", str(tmp_path))
-    monkeypatch.setattr(mcp_server, "_session", _dummy_session)
     monkeypatch.setattr(
         mcp_server, "_vault_source", lambda db: SimpleNamespace(id=42, uri=str(tmp_path))
     )
