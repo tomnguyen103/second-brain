@@ -37,12 +37,14 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 - **What:** local setup examples now use placeholder approval-token values and instruct humans to
   pass real MCP approval tokens only through a trusted local/manual step. The export/purge runbook
   now shows the required `Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>` header before governed
-  export, delete, and retention purge calls.
+  export, delete, and retention purge calls. `approve_tool_call` also validates the decision string
+  before consuming a pending approval, so typos leave the action queued.
 - **Why:** the MCP approval token and admin bearer token are meant to protect destructive or durable
   actions; pasting real values into model-visible prompts weakens that boundary.
 - **Trade-off / what I gave up:** the examples are slightly less copy-paste direct, but safer for a
   multi-agent workflow.
-- **Affects:** `docs/local-first-local-setup-guide.md`,
+- **Affects:** `app/mcp_server.py`, `tests/unit/test_mcp_server.py`,
+  `docs/local-first-local-setup-guide.md`,
   `docs/runbooks/local-first-export-purge.md`, `docs/PROGRESS.md`.
 
 ### Vault indexer skips noisy daily-use folders by default

@@ -286,6 +286,22 @@ def test_rejected_tool_call_does_not_write_note(tmp_path, monkeypatch):
     assert not (tmp_path / "00 Inbox" / "rejected.md").exists()
 
 
+def test_invalid_approval_decision_keeps_pending_note(tmp_path, monkeypatch):
+    monkeypatch.setattr(mcp_server.settings, "vault_path", str(tmp_path))
+
+    request = mcp_server.propose_note_write("00 Inbox/typo.md", "# Typo")
+    approval_id = request["approval"]["id"]
+    result = mcp_server.approve_tool_call(approval_id, decision="aprove")
+
+    assert result["status"] == "invalid_decision"
+    assert len(mcp_server.pending_approvals()) == 1
+    assert not (tmp_path / "00 Inbox" / "typo.md").exists()
+
+    approved = mcp_server.approve_tool_call(approval_id, decision="yes")
+    assert approved["status"] == "approved"
+    assert (tmp_path / "00 Inbox" / "typo.md").exists()
+
+
 def test_approve_tool_call_requires_token_when_configured(tmp_path, monkeypatch):
     monkeypatch.setattr(mcp_server.settings, "vault_path", str(tmp_path))
     monkeypatch.setattr(mcp_server.settings, "mcp_approval_token", "local-human-ok")

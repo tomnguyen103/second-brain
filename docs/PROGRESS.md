@@ -32,7 +32,8 @@ Add a dated entry per working session. Most recent on top.
   a full reindex finds zero eligible Markdown files.
 - **Quality fixes:** vault path resolution now normalizes Windows-style separators, frontmatter
   parsing handles CRLF notes, append-mode writes no longer add leading blank lines for new notes,
-  and config default tests clear the new vault/token env vars.
+  config default tests clear the new vault/token env vars, and invalid `approve_tool_call`
+  decisions no longer consume pending approvals.
 - **Docs:** setup/runbook examples now use an idempotent smoke-test write, keep approval tokens
   out of model-visible prompts, and show the required admin bearer token for export/delete/purge
   endpoints.

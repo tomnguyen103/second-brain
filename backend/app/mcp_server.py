@@ -369,8 +369,18 @@ def approve_tool_call(approval_id: str, decision: str = "approve",
             "message": "approval token missing or invalid; pending action was not consumed",
         }
 
+    normalized_decision = (decision or "").strip().lower()
+    approve_decisions = {"approve", "approved", "yes"}
+    reject_decisions = {"reject", "rejected", "no"}
+    if normalized_decision not in approve_decisions | reject_decisions:
+        return {
+            "status": "invalid_decision",
+            "approval_id": approval_id,
+            "message": "decision must be approve/approved/yes or reject/rejected/no",
+        }
+
     approval = approvals.pop_approval(approval_id)
-    if decision.lower() not in {"approve", "approved", "yes"}:
+    if normalized_decision in reject_decisions:
         return {"status": "rejected", "approval_id": approval_id, "tool": approval.tool}
 
     args = approval.args
