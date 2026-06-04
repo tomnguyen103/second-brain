@@ -8,6 +8,7 @@ from sqlalchemy import BigInteger, Text, bindparam, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Session
 
+from app.cache.embedding import encode_with_cache
 from app.config import Settings
 from app.retrieval.fusion import Candidate, FusedHit, rrf_fuse
 
@@ -68,13 +69,22 @@ def _candidates(db: Session, sql, params) -> list[Candidate]:
 
 
 def hybrid_search(db: Session, embedder, settings: Settings, query: str,
-                  *, top_k: int | None = None, source_ids=None, tags=None
+                  *, top_k: int | None = None, source_ids=None, tags=None,
+                  redis_client=None,
                   ) -> tuple[list[FusedHit], dict]:
-    qvec = embedder.encode([query])[0]
+    qvec = encode_with_cache(
+        embedder,
+        [query],
+        redis_client=redis_client,
+        settings=settings,
+        namespace="query",
+    )[0]
     common = {"source_ids": source_ids, "tags": tags}
-    vec = _candidates(db, _VECTOR_SQL,
-                      {**common, "qvec": qvec, "model": embedder.model_name,
-                       "k": settings.retrieval_k_vector})
+    vec_raw = _candidates(db, _VECTOR_SQL,
+                          {**common, "qvec": qvec, "model": embedder.model_name,
+                           "k": settings.retrieval_k_vector})
+    min_vector = settings.retrieval_min_vector_score
+    vec = [c for c in vec_raw if c.score >= min_vector]
     fts = _candidates(db, _FULLTEXT_SQL,
                       {**common, "q": query, "k": settings.retrieval_k_fulltext})
     hits = rrf_fuse(vec, fts, rrf_k=settings.retrieval_rrf_k,
@@ -82,7 +92,12 @@ def hybrid_search(db: Session, embedder, settings: Settings, query: str,
                     w_fulltext=settings.retrieval_w_fulltext,
                     top_k=top_k or settings.retrieval_top_k)
     meta = {"method": "hybrid", "candidates_vector": len(vec),
+            "candidates_vector_raw": len(vec_raw),
+            "vector_filtered_below_threshold": len(vec_raw) - len(vec),
+            "min_vector_score": min_vector,
             "candidates_fulltext": len(fts), "fused_returned": len(hits)}
+    if (vec_raw or fts) and not hits:
+        meta["weak_context"] = True
     return hits, meta
 
 

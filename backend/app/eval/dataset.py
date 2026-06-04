@@ -2,8 +2,8 @@
 
 The corpus is a small fixed set of markdown notes (one topic per file, title = first H1).
 The dataset (YAML) is a list of cases: a question, the document(s) we expect retrieval to
-surface, keyword substrings the answer should contain, and a flag for the deliberate
-off-corpus refusal case. Retrieval is measured at *document* granularity (one topic per doc).
+surface, keyword substrings the answer should contain, and a flag for deliberate off-corpus
+refusal cases. Retrieval is measured at *document* granularity (one topic per doc).
 """
 from __future__ import annotations
 

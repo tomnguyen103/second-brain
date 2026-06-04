@@ -24,6 +24,7 @@ mcp>=1.2,<2            # Model Context Protocol server (FastMCP, stdio) exposing
 
 # Phase 6 — productionization + observability
 prometheus-client>=0.20,<1   # /metrics exposition for self-hosted Prometheus
+redis>=5,<6                  # optional Redis cache/rate-limit client (prod compose enables)
 
 # dev/test
 pytest>=8,<9

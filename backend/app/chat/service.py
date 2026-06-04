@@ -12,6 +12,7 @@ from app.config import Settings
 from app.db.models import Conversation, Message, Retrieval
 from app.llm.base import LLMMessage
 from app.retrieval.hybrid import hybrid_search, load_display_chunks
+from app.retrieval.query import maybe_rewrite_query
 
 
 @dataclass
@@ -52,7 +53,8 @@ def _history(db: Session, conversation_id: int, window: int) -> list[LLMMessage]
 
 def chat(db: Session, embedder, llm, settings: Settings, *, message: str,
          conversation_id: int | None = None, top_k: int | None = None,
-         filters: dict | None = None, include_chunks: bool = True) -> ChatResult:
+         filters: dict | None = None, include_chunks: bool = True,
+         redis_client=None) -> ChatResult:
     filters = filters or {}
     if conversation_id is None:
         conv = Conversation(title=message[:80])
@@ -64,21 +66,24 @@ def chat(db: Session, embedder, llm, settings: Settings, *, message: str,
     db.add(Message(conversation_id=conversation_id, role="user", content=message))
     db.flush()
 
-    hits, meta = hybrid_search(db, embedder, settings, message,
+    retrieval_query, rewrite_meta = maybe_rewrite_query(llm, settings, message)
+    hits, meta = hybrid_search(db, embedder, settings, retrieval_query,
                                top_k=top_k, source_ids=filters.get("source_ids"),
-                               tags=filters.get("tags"))
+                               tags=filters.get("tags"), redis_client=redis_client)
+    meta = {**meta, **rewrite_meta}
 
-    # Zero-context short-circuit — no LLM call (ADR-0006). Refusal text follows the active
-    # prompt version (ADR-0009) so an A/B variant can phrase its refusal differently.
+    # No usable context: either no candidates exist, or vector-only candidates were too weak.
     if not hits:
         refusal = get_prompt(settings.prompt_version).refusal_text
         assistant = Message(conversation_id=conversation_id, role="assistant",
                             content=refusal, model=None)
         db.add(assistant)
         db.commit()
+        reason = "weak_context" if meta.get("weak_context") else "empty_context"
         return ChatResult(conversation_id, assistant.id, refusal, [],
                           {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-                          None, 0, {**meta, "fused_returned": 0})
+                          None, 0, {**meta, "fused_returned": 0,
+                                    "refusal_reason": reason})
 
     display = load_display_chunks(db, [h.chunk_id for h in hits])
     items = [ContextItem(i + 1, display[h.chunk_id].source_name,

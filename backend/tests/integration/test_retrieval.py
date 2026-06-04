@@ -46,3 +46,39 @@ def test_hybrid_search_fulltext_finds_exact_term(db_session, fake_embedder):
                                source_ids=[result.source_id])
     assert meta["candidates_fulltext"] >= 1
     assert any(h.method in ("fulltext", "hybrid") for h in hits)
+
+
+def test_vector_threshold_filters_weak_vector_only_context(db_session, fake_embedder):
+    spec = SourceSpec(type="manual", name="weak-vector-test")
+    result = ingest_documents(db_session, fake_embedder, source=spec, documents=[
+        DocumentInput(title="Cooking doc",
+                      content="Sourdough hydration and oven spring notes. " * 20),
+    ])
+
+    settings = Settings(retrieval_min_vector_score=1.1)
+    hits, meta = hybrid_search(db_session, fake_embedder, settings,
+                               "When is my flight tomorrow?",
+                               source_ids=[result.source_id])
+
+    assert hits == []
+    assert meta["candidates_vector_raw"] >= 1
+    assert meta["candidates_vector"] == 0
+    assert meta["vector_filtered_below_threshold"] >= 1
+    assert meta["weak_context"] is True
+
+
+def test_vector_threshold_preserves_fulltext_exact_hits(db_session, fake_embedder):
+    spec = SourceSpec(type="manual", name="threshold-fts-test")
+    result = ingest_documents(db_session, fake_embedder, source=spec, documents=[
+        DocumentInput(title="Rare term doc",
+                      content="plumbob-alpha appears in this note and nowhere else. " * 12),
+    ])
+
+    settings = Settings(retrieval_min_vector_score=1.1)
+    hits, meta = hybrid_search(db_session, fake_embedder, settings, "plumbob-alpha",
+                               source_ids=[result.source_id])
+
+    assert hits
+    assert meta["candidates_vector"] == 0
+    assert meta["candidates_fulltext"] >= 1
+    assert any(h.method == "fulltext" for h in hits)

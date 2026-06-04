@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 8
     retrieval_w_vector: float = 1.0
     retrieval_w_fulltext: float = 1.0
+    # Filter weak vector-only context before fusion. Full-text candidates still pass through
+    # because `tsv @@ query` is already a lexical relevance gate on exact terms.
+    retrieval_min_vector_score: float = 0.08
+    retrieval_query_rewrite_enabled: bool = False
+    retrieval_query_rewrite_max_chars: int = 240
 
     # Chat (ADR-0006)
     history_window: int = 6
@@ -58,6 +63,20 @@ class Settings(BaseSettings):
 
     # API
     cors_origins: list[str] = ["http://localhost:3000"]
+
+    # Redis-backed optional paths. Local development defaults Redis off; prod compose enables it.
+    redis_enabled: bool = False
+    redis_url: str = "redis://localhost:6379/0"
+    redis_socket_timeout_seconds: float = 0.25
+    rate_limit_enabled: bool = True
+    chat_rate_limit_requests: int = 30
+    chat_rate_limit_window_seconds: int = 60
+    ingest_rate_limit_requests: int = 10
+    ingest_rate_limit_window_seconds: int = 60
+    search_cache_enabled: bool = True
+    search_cache_ttl_seconds: int = 120
+    embedding_cache_enabled: bool = True
+    embedding_cache_ttl_seconds: int = 604800
 
     # Daily briefing + scheduled pipelines (Phase 5, ADR-0013)
     briefing_lookback_hours: int = 24       # first-ever briefing window when no prior period_end

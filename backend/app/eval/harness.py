@@ -2,7 +2,7 @@
 
 Per case: retrieve+generate (read-only `answer_question`), then score retrieval (hit/recall/MRR
 at document granularity) and the answer (citation validity, keyword recall, refusal). Retrieval
-metrics are N/A (None) for the deliberate refusal case. Returns an EvalReport with per-case rows
+metrics are N/A (None) for deliberate refusal cases. Returns an EvalReport with per-case rows
 and the aggregate.
 """
 from __future__ import annotations
@@ -41,7 +41,7 @@ def run_eval(db: Session, embedder, dataset: list[EvalCase], config: EvalConfig,
         result = answer_question(db, embedder, client, cfg_settings, case.question,
                                  top_k=config.top_k, source_ids=source_ids)
         if case.expect_refusal:
-            hit = recall = reciprocal = None        # retrieval metrics N/A for the refusal case
+            hit = recall = reciprocal = None        # retrieval metrics N/A for refusal cases
             keyword = None
         else:
             hit = metrics.hit_at_k(result.retrieved_docs, case.expected_docs, config.top_k)

@@ -66,3 +66,11 @@ cases:
   - id: off-corpus-dentist
     question: When is my dentist appointment next week?
     expect_refusal: true
+
+  - id: off-corpus-flight
+    question: What time is my flight to Hanoi tomorrow?
+    expect_refusal: true
+
+  - id: weak-context-meeting
+    question: What did I promise Alex in yesterday's meeting?
+    expect_refusal: true

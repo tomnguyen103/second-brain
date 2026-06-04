@@ -16,6 +16,10 @@ from app.db.models import Task
 _VALID_STATUS = {"open", "done", "cancelled"}
 
 
+class TaskNotFound(Exception):
+    """Raised when a task id does not exist."""
+
+
 @dataclass
 class TaskOut:
     id: int
@@ -49,3 +53,15 @@ def list_tasks(db: Session, *, status: str | None = None, limit: int = 20) -> li
         stmt = stmt.where(Task.status == status)
     stmt = stmt.order_by(Task.created_at.desc(), Task.id.desc()).limit(limit)
     return [_to_out(t) for t in db.scalars(stmt).all()]
+
+
+def update_task_status(db: Session, task_id: int, status: str) -> TaskOut:
+    if status not in _VALID_STATUS:
+        raise ValueError(f"invalid task status: {status!r}")
+    task = db.get(Task, task_id)
+    if task is None:
+        raise TaskNotFound(f"task {task_id} not found")
+    task.status = status
+    db.commit()
+    db.refresh(task)
+    return _to_out(task)

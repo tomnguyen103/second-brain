@@ -27,6 +27,18 @@ HTTP_LATENCY = Histogram(
     ["method", "path"],
     registry=REGISTRY,
 )
+CACHE_EVENTS = Counter(
+    "cache_events_total",
+    "Redis-backed cache events by cache name and event.",
+    ["cache", "event"],
+    registry=REGISTRY,
+)
+RATE_LIMIT_EVENTS = Counter(
+    "rate_limit_events_total",
+    "Redis-backed rate-limit decisions by endpoint and event.",
+    ["endpoint", "event"],
+    registry=REGISTRY,
+)
 
 _METRICS_PATH = "/metrics"
 
