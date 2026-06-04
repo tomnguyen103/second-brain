@@ -87,10 +87,10 @@ def test_write_markdown_redacts_sensitive_content(tmp_path):
         tmp_path,
         "research-notes",
         "note.md",
-        "api_key = AIza12345678901234567890123456789012345",
+        "api_key = redaction-fixture-value",
     )
     assert "[REDACTED:credential]" in exported.path.read_text(encoding="utf-8")
-    assert "AIza" not in exported.path.read_text(encoding="utf-8")
+    assert "redaction-fixture-value" not in exported.path.read_text(encoding="utf-8")
 
 
 def test_export_requires_local_confirmation_before_db_access():
