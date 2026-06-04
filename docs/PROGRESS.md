@@ -23,6 +23,18 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-04 - README synchronized with live state and professionalized
+- **What:** refreshed `README.md` into a cleaner portfolio-grade layout with current status,
+  recent updates, product capabilities, user surfaces, tech stack, roadmap, production
+  architecture, local run steps, deploy summary, Kubernetes learning-track notes, and follow-ups.
+- **Sync fixes:** reordered recent updates so PRs #16/#15 appear ahead of the live-deploy work;
+  clarified the live stack as 8 base production services + Caddy = 9 services; replaced stale
+  fixed cost language with provider-neutral "one small VPS" wording while noting the verified
+  2 GB DigitalOcean deployment; resolved the PR after the app-surface and Redis work landed so
+  the README now reflects those completed paths instead of listing them as follow-ups.
+- **Verified:** resolved the merge conflict against `main`; docs-only diff passed
+  `git diff --check`.
+
 ### 2026-06-04 - Redis-backed rate limits and caches
 - **What:** added optional Redis paths for the production stack: fixed-window `/chat` and `/ingest`
   API rate limiting, short-lived `/search` response caching with ingest-driven epoch invalidation,
