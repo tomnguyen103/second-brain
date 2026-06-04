@@ -23,6 +23,19 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-04 — README synchronized with live state and professionalized
+- **What:** refreshed `README.md` into a cleaner portfolio-grade layout with current status,
+  recent updates, product capabilities, user surfaces, tech stack, roadmap, production
+  architecture, local run steps, deploy summary, Kubernetes learning-track notes, and known
+  follow-ups.
+- **Sync fixes:** reordered recent updates so PRs #16/#15 appear ahead of the live-deploy work;
+  clarified the live stack as 8 base production services + Caddy = 9 services; replaced stale
+  fixed cost language with provider-neutral "one small VPS" wording while noting the verified
+  2 GB DigitalOcean deployment; softened Redis claims to reflect that it is provisioned for
+  cache/rate-limit expansion rather than already powering those paths.
+- **Next:** consider adding first-class web UI surfaces for ingest, briefing history, tasks,
+  source management, and admin data-ops.
+
 ### 2026-06-02 — LIVE on the VPS: full stack up + Caddy HTTPS, end-to-end verified
 - **What:** brought the production stack fully live on the **DigitalOcean droplet**
   (`YOUR_VPS_IP`, 2 GB, project **`second-brain`**, files `docker-compose.prod.yml` +
