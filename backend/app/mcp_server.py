@@ -86,11 +86,22 @@ def send_digest(limit: int = 10) -> str:
 
 
 @mcp.tool()
-def research_topic(topic: str) -> dict:
-    """Research a topic with the LLM, store it as a research note, and auto-index it so it
-    becomes permanently searchable in the second brain."""
+def research_topic(
+    topic: str,
+    source_urls: list[str] | None = None,
+    source_texts: list[str] | None = None,
+) -> dict:
+    """Research a topic from optional public URLs or provided source text, store it as a
+    source-backed research note, and auto-index it so it becomes permanently searchable."""
     with _session() as db:
-        res = _research_topic(db, get_embedder(), get_llm_client(settings), topic)
+        res = _research_topic(
+            db,
+            get_embedder(),
+            get_llm_client(settings),
+            topic,
+            source_urls=source_urls,
+            source_texts=source_texts,
+        )
         return {
             "topic": res.topic,
             "document_id": res.document_id,
@@ -100,6 +111,8 @@ def research_topic(topic: str) -> dict:
             "chunk_count": res.chunk_count,
             "model": res.model,
             "searchable": res.searchable,
+            "evidence_count": res.evidence_count,
+            "sources": res.sources,
             "summary": res.summary,
         }
 

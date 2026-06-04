@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app import deps
+from app.cache.search import get_search_cache, set_search_cache
 from app.config import Settings
 from app.retrieval.hybrid import hybrid_search, load_display_chunks
 from app.schemas.search import SearchHit, SearchResponse
@@ -21,12 +22,27 @@ def search_endpoint(
     db: Session = Depends(deps.get_db),
     embedder=Depends(deps.get_embedder),
     settings: Settings = Depends(deps.get_settings),
+    redis_client=Depends(deps.get_redis),
 ):
+    source_ids_filter = source_ids or None
+    tags_filter = tags or None
+    cached = get_search_cache(
+        redis_client,
+        settings,
+        query=q,
+        top_k=top_k,
+        source_ids=source_ids_filter,
+        tags=tags_filter,
+    )
+    if cached is not None:
+        return SearchResponse.model_validate(cached)
+
     hits, meta = hybrid_search(
         db, embedder, settings, q,
         top_k=top_k,
-        source_ids=source_ids or None,
-        tags=tags or None,
+        source_ids=source_ids_filter,
+        tags=tags_filter,
+        redis_client=redis_client,
     )
     chunk_ids = [h.chunk_id for h in hits]
     display = load_display_chunks(db, chunk_ids)
@@ -51,4 +67,14 @@ def search_endpoint(
             char_end=dc.char_end,
         ))
 
-    return SearchResponse(query=q, hits=result_hits, retrieval=meta)
+    response = SearchResponse(query=q, hits=result_hits, retrieval=meta)
+    set_search_cache(
+        redis_client,
+        settings,
+        query=q,
+        top_k=top_k,
+        source_ids=source_ids_filter,
+        tags=tags_filter,
+        payload=response.model_dump(mode="json"),
+    )
+    return response

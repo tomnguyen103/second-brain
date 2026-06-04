@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import sys
 
-# Deterministic floor for the fake-driver baseline. Phase 3 measured hit@k = citation = 1.000,
-# refusal_accuracy = 0.923 — these thresholds sit safely below with margin for dataset growth.
+# Deterministic floor for the fake-driver baseline. Retrieval now filters weak vector-only
+# context before generation, so refusal cases are gateable without a real LLM.
 DEFAULT_THRESHOLDS: dict[str, float] = {
     "hit_at_k": 0.80,
     "citation_validity": 0.90,

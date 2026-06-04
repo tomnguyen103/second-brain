@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app import deps
+from app.cache.rate_limit import check_rate_limit, client_identity
 from app.chat.service import chat
 from app.config import Settings
 from app.schemas.chat import ChatRequest, ChatResponse, CitationOut, UsageOut
@@ -11,11 +12,28 @@ router = APIRouter()
 
 @router.post("/chat", response_model=ChatResponse)
 def chat_endpoint(
+    request: Request,
     req: ChatRequest,
     db: Session = Depends(deps.get_db),
     embedder=Depends(deps.get_embedder),
     settings: Settings = Depends(deps.get_settings),
+    redis_client=Depends(deps.get_redis),
 ):
+    decision = check_rate_limit(
+        redis_client,
+        settings,
+        bucket="chat",
+        identity=client_identity(request),
+        limit=settings.chat_rate_limit_requests,
+        window_seconds=settings.chat_rate_limit_window_seconds,
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="chat rate limit exceeded",
+            headers={"Retry-After": str(decision.retry_after_seconds)},
+        )
+
     llm = deps.get_llm_client(settings, private_mode=req.options.private_mode)
     filters = {}
     if req.filters.source_ids:
@@ -30,6 +48,7 @@ def chat_endpoint(
         top_k=req.top_k,
         filters=filters,
         include_chunks=req.options.include_chunks,
+        redis_client=redis_client,
     )
 
     citations_out = [

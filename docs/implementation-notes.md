@@ -9,6 +9,93 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Redis-backed rate limits and caches (2026-06-04)
+
+- **What:** added optional Redis use for API rate limiting on `/chat` and `/ingest`, short-lived
+  hot-result caching for `/search`, and hashed-text embedding cache reads/writes for ingest content
+  chunks and retrieval query vectors. Production Compose now enables Redis for the API/worker env;
+  local defaults keep Redis disabled.
+- **Why:** the production stack already hosts Redis and the project plan reserved it for caching and
+  rate limiting. Keeping the paths small gives practical protection/reuse without moving durable
+  state or core retrieval correctness out of Postgres.
+- **Trade-off / what I gave up:** Redis failures deliberately fail open, so rate limits and caches
+  can be bypassed during a Redis outage. That is preferable for this single-user app because Redis
+  should not become a hard dependency for chat/ingest/search availability. Search cache TTL is short
+  and ingest bumps a cache epoch, but worker/MCP ingest paths may still rely on TTL if they do not
+  pass a Redis client.
+- **Affects:** `backend/app/cache/*`, `backend/app/api/{chat,ingest,search}.py`,
+  `backend/app/{config,deps}.py`, `backend/app/{ingest/service,retrieval/hybrid,chat/service}.py`,
+  `backend/app/obs/metrics.py`, `deploy/docker-compose.prod.yml`, `backend/requirements.txt`,
+  `backend/tests/unit/test_{config_redis,redis_paths}.py`, `docs/USAGE.md`.
+
+## Feedback analytics and review-first eval candidates (2026-06-04)
+
+- **What:** added feedback quality endpoints for trend analytics, a negative-feedback review queue
+  with conversation/message/retrieval/citation context, and an eval-candidate export built from
+  negative thumbs. The web UI now has a `/feedback` page for the same review workflow.
+- **Why:** thumbs feedback was being stored but not converted into actionable quality data. Reusing
+  the existing `feedback`, `messages`, `retrievals`, and citation reconstruction paths gives useful
+  review context without a migration.
+- **Trade-off / what I gave up:** candidates are exported as review-first JSON and are not
+  auto-promoted into `backend/eval/dataset.yaml`. `expected_docs` is inferred from cited document
+  titles, but the owner still needs to review labels/keywords before making them part of the fixed
+  eval gate.
+- **Affects:** `backend/app/api/conversations.py`, `backend/app/schemas/feedback.py`,
+  `frontend/app/feedback/page.tsx`, `frontend/components/ConversationSidebar.tsx`,
+  `frontend/lib/api/{client,types}.ts`, `docs/USAGE.md`.
+
+## Retrieval weak-context refusal + vector relevance threshold (2026-06-04)
+
+- **What:** added a configurable vector relevance floor
+  (`SECOND_BRAIN_RETRIEVAL_MIN_VECTOR_SCORE`, default `0.08`) before RRF fusion, plus no-LLM
+  refusal when retrieval has no usable context after filtering. The response metadata now records
+  raw vector candidates, filtered vector candidates, threshold count, and `refusal_reason`
+  (`weak_context` vs `empty_context`). The read-only eval pipeline uses the same path, and the eval
+  dataset now includes multiple weak/off-corpus refusal probes.
+- **Why:** vector search always returns nearest neighbors from a non-empty corpus, even when the
+  nearest neighbor is not actually relevant. Filtering weak vector-only evidence makes refusal
+  behavior deterministic and lets the fake-driver eval gate measure off-corpus refusal without a
+  real LLM call.
+- **Trade-off / what I gave up:** the threshold is intentionally applied to vector cosine
+  similarity, not the fused RRF score, because RRF is rank-based and a high RRF floor would also
+  drop exact full-text-only matches. Recency/source/tag weighting was left deferred; the existing
+  source/tag filters are deterministic, while weighting would need more tuning data and could hide
+  relevant older notes. Query rewrite exists behind
+  `SECOND_BRAIN_RETRIEVAL_QUERY_REWRITE_ENABLED=false` by default because it adds an extra LLM call
+  and should be eval-enabled only when the fake/real comparison shows a gain.
+- **Affects:** `backend/app/config.py`, `backend/app/retrieval/{hybrid,query}.py`,
+  `backend/app/chat/service.py`, `backend/app/eval/{pipeline,dataset,gate}.py`,
+  `backend/eval/dataset.yaml`, `backend/tests/**/*retrieval*`,
+  `backend/tests/unit/test_query_rewrite.py`.
+
+## Source-backed research provenance in document metadata (2026-06-04)
+
+- **What:** upgraded self-research to accept source URLs and source text, then store provenance
+  on the generated `research_note` document as JSONB metadata (`grounding`, `source_count`,
+  `sources[]`) while also appending a readable `## Sources` section to the note body.
+- **Why:** the existing `documents.metadata` column is already JSONB + indexed, so it can carry
+  per-note provenance without a migration or a new paid search/source table. This fits the
+  manual-friendly flow: provide URLs/snippets, ground the note, make it searchable.
+- **Trade-off / what I gave up:** provenance is document-level metadata, not a normalized source
+  graph. That is enough for retrieval display and auditability now, but richer cross-note source
+  analytics would need a future table.
+- **Affects:** `backend/app/research/service.py`, `backend/app/mcp_server.py`,
+  `backend/app/jobs/handlers.py`, `backend/app/api/research_jobs.py`,
+  `frontend/app/research/page.tsx`, `docs/USAGE.md`.
+
+## REST wrappers for existing task, research-job, and source data (2026-06-04)
+
+- **What:** added small FastAPI routers for user tasks, queued research jobs, and source/document
+  overview so the web UI can operate those existing backend capabilities directly.
+- **Why:** tasks already existed as persisted MCP actions, research already had a durable worker
+  job path, and sources/documents were already core database models. A web UI needed stable,
+  typed endpoints rather than reaching through MCP or inventing client-only state.
+- **Trade-off / what I gave up:** kept the endpoints intentionally narrow. Research exposes queued
+  job status instead of inline LLM execution; sources expose overview/detail lists, not arbitrary
+  document editing; admin data-ops still require the existing bearer token.
+- **Affects:** `backend/app/api/{tasks,research_jobs,sources}.py`, `backend/app/schemas/`,
+  `frontend/app/{tasks,research,sources,admin,ingest,briefing}/`, `frontend/lib/api/`.
+
 ## Going live on the VPS — Caddy HTTPS + compose override gotchas (2026-06-02)
 
 ### Caddy reverse proxy with no-domain HTTPS via `sslip.io`

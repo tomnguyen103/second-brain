@@ -9,7 +9,7 @@ from __future__ import annotations
 from sqlalchemy import select
 
 from app.config import Settings
-from app.db.models import Briefing, Chunk
+from app.db.models import Briefing, Chunk, Document
 from app.ingest.service import DocumentInput, SourceSpec, ingest_documents
 from app.jobs import queue, worker
 from app.llm.fake import FakeLLMClient
@@ -75,4 +75,31 @@ def test_research_handler_via_run_once_stores_searchable_note(db_session, fake_e
         chunk.content, source_ids=[result["source_id"]],
     )
     assert len(hits) >= 1
+
+
+def test_research_handler_returns_source_provenance(db_session, fake_embedder):
+    queue.enqueue(
+        db_session,
+        type="research",
+        payload={
+            "topic": "Evidence-backed async research",
+            "source_texts": [{
+                "title": "Worker evidence",
+                "text": "The worker should pass provided evidence into the research service.",
+                "uri": "manual://worker-evidence",
+            }],
+        },
+    )
+
+    job = _run(db_session, fake_embedder)
+
+    assert job is not None and job.type == "research"
+    result = job.payload["result"]
+    assert result["evidence_count"] == 1
+    assert result["sources"][0]["title"] == "Worker evidence"
+    assert result["sources"][0]["uri"] == "manual://worker-evidence"
+
+    doc = db_session.get(Document, result["document_id"])
+    assert doc is not None
+    assert doc.metadata_["sources"] == result["sources"]
 

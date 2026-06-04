@@ -6,7 +6,9 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.cache.embedding import encode_with_cache
+from app.cache.search import bump_search_cache_epoch
+from app.config import Settings, settings as default_settings
 from app.db.models import Chunk, Document, DocumentTag, Embedding, Source, Tag
 from app.ingest.chunking import chunk_text
 from app.ingest.hashing import content_hash
@@ -70,8 +72,16 @@ def _get_or_create_tags(db: Session, names: list[str]) -> list[Tag]:
     return tags
 
 
-def ingest_documents(db: Session, embedder, *, source: SourceSpec,
-                     documents: list[DocumentInput]) -> IngestResult:
+def ingest_documents(
+    db: Session,
+    embedder,
+    *,
+    source: SourceSpec,
+    documents: list[DocumentInput],
+    settings: Settings | None = None,
+    redis_client=None,
+) -> IngestResult:
+    cfg = settings or default_settings
     src = _get_or_create_source(db, source)
     results: list[DocumentResult] = []
 
@@ -98,8 +108,17 @@ def ingest_documents(db: Session, embedder, *, source: SourceSpec,
                     db.add(DocumentTag(document_id=doc.id, tag_id=tag.id))
 
                 pieces = chunk_text(doc_in.content, embedder.count_tokens,
-                                    settings.chunk_target_tokens, settings.chunk_overlap_ratio)
-                vectors = embedder.encode([p.content for p in pieces]) if pieces else []
+                                    cfg.chunk_target_tokens, cfg.chunk_overlap_ratio)
+                vectors = (
+                    encode_with_cache(
+                        embedder,
+                        [p.content for p in pieces],
+                        redis_client=redis_client,
+                        settings=cfg,
+                        namespace="content",
+                    )
+                    if pieces else []
+                )
                 for piece, vec in zip(pieces, vectors):
                     chunk = Chunk(document_id=doc.id, chunk_index=piece.index,
                                   content=piece.content, token_count=piece.token_count,
@@ -120,4 +139,6 @@ def ingest_documents(db: Session, embedder, *, source: SourceSpec,
             results.append(DocumentResult(None, doc_in.title, "failed", chash, error=str(exc)))
 
     db.commit()
+    if any(d.status == "embedded" for d in results):
+        bump_search_cache_epoch(redis_client, cfg)
     return IngestResult(source_id=src.id, documents=results)

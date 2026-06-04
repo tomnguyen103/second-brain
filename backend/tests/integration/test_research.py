@@ -4,6 +4,7 @@ import os
 import pytest
 
 from app.config import Settings
+from app.db.models import Document
 from app.llm.fake import FakeLLMClient
 from app.research.service import RESEARCH_SOURCE, research_topic
 from app.retrieval.hybrid import hybrid_search
@@ -24,6 +25,36 @@ def test_research_stores_embeds_and_is_searchable(db_session, fake_embedder):
     hits, _meta = hybrid_search(db_session, fake_embedder, Settings(_env_file=None),
                                 res.summary, source_ids=[res.source_id])
     assert len(hits) >= 1
+
+
+def test_research_with_source_text_stores_provenance_metadata(db_session, fake_embedder):
+    res = research_topic(
+        db_session,
+        fake_embedder,
+        FakeLLMClient(),
+        "Reciprocal rank fusion evidence",
+        source_texts=[{
+            "title": "RRF source note",
+            "uri": "manual://rrf-source",
+            "text": "Reciprocal rank fusion combines ranked search results from many systems.",
+        }],
+    )
+
+    assert res.evidence_count == 1
+    assert res.sources[0]["id"] == "S1"
+    assert res.sources[0]["title"] == "RRF source note"
+    assert res.sources[0]["uri"] == "manual://rrf-source"
+    assert res.sources[0]["status"] == "included"
+    assert "Reciprocal rank fusion combines" in res.sources[0]["excerpt"]
+    assert "## Sources" in res.summary
+    assert "[S1] RRF source note - manual://rrf-source" in res.summary
+
+    doc = db_session.get(Document, res.document_id)
+    assert doc is not None
+    assert doc.metadata_["kind"] == "research"
+    assert doc.metadata_["grounding"] == "source_backed"
+    assert doc.metadata_["source_count"] == 1
+    assert doc.metadata_["sources"] == res.sources
 
 
 def test_research_empty_topic_rejected(db_session, fake_embedder):

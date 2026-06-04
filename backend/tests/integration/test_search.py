@@ -102,3 +102,101 @@ def test_conversation_detail_reconstructs_citations(client):
     # user messages carry no citations
     user = next(m for m in msgs if m["role"] == "user")
     assert user["citations"] == []
+
+
+def _seed_feedback_with_cited_answer(client):
+    client.post("/ingest", json={
+        "source": {"type": "manual", "name": "Feedback Quality"},
+        "documents": [{
+            "title": "Feedback analytics doc",
+            "content": (
+                "pgvector stores vector embeddings in Postgres for similarity search, "
+                "which helps feedback quality review connect thumbs down answers to sources. "
+            ) * 20,
+        }],
+    })
+    chat_r = client.post("/chat", json={"message": "what does pgvector store for feedback quality?"})
+    assert chat_r.status_code == 200, chat_r.text
+    chat = chat_r.json()
+    assert chat["citations"], "fake LLM should cite the retrieved feedback doc"
+    return chat
+
+
+def test_feedback_analytics_summarizes_trends(client):
+    before = client.get("/feedback/analytics", params={"days": 7}).json()
+    negative_chat = _seed_feedback_with_cited_answer(client)
+    negative = client.post(
+        "/feedback",
+        json={
+            "message_id": negative_chat["message_id"],
+            "rating": -1,
+            "comment": "missed the action item",
+        },
+    )
+    assert negative.status_code == 201, negative.text
+
+    positive_chat = client.post(
+        "/chat", json={"message": "What does feedback analytics track?"}
+    ).json()
+    positive = client.post(
+        "/feedback",
+        json={"message_id": positive_chat["message_id"], "rating": 1},
+    )
+    assert positive.status_code == 201, positive.text
+
+    r = client.get("/feedback/analytics", params={"days": 7})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["total"] == before["total"] + 2
+    assert body["positive"] == before["positive"] + 1
+    assert body["negative"] == before["negative"] + 1
+    assert len(body["trend"]) == 7
+    assert any(bucket["total"] >= 2 for bucket in body["trend"])
+    assert any(model["model"] == "fake" for model in body["by_model"])
+    assert any(
+        doc["document_title"] == "Feedback analytics doc"
+        for doc in body["top_negative_documents"]
+    )
+
+
+def test_negative_feedback_lists_conversation_message_and_citations(client):
+    chat = _seed_feedback_with_cited_answer(client)
+    fb = client.post(
+        "/feedback",
+        json={"message_id": chat["message_id"], "rating": -1, "comment": "wrong source"},
+    ).json()
+
+    r = client.get("/feedback/negative", params={"limit": 10})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["total"] == 1
+    item = body["items"][0]
+    assert item["feedback_id"] == fb["id"]
+    assert item["message_id"] == chat["message_id"]
+    assert item["conversation_id"] == chat["conversation_id"]
+    assert item["question"] == "what does pgvector store for feedback quality?"
+    assert item["answer"] == chat["answer"]
+    assert item["comment"] == "wrong source"
+    assert item["retrievals"]
+    assert item["citations"][0]["document_title"] == "Feedback analytics doc"
+
+
+def test_negative_feedback_exports_eval_candidates(client):
+    chat = _seed_feedback_with_cited_answer(client)
+    fb = client.post(
+        "/feedback",
+        json={"message_id": chat["message_id"], "rating": -1, "comment": "needs eval"},
+    ).json()
+
+    r = client.get("/feedback/eval-candidates")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["source"] == "feedback"
+    assert body["total"] == 1
+    case = body["cases"][0]
+    assert case["id"] == f"feedback-{fb['id']}"
+    assert case["question"] == "what does pgvector store for feedback quality?"
+    assert case["expected_docs"] == ["Feedback analytics doc"]
+    assert case["metadata"]["feedback_id"] == fb["id"]
+    assert case["metadata"]["needs_review"] is True
+    assert case["metadata"]["citations"][0]["document_title"] == "Feedback analytics doc"

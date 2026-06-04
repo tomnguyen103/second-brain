@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
@@ -29,32 +29,37 @@ function ChatPage() {
     enabled: conversationId != null && messages.length === 0,
   });
 
-  useEffect(() => {
-    if (history && messages.length === 0) {
-      setMessages(history.messages.map((m) => {
-        if (m.role === "assistant") {
-          // Rehydrate the live-chat shape so replayed history gets clickable [n]
-          // citations, the source count, and working feedback thumbs — not just
-          // live turns. Citations are reconstructed by the detail endpoint.
-          return {
-            role: "assistant" as const,
-            content: m.content,
-            response: {
-              conversation_id: history.id,
-              message_id: m.id,
-              answer: m.content,
-              citations: m.citations,
-              usage: { prompt_tokens: null, completion_tokens: null, total_tokens: null },
-              model: m.model,
-              latency_ms: m.latency_ms ?? 0,
-              retrieval: { method: "", candidates_vector: 0, candidates_fulltext: 0, fused_returned: m.citations.length },
+  const historyMessages = useMemo<ChatMessage[]>(() => {
+    if (!history) return [];
+    return history.messages.map((m) => {
+      if (m.role === "assistant") {
+        // Rehydrate the live-chat shape so replayed history gets clickable [n]
+        // citations, the source count, and working feedback thumbs.
+        return {
+          role: "assistant" as const,
+          content: m.content,
+          response: {
+            conversation_id: history.id,
+            message_id: m.id,
+            answer: m.content,
+            citations: m.citations,
+            usage: { prompt_tokens: null, completion_tokens: null, total_tokens: null },
+            model: m.model,
+            latency_ms: m.latency_ms ?? 0,
+            retrieval: {
+              method: "",
+              candidates_vector: 0,
+              candidates_fulltext: 0,
+              fused_returned: m.citations.length,
             },
-          };
-        }
-        return { role: "user" as const, content: m.content };
-      }));
-    }
+          },
+        };
+      }
+      return { role: "user" as const, content: m.content };
+    });
   }, [history]);
+
+  const displayMessages = messages.length > 0 ? messages : historyMessages;
 
   const { mutate: sendMessage, isPending } = useMutation({
     mutationFn: (payload: { message: string; privateMode: boolean }) =>
@@ -68,7 +73,10 @@ function ChatPage() {
         options: { private_mode: payload.privateMode, include_chunks: true },
       }),
     onMutate: ({ message }) => {
-      setMessages((p) => [...p, { role: "user", content: message }]);
+      setMessages((p) => [
+        ...(p.length > 0 ? p : historyMessages),
+        { role: "user", content: message },
+      ]);
     },
     onSuccess: (data) => {
       setMessages((p) => [...p, { role: "assistant", content: data.answer, response: data }]);
@@ -88,7 +96,7 @@ function ChatPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isPending]);
+  }, [displayMessages.length, isPending]);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -97,7 +105,7 @@ function ChatPage() {
           {conversationId ? `Conversation #${conversationId}` : "New conversation"}
         </span>
       </header>
-      <MessageList messages={messages} isLoading={isPending} />
+      <MessageList messages={displayMessages} isLoading={isPending} />
       <div ref={bottomRef} />
       <SourceFilter sourceIds={sourceIds} tags={tags} onChangeSourceIds={setSourceIds} onChangeTags={setTags} />
       <ChatComposer onSend={(msg, pm) => sendMessage({ message: msg, privateMode: pm })} disabled={isPending} />
@@ -107,7 +115,7 @@ function ChatPage() {
 
 export default function ChatPageWrapper() {
   return (
-    <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-xs text-muted-foreground">Loading…</span></div>}>
+    <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-xs text-muted-foreground">Loading...</span></div>}>
       <ChatPage />
     </Suspense>
   );
