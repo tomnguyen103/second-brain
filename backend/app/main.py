@@ -2,7 +2,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import Response
 
-from app.api import briefing, chat, conversations, dataops, health, ingest, search
+from app.api import (
+    briefing,
+    chat,
+    conversations,
+    dataops,
+    health,
+    ingest,
+    research_jobs,
+    search,
+    sources,
+    tasks,
+)
 from app.config import settings
 from app.obs.metrics import PrometheusMiddleware, render
 
@@ -30,3 +41,6 @@ app.include_router(search.router)
 app.include_router(conversations.router)
 app.include_router(dataops.router)
 app.include_router(briefing.router)
+app.include_router(tasks.router)
+app.include_router(research_jobs.router)
+app.include_router(sources.router)

@@ -3,6 +3,7 @@ from functools import lru_cache
 from fastapi import Depends, Header, HTTPException, status
 
 from app.config import settings as _settings
+from app.cache.redis_client import get_redis_client
 from app.db.session import get_db                     # re-exported for routers
 from app.llm.factory import get_llm_client
 
@@ -21,6 +22,11 @@ def get_embedder():
 def get_settings():
     """Return the application settings (overridable in tests via dependency_overrides)."""
     return _settings
+
+
+def get_redis(settings=Depends(get_settings)):
+    """Return the optional Redis client, or None when Redis is disabled."""
+    return get_redis_client(settings)
 
 
 def require_admin(
@@ -45,4 +51,11 @@ def require_admin(
     return True
 
 
-__all__ = ["get_db", "get_embedder", "get_settings", "get_llm_client", "require_admin"]
+__all__ = [
+    "get_db",
+    "get_embedder",
+    "get_settings",
+    "get_redis",
+    "get_llm_client",
+    "require_admin",
+]

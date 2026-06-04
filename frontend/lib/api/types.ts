@@ -133,8 +133,281 @@ export interface FeedbackResponse {
   created_at: string;
 }
 
+export interface FeedbackTrendBucket {
+  date: string;
+  total: number;
+  positive: number;
+  negative: number;
+  negative_rate: number;
+}
+
+export interface FeedbackModelStats {
+  model: string;
+  total: number;
+  positive: number;
+  negative: number;
+  negative_rate: number;
+  avg_latency_ms: number | null;
+}
+
+export interface FeedbackDocumentStats {
+  document_id: number;
+  document_title: string;
+  source_id: number;
+  source_name: string;
+  negative: number;
+}
+
+export interface FeedbackAnalyticsResponse {
+  window_days: number;
+  total: number;
+  positive: number;
+  negative: number;
+  negative_rate: number;
+  latest_feedback_at: string | null;
+  trend: FeedbackTrendBucket[];
+  by_model: FeedbackModelStats[];
+  top_negative_documents: FeedbackDocumentStats[];
+}
+
+export interface FeedbackRetrievalContext {
+  chunk_id: number;
+  rank: number;
+  score: number | null;
+  vector_score: number | null;
+  fulltext_score: number | null;
+  method: string;
+}
+
+export interface NegativeFeedbackItem {
+  feedback_id: number;
+  rating: -1;
+  comment: string | null;
+  feedback_created_at: string;
+  conversation_id: number;
+  conversation_title: string | null;
+  message_id: number;
+  message_created_at: string;
+  question_message_id: number | null;
+  question: string | null;
+  answer: string;
+  model: string | null;
+  latency_ms: number | null;
+  retrievals: FeedbackRetrievalContext[];
+  citations: Citation[];
+}
+
+export interface NegativeFeedbackListResponse {
+  items: NegativeFeedbackItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface EvalCandidate {
+  id: string;
+  question: string;
+  expected_docs: string[];
+  expected_keywords: string[];
+  expect_refusal: boolean;
+  metadata: Record<string, unknown>;
+}
+
+export interface EvalCandidateExportResponse {
+  generated_at: string;
+  source: string;
+  total: number;
+  cases: EvalCandidate[];
+}
+
 export interface HealthResponse {
   status: string;
   db: string;
   embedder: string;
+}
+
+export type SourceType =
+  | "manual"
+  | "notes_folder"
+  | "github"
+  | "rss"
+  | "pdf_upload"
+  | "bookmark"
+  | "research_note";
+
+export interface IngestSource {
+  type: SourceType;
+  name: string;
+  uri?: string | null;
+  config?: Record<string, unknown>;
+}
+
+export interface IngestDocument {
+  title: string;
+  content: string;
+  external_id?: string | null;
+  content_type?: string | null;
+  metadata?: Record<string, unknown>;
+  tags?: string[];
+}
+
+export interface IngestRequest {
+  source: IngestSource;
+  documents: IngestDocument[];
+}
+
+export interface IngestDocumentOut {
+  document_id: number | null;
+  title: string;
+  status: string;
+  content_hash: string;
+  chunk_count: number;
+  embedded_count: number;
+  duplicate_of: number | null;
+  error: string | null;
+}
+
+export interface IngestResponse {
+  source_id: number;
+  documents: IngestDocumentOut[];
+  summary: {
+    received: number;
+    embedded: number;
+    duplicates: number;
+    failed: number;
+    chunks_created: number;
+  };
+}
+
+export interface Briefing {
+  id: number;
+  generated_at: string;
+  period_start: string;
+  period_end: string;
+  summary: string;
+  body_markdown: string;
+  document_count: number;
+  model: string | null;
+}
+
+export interface BriefingListResponse {
+  briefings: Briefing[];
+  total: number;
+}
+
+export type TaskStatus = "open" | "done" | "cancelled";
+
+export interface TaskItem {
+  id: number;
+  title: string;
+  detail: string | null;
+  status: TaskStatus;
+  created_at: string;
+}
+
+export interface TaskListResponse {
+  tasks: TaskItem[];
+  total: number;
+}
+
+export type JobStatus = "queued" | "running" | "done" | "failed";
+
+export interface ResearchSourceText {
+  title?: string | null;
+  text: string;
+  uri?: string | null;
+}
+
+export interface ResearchJobRequest {
+  topic: string;
+  source_urls?: string[];
+  source_texts?: ResearchSourceText[];
+}
+
+export interface ResearchJob {
+  id: number;
+  type: "research";
+  topic: string | null;
+  status: JobStatus;
+  attempts: number;
+  last_error: string | null;
+  scheduled_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  result: Record<string, unknown> | null;
+}
+
+export interface ResearchJobListResponse {
+  jobs: ResearchJob[];
+  total: number;
+}
+
+export interface SourceSummary {
+  id: number;
+  type: SourceType | string;
+  name: string;
+  uri: string | null;
+  created_at: string;
+  updated_at: string;
+  document_count: number;
+  chunk_count: number;
+  latest_document_at: string | null;
+}
+
+export interface SourceListResponse {
+  sources: SourceSummary[];
+  total: number;
+}
+
+export interface DocumentSummary {
+  id: number;
+  source_id: number;
+  title: string;
+  external_id: string | null;
+  content_type: string | null;
+  content_hash: string;
+  status: string;
+  tags: string[];
+  chunk_count: number;
+  raw_text_available: boolean;
+  ingested_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentListResponse {
+  source: {
+    id: number;
+    type: SourceType | string;
+    name: string;
+    uri: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  documents: DocumentSummary[];
+  total: number;
+}
+
+export interface DeleteSourceResponse {
+  source_id: number;
+  documents_deleted: number;
+}
+
+export interface PurgeRetentionResponse {
+  older_than_days: number;
+  purged: number;
+}
+
+export interface DataExportResponse {
+  source: {
+    id: number;
+    type: string;
+    name: string;
+    uri: string | null;
+    config: Record<string, unknown>;
+    created_at: string | null;
+  };
+  documents: Array<Record<string, unknown>>;
+  document_count: number;
 }

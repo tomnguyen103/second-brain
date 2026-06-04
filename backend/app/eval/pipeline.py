@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.chat.prompt import ContextItem, build_messages, get_prompt
 from app.config import Settings
 from app.retrieval.hybrid import hybrid_search, load_display_chunks
+from app.retrieval.query import maybe_rewrite_query
 
 
 @dataclass
@@ -28,11 +29,10 @@ class AnswerResult:
 def answer_question(db: Session, embedder, llm, settings: Settings, question: str,
                     *, top_k: int | None = None, source_ids: list[int] | None = None
                     ) -> AnswerResult:
-    hits, _meta = hybrid_search(db, embedder, settings, question, top_k=top_k,
+    retrieval_query, _rewrite_meta = maybe_rewrite_query(llm, settings, question)
+    hits, _meta = hybrid_search(db, embedder, settings, retrieval_query, top_k=top_k,
                                 source_ids=source_ids)
     if not hits:
-        # Empty corpus only — with an ingested corpus, vector search always returns candidates,
-        # so refusal-on-irrelevance is the LLM's job (measured by the refusal metric).
         return AnswerResult(get_prompt(settings.prompt_version).refusal_text, [], 0, 0, None)
 
     display = load_display_chunks(db, [h.chunk_id for h in hits])

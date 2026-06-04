@@ -26,10 +26,10 @@ def test_dataset_loads_and_is_consistent():
     ids = [c.id for c in cases]
     assert len(ids) == len(set(ids)), "case ids must be unique"
 
-    # exactly one deliberate refusal case, with no expected docs
+    # deliberate refusal cases have no expected docs
     refusals = [c for c in cases if c.expect_refusal]
-    assert len(refusals) == 1
-    assert refusals[0].expected_docs == []
+    assert len(refusals) >= 3
+    assert all(c.expected_docs == [] for c in refusals)
 
     # every expected_doc names a real corpus document
     corpus_titles = {d.title for d in load_corpus()}

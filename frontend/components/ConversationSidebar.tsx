@@ -5,7 +5,20 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, MagnifyingGlass, ChatCircle, Sun, Moon } from "@phosphor-icons/react";
+import {
+  ChartBar,
+  ChatCircle,
+  Database,
+  FilePlus,
+  Flask,
+  ListChecks,
+  MagnifyingGlass,
+  Moon,
+  NewspaperClipping,
+  Plus,
+  ShieldCheck,
+  Sun,
+} from "@phosphor-icons/react";
 import { api } from "@/lib/api/client";
 import { Suspense, useState, useEffect } from "react";
 
@@ -15,7 +28,10 @@ function SidebarContent() {
   const activeCid = searchParams.get("cid");
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   const { data } = useQuery({
     queryKey: ["conversations"],
@@ -29,7 +45,7 @@ function SidebarContent() {
   const isDark = mounted && resolvedTheme === "dark";
 
   return (
-    <aside className="w-52 shrink-0 flex flex-col h-full overflow-hidden bg-card border-r border-border">
+    <aside className="w-56 shrink-0 flex flex-col h-full overflow-hidden bg-card border-r border-border">
       {/* Logo */}
       <div className="px-4 py-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -52,6 +68,13 @@ function SidebarContent() {
         {[
           { href: "/chat", label: "New Chat", icon: <Plus size={13} weight="bold" />, exact: true },
           { href: "/search", label: "Search", icon: <MagnifyingGlass size={13} weight="bold" />, exact: false },
+          { href: "/ingest", label: "Ingest", icon: <FilePlus size={13} weight="bold" />, exact: false },
+          { href: "/briefing", label: "Briefing", icon: <NewspaperClipping size={13} weight="bold" />, exact: false },
+          { href: "/feedback", label: "Feedback", icon: <ChartBar size={13} weight="bold" />, exact: false },
+          { href: "/tasks", label: "Tasks", icon: <ListChecks size={13} weight="bold" />, exact: false },
+          { href: "/research", label: "Research", icon: <Flask size={13} weight="bold" />, exact: false },
+          { href: "/sources", label: "Sources", icon: <Database size={13} weight="bold" />, exact: false },
+          { href: "/admin", label: "Admin", icon: <ShieldCheck size={13} weight="bold" />, exact: false },
         ].map(({ href, label, icon, exact }) => {
           const active = exact ? pathname === href && !activeCid : pathname.startsWith(href);
           return (
@@ -110,7 +133,7 @@ function SidebarContent() {
 
 export function ConversationSidebar() {
   return (
-    <Suspense fallback={<aside className="w-52 shrink-0 bg-card border-r border-border" />}>
+    <Suspense fallback={<aside className="w-56 shrink-0 bg-card border-r border-border" />}>
       <SidebarContent />
     </Suspense>
   );

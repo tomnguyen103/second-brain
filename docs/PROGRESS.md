@@ -23,18 +23,88 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
-### 2026-06-04 — README synchronized with live state and professionalized
+### 2026-06-04 - README synchronized with live state and professionalized
 - **What:** refreshed `README.md` into a cleaner portfolio-grade layout with current status,
   recent updates, product capabilities, user surfaces, tech stack, roadmap, production
-  architecture, local run steps, deploy summary, Kubernetes learning-track notes, and known
-  follow-ups.
+  architecture, local run steps, deploy summary, Kubernetes learning-track notes, and follow-ups.
 - **Sync fixes:** reordered recent updates so PRs #16/#15 appear ahead of the live-deploy work;
   clarified the live stack as 8 base production services + Caddy = 9 services; replaced stale
   fixed cost language with provider-neutral "one small VPS" wording while noting the verified
-  2 GB DigitalOcean deployment; softened Redis claims to reflect that it is provisioned for
-  cache/rate-limit expansion rather than already powering those paths.
-- **Next:** consider adding first-class web UI surfaces for ingest, briefing history, tasks,
-  source management, and admin data-ops.
+  2 GB DigitalOcean deployment; resolved the PR after the app-surface and Redis work landed so
+  the README now reflects those completed paths instead of listing them as follow-ups.
+- **Verified:** resolved the merge conflict against `main`; docs-only diff passed
+  `git diff --check`.
+
+### 2026-06-04 - Redis-backed rate limits and caches
+- **What:** added optional Redis paths for the production stack: fixed-window `/chat` and `/ingest`
+  API rate limiting, short-lived `/search` response caching with ingest-driven epoch invalidation,
+  and hashed-text embedding caching for ingest chunks and retrieval query vectors.
+- **Config/ops:** local development keeps Redis disabled by default; prod Compose now sets
+  `SECOND_BRAIN_REDIS_ENABLED=true` and `SECOND_BRAIN_REDIS_URL=redis://redis:6379/0`. Redis
+  failures fail open and log/emit cache or rate-limit metrics instead of taking the API down.
+- **Tests/docs:** added fake-Redis unit tests for cache/rate-limit behavior and route wiring.
+  Updated `docs/USAGE.md` and recorded the fail-open trade-off in implementation notes.
+- **Verified:** Redis-focused tests passed (`9 passed`); full backend suite passed
+  (`184 passed, 6 warnings`) against local pgvector on `localhost:5433`; prod Compose config
+  validated with `docker compose -f deploy/docker-compose.prod.yml config`.
+
+### 2026-06-04 - Feedback analytics + eval-candidate review workflow
+- **What:** turned stored thumbs feedback into quality data: `GET /feedback/analytics` summarizes
+  totals, daily trends, model stats, and top negatively cited documents; `GET /feedback/negative`
+  lists negative feedback with conversation, message, previous user question, answer, retrieval,
+  and reconstructed citation context; `GET /feedback/eval-candidates` exports negative examples
+  as review-first eval candidate cases.
+- **Frontend/docs:** added a `/feedback` review page to the existing app shell and sidebar, plus
+  API client/types for analytics, negative review items, and eval candidates. Updated
+  `docs/USAGE.md` and recorded the review-first candidate trade-off in implementation notes.
+- **Tests:** added integration coverage for analytics deltas, negative context payloads, and
+  eval-candidate export.
+- **Verified:** backend suite passed (`175 passed, 6 warnings`) against the local pgvector DB on
+  `localhost:5433`; `npm run lint` passed; `npm run build` passed with the existing Next.js
+  multiple-lockfile workspace-root warning.
+
+### 2026-06-04 - Retrieval quality threshold + weak-context refusal
+- **What:** added a configurable vector relevance threshold before hybrid RRF fusion, plus
+  no-LLM refusal when retrieval has no usable context after filtering. Exact full-text matches
+  still pass through, so rare-term lookup is preserved.
+- **Retrieval/eval:** added an optional query rewrite hook behind config (disabled by default),
+  expanded the eval dataset from one to three refusal probes, and made the eval pipeline use the
+  same weak-context refusal path as chat.
+- **Tests:** added focused threshold/refusal/rewrite tests and updated eval dataset/harness tests.
+- **Verified:** backend suite passed (`172 passed, 6 warnings`) against the local pgvector DB on
+  `localhost:5433`; `python -m app.eval.gate` passed with `hit_at_k=1.000`,
+  `citation_validity=1.000`, `refusal_accuracy=1.000`.
+
+### 2026-06-04 - Self-research upgraded to source-backed notes
+- **What:** upgraded `research_topic` so research can be grounded in user-provided source text
+  and safe public text/HTML URLs without adding a paid search API. The service now builds a
+  source-constrained prompt, appends a deterministic `## Sources` section to stored notes, and
+  records source provenance in `documents.metadata`.
+- **Backend:** MCP `research_topic` now accepts `source_urls` and `source_texts` and returns
+  `evidence_count` plus `sources[]`; queued research jobs persist those inputs and the worker
+  returns the same provenance in `payload.result`.
+- **Frontend/docs:** `/research` can enqueue source URLs and pasted source text. `docs/USAGE.md`
+  documents the REST/MCP source-backed workflow and provenance fields.
+- **Verified:** DB-free research/MCP unit tests passed (`5 passed`). Focused integration tests
+  against the live local pgvector DB with `SECOND_BRAIN_LLM_PROVIDER=fake` passed (`11 passed`
+  across research storage, job handlers, and research job API); this confirms the keyless fake-LLM
+  path still works.
+
+### 2026-06-04 - Backend capabilities promoted into first-class web UI pages
+- **What:** added modern operational web pages and sidebar navigation for `/ingest`, `/briefing`,
+  `/tasks`, `/research`, `/sources`, and `/admin`, keeping the existing amber/zinc UI language,
+  React Query data loading, skeleton/empty/error states, and token-entry guard for admin actions.
+- **Backend:** added minimal REST wrappers where the domain already existed: `/tasks` over the
+  MCP task service, `/research/jobs` over the durable `jobs` table, and `/sources` +
+  `/sources/{id}/documents` over existing source/document/chunk/tag models. Existing briefing,
+  ingest, data-ops, search, chat, conversation, and feedback endpoints stayed intact.
+- **Frontend:** updated `frontend/lib/api/{client,types}.ts`, added shared page scaffolding, and
+  kept `/chat` history behavior while refactoring its history hydration to satisfy the React hook
+  lint rule. Also fixed the sidebar theme-mounted hook lint issue that blocked the requested gate.
+- **Docs:** updated `docs/USAGE.md` for the new web routes and API endpoints.
+- **Verified:** local pgvector DB started, migrations current, touched API tests passed
+  (`16 passed` across tasks/research/sources/briefing/dataops API tests). `npm run lint` passed.
+  `npm run build` passed; Next emitted its existing multiple-lockfile workspace-root warning.
 
 ### 2026-06-02 — LIVE on the VPS: full stack up + Caddy HTTPS, end-to-end verified
 - **What:** brought the production stack fully live on the **DigitalOcean droplet**

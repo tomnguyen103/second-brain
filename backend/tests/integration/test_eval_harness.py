@@ -33,11 +33,11 @@ def test_harness_runs_and_scores(db_session, fake_embedder):
         assert {"hit", "recall", "mrr", "citation_validity", "keyword_recall", "refusal_correct",
                 "expected_refusal", "is_refusal", "latency_ms"} <= set(row)
 
-    # split by ground-truth label; the refusal case has retrieval metrics as None
+    # split by ground-truth label; refusal cases have retrieval metrics as None
     non_refusal = [r for r in report.rows if not r["expected_refusal"]]
     refusal = [r for r in report.rows if r["expected_refusal"]]
-    assert len(refusal) == 1
-    assert refusal[0]["hit"] is None
+    assert len(refusal) >= 3
+    assert all(r["hit"] is None for r in refusal)
     for r in non_refusal:
         assert r["hit"] in (0.0, 1.0)
         assert 0.0 <= r["recall"] <= 1.0
@@ -47,7 +47,7 @@ def test_harness_runs_and_scores(db_session, fake_embedder):
     # embedder, so at least some expected docs are retrieved.
     agg = report.aggregate
     assert agg["n_cases"] == len(dataset)
-    assert agg["n_refusal_cases"] == 1
+    assert agg["n_refusal_cases"] >= 3
     assert agg["hit_at_k"] > 0.0
     assert "latency_p50_ms" in agg and "refusal_accuracy" in agg
     assert all(isinstance(v, (int, float)) for v in agg.values())

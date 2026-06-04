@@ -1,7 +1,7 @@
 # Second Brain — Usage Guide
 
 How to use and operate the live deployment. Last verified **2026-06-02** against the
-production droplet.
+production droplet. Web UI/API surface last updated **2026-06-04**.
 
 ---
 
@@ -11,7 +11,7 @@ production droplet.
 
 | What | URL | Notes |
 |---|---|---|
-| **Web UI** | **https://YOUR_VPS_IP.sslip.io** | Chat + search. Redirects to `/chat`. |
+| **Web UI** | **https://YOUR_VPS_IP.sslip.io** | Chat, search, ingest, briefing, feedback, tasks, research, sources, admin. Redirects to `/chat`. |
 | **API (app path)** | https://YOUR_VPS_IP.sslip.io/api | Behind Caddy, same TLS cert. e.g. `/api/health`, `/api/chat`. |
 | **API (direct)** | http://localhost:8000 *(on the box or via SSH tunnel)* | Plain HTTP, bound to localhost only. Handy for quick `curl`. |
 | **Swagger UI** | http://localhost:8000/docs *(on the box or via SSH tunnel)* | Interactive "try it" docs for every endpoint. |
@@ -54,6 +54,17 @@ Open **https://YOUR_VPS_IP.sslip.io**. You get:
 
 The browser talks to the API at `…/api` through Caddy (same origin, so no CORS issues).
 
+Additional web pages:
+- **/ingest** - add manual notes or text documents, with source metadata and tags.
+- **/briefing** - read the latest stored briefing and recent briefing history.
+- **/feedback** - review thumbs feedback trends, negative examples, cited source context, and
+  staged eval candidates.
+- **/tasks** - create tasks and mark them open, done, or cancelled.
+- **/research** - enqueue async research jobs with optional public source URLs or pasted source
+  text, then watch queued/running/done/failed status.
+- **/sources** - inspect sources, documents, chunk counts, tags, and retention state.
+- **/admin** - run token-guarded export, source delete, and retention purge actions.
+
 ---
 
 ## Using the API
@@ -93,11 +104,114 @@ If nothing relevant is found it refuses rather than inventing an answer.
 curl "https://YOUR_VPS_IP.sslip.io/api/search?q=hnsw+tuning&top_k=5"
 ```
 
+### Redis-backed safeguards and caches
+Production Compose enables Redis for three conservative hot paths:
+
+- `POST /chat` and `POST /ingest` use fixed-window API rate limits keyed by client IP.
+- `GET /search` can cache hot search responses briefly; successful ingest bumps a cache epoch so
+  newly embedded content is not hidden behind an old result.
+- Query/content embeddings can be reused from Redis by hashed text keys. Raw note/query text is not
+  stored in Redis keys; values are transient vectors under Redis' in-memory LRU policy.
+
+Local development defaults Redis off (`SECOND_BRAIN_REDIS_ENABLED=false`). To test it locally,
+start a Redis instance and set:
+
+```bash
+SECOND_BRAIN_REDIS_ENABLED=true
+SECOND_BRAIN_REDIS_URL=redis://localhost:6379/0
+```
+
+Useful knobs:
+
+| Env var | Default |
+|---|---:|
+| `SECOND_BRAIN_RATE_LIMIT_ENABLED` | `true` |
+| `SECOND_BRAIN_CHAT_RATE_LIMIT_REQUESTS` | `30` per `60s` |
+| `SECOND_BRAIN_INGEST_RATE_LIMIT_REQUESTS` | `10` per `60s` |
+| `SECOND_BRAIN_SEARCH_CACHE_ENABLED` | `true` |
+| `SECOND_BRAIN_SEARCH_CACHE_TTL_SECONDS` | `120` |
+| `SECOND_BRAIN_EMBEDDING_CACHE_ENABLED` | `true` |
+| `SECOND_BRAIN_EMBEDDING_CACHE_TTL_SECONDS` | `604800` |
+
+Redis failures fail open: the app logs cache/rate-limit errors and continues through Postgres/LLM
+rather than making Redis a hard dependency. Prometheus exposes `cache_events_total` and
+`rate_limit_events_total` alongside request metrics.
+
 ### Other endpoints
 - `GET /briefing`, `GET /briefing/history` — daily briefings (see below).
 - `GET /conversations`, `GET /conversations/{id}` — chat history with reconstructed citations.
 - `POST /feedback` — `{"message_id": 123, "rating": 1}` (rating is `1` or `-1`).
 - `GET /health` — `{"status":"ok","db":"ok","embedder":"…"}`.
+
+Feedback quality endpoints:
+- `GET /feedback/analytics?days=30` - feedback totals, daily trend buckets, model stats, and
+  top cited documents on negative feedback.
+- `GET /feedback/negative` - negative feedback review queue with conversation, message, question,
+  answer, retrieval, and citation context.
+- `GET /feedback/eval-candidates` - negative feedback exported as review-first eval candidate
+  cases. `expected_docs` is inferred from cited documents; edit labels before adding cases to the
+  fixed eval set.
+
+Additional API endpoints:
+- `GET /sources`, `GET /sources/{id}/documents` - source and document overview.
+- `GET /tasks`, `POST /tasks`, `PATCH /tasks/{id}` - task list and status updates.
+- `POST /research/jobs`, `GET /research/jobs`, `GET /research/jobs/{id}` - queued source-backed
+  research jobs.
+
+### Feedback analytics and eval candidates
+Use feedback analytics to turn thumbs into reviewable quality data:
+
+```bash
+curl "https://YOUR_VPS_IP.sslip.io/api/feedback/analytics?days=30"
+curl "https://YOUR_VPS_IP.sslip.io/api/feedback/negative?limit=25&days=30"
+curl "https://YOUR_VPS_IP.sslip.io/api/feedback/eval-candidates?limit=25&days=30"
+```
+
+Eval candidate responses mirror the fixed eval dataset shape:
+
+```json
+{
+  "cases": [
+    {
+      "id": "feedback-123",
+      "question": "What did I ask?",
+      "expected_docs": ["Cited document title"],
+      "expected_keywords": [],
+      "expect_refusal": false,
+      "metadata": {
+        "feedback_id": 123,
+        "needs_review": true
+      }
+    }
+  ]
+}
+```
+
+### Source-backed research - `POST /research/jobs`
+Research does not use a paid search API. Provide your own evidence as public URLs or source text;
+the worker fetches/parses safe public text/HTML URLs, asks the configured LLM to ground the note
+in those excerpts, stores a `research_note`, and writes provenance into the stored document
+metadata.
+
+```bash
+curl -X POST https://YOUR_VPS_IP.sslip.io/api/research/jobs \
+  -H "Content-Type: application/json" -d '{
+    "topic": "reciprocal rank fusion",
+    "source_urls": ["https://example.com/rrf-notes"],
+    "source_texts": [
+      {
+        "title": "Manual excerpt",
+        "uri": "manual://rrf",
+        "text": "Reciprocal rank fusion combines independently ranked result lists."
+      }
+    ]
+  }'
+```
+
+When the worker finishes, `GET /research/jobs/{id}` returns `result.evidence_count` and
+`result.sources[]` with source IDs (`S1`, `S2`), title/URI, status, and excerpts. The stored
+research document has the same `sources[]`, `source_count`, and `grounding` fields in
+`documents.metadata`.
 
 ---
 
@@ -120,10 +234,12 @@ docker compose -p second-brain \
 ## Agentic tools (MCP)
 
 The MCP server (`backend/app/mcp_server.py`, stdio) exposes five tools: `search_notes`,
-`create_task`, `list_tasks`, `send_digest`, and `research_topic` (the LLM researches a topic,
-stores it as a note, and auto-indexes it so it's permanently searchable). Wire it into a local
-MCP client (e.g. Claude Desktop) — run it on the box or locally with the DB DSN + Gemini key in
-its `env`. Set `SECOND_BRAIN_LLM_PROVIDER=fake` for a keyless smoke test.
+`create_task`, `list_tasks`, `send_digest`, and `research_topic`. `research_topic(topic,
+source_urls?, source_texts?)` accepts optional public URLs or pasted snippets, stores the grounded
+note as a `research_note`, auto-indexes it, and returns `evidence_count` plus `sources[]`
+provenance. Wire it into a local MCP client (e.g. Claude Desktop) - run it on the box or locally
+with the DB DSN + Gemini key in its `env`. Set `SECOND_BRAIN_LLM_PROVIDER=fake` for a keyless
+smoke test.
 
 ---
 
@@ -184,6 +300,9 @@ curl -H "Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>" \
 ```
 
 ---
+
+The same actions are available in the web UI at `/admin`; paste the admin token into the page
+when you need to run one of these guarded operations.
 
 ## Security notes / hardening backlog
 

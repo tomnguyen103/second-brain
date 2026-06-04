@@ -47,7 +47,15 @@ def handle_research(db: Session, payload: dict, *, embedder, llm) -> dict:
     """`research` job: research a topic and file the note back into the brain — the async
     path for ADR-0010's research_topic (closes the Phase-5 deferral). The inline MCP path
     stays; this is the queued one. Returns a JSON-able summary of what was stored."""
-    res = research_topic(db, embedder, llm, (payload or {}).get("topic", ""))
+    payload = payload or {}
+    res = research_topic(
+        db,
+        embedder,
+        llm,
+        payload.get("topic", ""),
+        source_urls=payload.get("source_urls"),
+        source_texts=payload.get("source_texts"),
+    )
     return {
         "topic": res.topic,
         "document_id": res.document_id,
@@ -55,6 +63,8 @@ def handle_research(db: Session, payload: dict, *, embedder, llm) -> dict:
         "status": res.status,
         "chunk_count": res.chunk_count,
         "searchable": res.searchable,
+        "evidence_count": res.evidence_count,
+        "sources": res.sources,
     }
 
 

@@ -38,8 +38,8 @@ Last README synchronization: **2026-06-04**. Live deployment last verified:
 |---|---:|---|
 | Product roadmap | Complete | Phases 0-7 are implemented and documented in [docs/PROGRESS.md](docs/PROGRESS.md). |
 | Production deployment | Live | Docker Compose on one VPS, fronted by Caddy HTTPS. |
-| Web UI | Live | Chat, cited answers, conversation history, feedback, and hybrid search. |
-| API | Live | Ingest, chat, search, conversations, feedback, briefing, health, and governed data-ops endpoints. |
+| Web UI | Live | Chat, search, ingest, briefing, tasks, research, sources, feedback review, and admin data-ops pages. |
+| API | Live | Ingest, chat, search, conversations, feedback analytics, briefing, tasks, research jobs, sources, health, and governed data-ops endpoints. |
 | MCP server | Live | `search_notes`, `create_task`, `list_tasks`, `send_digest`, and `research_topic`. |
 | Background jobs | Live | Durable Postgres job queue for daily briefing and async research. |
 | CI/CD | Active | Unit tests, integration tests against pgvector, and deterministic eval gate. |
@@ -52,6 +52,8 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 
 | Update | Summary | Reference |
 |---|---|:---:|
+| App surfaces and Redis paths | Added first-class web pages for operating the app, feedback review workflows, source-backed research, weak-context refusal, and optional Redis-backed rate limits/caches. | [PR #20](https://github.com/tomnguyen103/second-brain/pull/20) |
+| README synchronization | Refreshed the repository overview so the docs match the live deployment, completed roadmap, production shape, and current follow-ups. | [PR #19](https://github.com/tomnguyen103/second-brain/pull/19) |
 | Repository hygiene | Local agent-tooling directories are ignored so workspace-specific files stay out of version control. | [PR #16](https://github.com/tomnguyen103/second-brain/pull/16) |
 | Agent tooling config | Local agent-skill docs and Codex hook configuration were added for the development environment. | [PR #15](https://github.com/tomnguyen103/second-brain/pull/15) |
 | Live VPS deployment | Caddy reverse proxy, real HTTPS through `sslip.io`, localhost-only direct service ports, and end-to-end production verification. | [PR #14](https://github.com/tomnguyen103/second-brain/pull/14) |
@@ -64,12 +66,14 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 | Capability | What is implemented |
 |---|---|
 | Cited RAG chat | `/chat` retrieves relevant chunks, builds a grounded prompt, returns answers with `[n]` citation markers, and persists conversations. |
-| Hybrid search | pgvector semantic search and PostgreSQL full-text search are fused with reciprocal rank fusion. |
+| Hybrid search | pgvector semantic search and PostgreSQL full-text search are fused with reciprocal rank fusion, with configurable weak-context refusal. |
 | Source ingestion | `/ingest` accepts text documents, dedupes by content hash, chunks semantically, embeds, tags, and stores them. |
 | Morning briefing | A scheduled job summarizes newly ingested documents since the previous briefing and stores the result. |
 | MCP tools | A stdio MCP server exposes search, task creation/listing, digest composition, and self-research. |
-| Self-research | `research_topic` asks the configured LLM for a research note, stores it as a `research_note` source, and indexes it. |
+| Self-research | `research_topic` can use pasted source text or safe public text/HTML URLs, stores provenance, and indexes the resulting `research_note`. |
 | Evaluation and MLOps | Fixed eval set, MLflow logging, prompt versioning, A/B configs, rollback by env var, and CI eval gate. |
+| Feedback quality review | Feedback analytics and negative-feedback review endpoints turn thumbs into reviewable eval candidates. |
+| Redis paths | Optional Redis-backed `/chat` and `/ingest` rate limits, `/search` response caching, and embedding caching are enabled in production and fail open. |
 | Data governance | RLS, audit logging, retention purge, source export, and source erasure endpoints. |
 | Observability | Prometheus request metrics, alert rules, and provisioned Grafana dashboard. |
 | Production operations | Docker Compose stack, PgBouncer, Caddy HTTPS, backup/restore runbook, incident response runbook. |
@@ -78,8 +82,8 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 
 | Surface | Entry point | Notes |
 |---|---|---|
-| Web app | `/chat`, `/search` | Main daily-use UI for conversations, citations, feedback, and search. |
-| API | `/docs` or `/api/*` in production | Ingest, chat, search, briefing, conversations, feedback, and admin data-ops. |
+| Web app | `/chat`, `/search`, `/ingest`, `/briefing`, `/tasks`, `/research`, `/sources`, `/feedback`, `/admin` | Main daily-use and operations UI. |
+| API | `/docs` or `/api/*` in production | Ingest, chat, search, briefing, conversations, feedback analytics, tasks, research jobs, sources, and admin data-ops. |
 | MCP | `python -m app.mcp_server` | Tool interface for MCP clients such as Claude Desktop. |
 | Worker | `python -m app.jobs.worker --loop` | Runs in production; drains briefing and research jobs. |
 | Runbooks | [docs/runbooks/](docs/runbooks/) | Deploy, backup/restore, and incident response procedures. |
@@ -96,7 +100,7 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 | Embeddings | Local MiniLM or hosted `gemini-embedding-001`, both normalized to 384 dimensions |
 | Agent tooling | MCP server over stdio with five tools |
 | Background work | Durable Postgres `jobs` table with `FOR UPDATE SKIP LOCKED`; OS cron enqueues daily briefing |
-| Pooling/cache runway | PgBouncer for connection pooling; Redis is provisioned for future cache/rate-limit work |
+| Pooling/cache | PgBouncer for connection pooling; Redis powers optional rate limits plus search and embedding caches |
 | MLOps | Local MLflow file store, eval harness, prompt registry, A/B configs, CI eval gate |
 | Observability | Prometheus metrics and alerts, Grafana dashboard |
 | Production runtime | Docker Compose on one VPS |
@@ -145,7 +149,7 @@ Internet HTTPS
                v                         v                  v
         +-------------+           +-------------+     +-------------+
         | PgBouncer   |           | Redis       |     | worker      |
-        | pooling     |           | cache-ready |     | jobs        |
+        | pooling     |           | limits/cache|     | jobs        |
         +------+------+           +-------------+     +-------------+
                |
                v
@@ -169,7 +173,7 @@ second-brain/
 |   |-- migrations/                    # Alembic migrations 0001-0004
 |   `-- tests/                         # unit and integration tests
 |-- frontend/
-|   |-- app/                           # /chat and /search routes
+|   |-- app/                           # chat, search, ingest, briefing, tasks, research, sources, feedback, admin
 |   |-- components/
 |   `-- lib/api/
 |-- deploy/
@@ -306,12 +310,11 @@ more memory.
 
 ## Known Follow-Ups
 
-- Add a first-class web UI for ingestion, briefing history, tasks, source management, and admin
-  data-ops.
 - Add app-level authentication or an equivalent access control layer for the public web surface.
-- Upgrade self-research with external source retrieval and source-backed citations.
-- Turn user feedback into eval cases and dashboarded quality trends.
-- Implement the Redis-backed cache/rate-limit paths that the production stack is ready to host.
+- Upgrade self-research beyond user-supplied URLs/text into broader external retrieval with
+  source-backed citations.
+- Promote reviewed feedback candidates into the fixed eval set and dashboard quality trends.
+- Add streaming chat responses to the web UI.
 
 ---
 
