@@ -21,7 +21,7 @@ from app.schemas.research import (
     ResearchJobOut,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(deps.require_api_access)])
 
 
 def _job_out(job: Job) -> ResearchJobOut:

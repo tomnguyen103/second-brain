@@ -35,7 +35,7 @@ from app.schemas.feedback import (
     NegativeFeedbackListResponse,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(deps.require_api_access)])
 
 
 def _rate(negative: int, total: int) -> float:

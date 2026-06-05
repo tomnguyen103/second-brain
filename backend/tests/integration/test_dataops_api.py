@@ -13,13 +13,13 @@ pytestmark = pytest.mark.skipif(
 )
 
 TOKEN = "test-admin-token"
-ADMIN = {"Authorization": f"Bearer {TOKEN}"}
+ADMIN = {"X-Second-Brain-Admin-Token": TOKEN}
 
 
 def _enable_admin():
     """Override settings so the admin token is configured (the `client` fixture clears it)."""
     app.dependency_overrides[deps.get_settings] = lambda: Settings(
-        llm_provider="fake", admin_token=TOKEN
+        llm_provider="fake", api_token="test-api-token", admin_token=TOKEN
     )
 
 
@@ -46,10 +46,23 @@ def test_wrong_token_rejected(client):
     assert client.get("/data/export", params={"source_id": 1}).status_code == 401
     assert (
         client.get(
-            "/data/export", params={"source_id": 1}, headers={"Authorization": "Bearer nope"}
+            "/data/export", params={"source_id": 1}, headers={"X-Second-Brain-Admin-Token": "nope"}
         ).status_code
         == 401
     )
+
+
+def test_admin_token_alone_is_not_api_access(client):
+    _enable_admin()
+    r = client.get(
+        "/data/export",
+        params={"source_id": 1},
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "X-Second-Brain-Admin-Token": TOKEN,
+        },
+    )
+    assert r.status_code == 401
 
 
 def test_export_authorized(client):

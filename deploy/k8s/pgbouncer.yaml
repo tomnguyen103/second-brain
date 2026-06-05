@@ -1,8 +1,7 @@
-# PgBouncer connection pooler (D12). Configured entirely by ENV (edoburu/pgbouncer auto-generates
-# pgbouncer.ini + userlist.txt at start), so the DB password comes from the Secret and is NEVER
-# written into a committed userlist.txt (the compose stack mounts one; we don't, to keep the
-# credential out of git). SESSION pool mode preserves psycopg3 prepared statements (ADR-0012).
-# The api/worker connect to `pgbouncer:6432`; pgbouncer connects upstream to `db:5432`.
+# Historical PgBouncer learning-track manifest. This file is not referenced by kustomization.yaml:
+# production and the current learning-track path connect directly to Postgres because public
+# PgBouncer vendor images had unresolved CVEs. If you re-enable this, build/load a scanned-clean
+# local image with this tag first; imagePullPolicy prevents an accidental public pull.
 apiVersion: v1
 kind: Service
 metadata:
@@ -40,7 +39,8 @@ spec:
     spec:
       containers:
         - name: pgbouncer
-          image: edoburu/pgbouncer:latest
+          image: second-brain-pgbouncer:phase7-clean-required
+          imagePullPolicy: Never
           ports:
             - name: pgbouncer
               containerPort: 6432

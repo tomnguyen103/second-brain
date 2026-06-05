@@ -16,7 +16,7 @@ from app.schemas.tasks import (
 )
 from app.tasks import service
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(deps.require_api_access)])
 
 
 def _task_out(t: service.TaskOut) -> TaskOut:

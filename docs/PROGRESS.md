@@ -10,7 +10,7 @@ session — the master prompt treats it as the source of truth for "where we are
 | Planning | Project design, stack, cost model, roadmap | ✅ Complete |
 | 0 | Data model + ER diagram + Alembic migrations + pgvector/full-text indexes | ✅ Complete |
 | 1 | RAG MVP: FastAPI /ingest + /chat, hybrid retrieval, Gemini via LLMClient | ✅ Complete |
-| 2 | Next.js chat UI (citations, semantic search, feedback; streaming deferred) | ✅ Complete |
+| 2 | Next.js chat UI (streaming, citations, semantic search, feedback) | ✅ Complete |
 | 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ✅ Complete |
 | 4 | MCP server + agentic actions incl. self-research tool | ✅ Complete |
 | 5 | Daily briefing + scheduled pipelines | ✅ Complete |
@@ -22,6 +22,154 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-05 - Security review findings fixed
+- **What:** fixed the follow-up findings from the security review: the admin token no longer passes
+  the normal API gate, destructive data-ops now require both the API bearer and
+  `X-Second-Brain-Admin-Token`, MCP durable mutations are disabled unless
+  `SECOND_BRAIN_MCP_ENABLE_MUTATIONS=true`, chat rejects unsupported cited answer segments, and
+  research URL fetches accept only default HTTP(S) ports.
+- **Docs:** updated README, `docs/USAGE.md`, deploy env comments, runbooks, and implementation
+  notes with the new two-header admin flow, MCP trust boundary, citation-support trade-off, and
+  research URL restriction.
+- **Verified:** focused auth/data-ops/MCP/config/research/chat/API tests passed
+  (`31 passed, 21 skipped, 1 warning`); full DB-backed backend suite passed
+  (`226 passed, 6 warnings`); frontend lint and production build passed; `npm audit` reported zero
+  moderate-or-higher vulnerabilities; production Compose config rendered with dummy secrets; and
+  `git diff --check` reported only existing CRLF normalization warnings.
+
+### 2026-06-05 - Frictionless web capture added
+- **What:** added an authenticated `/capture` API plus a `/capture` web page for saving a URL,
+  title, selected text, notes, and tags into the existing ingest/source/document pipeline as a
+  `bookmark` capture. Captured content is chunked, embedded, full-text indexed, visible through
+  sources/search, and citeable by chat like any other ingested document.
+- **Safety/design:** capture does not fetch or scrape the remote page server-side. It stores the
+  browser/user-provided selected text and notes, rejects non-HTTP(S), credentialed, localhost, and
+  literal private/internal IP URLs, and records the no-scrape trade-off in implementation notes.
+- **Frontend:** added `/capture` to the sidebar, typed `api.capture`, and query-parameter prefill
+  support for `url`, `title`, `text`, `notes`, and `tags` so a bookmarklet/share shortcut can hand
+  off to the page later without extra infrastructure.
+- **Verified:** focused capture/auth tests passed (`28 passed, 1 warning`); full backend suite
+  passed (`221 passed, 6 warnings`) against local pgvector on `localhost:5433`; `npm run lint` and
+  `npm run build` passed, with the existing Next.js multiple-lockfile workspace-root warning.
+
+### 2026-06-05 - High security finding fixed: validated SSE chat
+- **What:** fixed the high-severity security review finding where `/chat/stream` could emit raw
+  model deltas before citation validation. The backend now buffers provider chunks, runs the shared
+  citation validation/finalization path, and emits SSE `delta` chunks only for answers that passed
+  validation. Uncited or invalidly cited model text is withheld and replaced by the
+  citation-failure completion.
+- **Tests:** added service-level and API-level regressions with a fake streaming LLM that emits
+  `SECRET_STREAM_LEAK` without citations; both assert the text never appears in deltas or the SSE
+  body.
+- **Docs:** updated README, `docs/USAGE.md`, and implementation notes to document the new
+  confidentiality-over-token-streaming trade-off.
+- **Verified:** focused streaming/API tests passed (`14 passed, 1 warning`); full backend suite
+  passed (`212 passed, 6 warnings`) against local pgvector on `localhost:5433`; `git diff --check`
+  passed with only existing CRLF normalization warnings.
+
+### 2026-06-05 - Single-owner authentication finalized
+- **What:** completed simple no-cost bearer-token authentication for the personal Second Brain
+  surface. `SECOND_BRAIN_API_TOKEN` now protects chat/streaming chat, conversations, ingest,
+  search, briefing, feedback, tasks, research jobs, sources, and admin/data-ops routes whenever the
+  token is configured; keyless local development is preserved when it is unset.
+- **Admin guard:** destructive/read-all data-ops routes (`/data/export`, `/data/sources/{id}`,
+  `/admin/retention/purge`) now pass the normal API gate and still require
+  `SECOND_BRAIN_ADMIN_TOKEN` as an additional admin header.
+- **Docs:** updated README, `docs/USAGE.md`, env templates, and implementation notes with production
+  auth variables, local-dev behavior, and the browser-local-storage bearer-token trade-off.
+- **Verified:** auth unit coverage passed (`19 passed`); DB-backed data-ops integration passed
+  (`6 passed`); focused auth/chat/API/briefing/dataops set passed (`42 passed`); full backend suite
+  passed (`210 passed, 6 warnings`) against local pgvector on `localhost:5433`; `npm run lint`,
+  `npm run build`, `git diff --check`, production Compose config rendering, and config unit tests
+  passed. `npm run build` still emits the existing Next.js multiple-lockfile workspace-root warning.
+
+### 2026-06-05 - Security review fixes applied
+- **What:** hardened the current local changes after a security review. User-data APIs now support
+  single-user bearer API-token protection while keeping keyless local development possible; the
+  frontend has an API-key entry point; admin-token checks use constant-time comparison; CORS no
+  longer allows credentials; streaming SSE errors return a generic failure; Redis rate limits fail
+  closed by default and ignore `X-Forwarded-For` unless explicitly trusted.
+- **Data/security:** research URL fetches now validate DNS-resolved public IPs and every redirect to
+  reduce SSRF and DNS-rebinding risk. RAG prompts mark retrieved notes as untrusted context, and
+  uncited or invalidly cited answers are replaced with a weak-context refusal before persistence.
+- **Ops:** production Compose now requires explicit Postgres/API/admin secrets, binds direct service
+  ports to localhost, removes PgBouncer from the production runtime, builds a custom pgvector image,
+  uses prod-only backend requirements with CPU-only Torch, keeps local `.env.*` files out of Docker
+  build contexts, removes vulnerable Prometheus/Grafana runtime containers from production Compose
+  while retaining metrics/config artifacts, uses a patched custom Caddy image, and documents
+  rotation, restore, and backup expectations in the runbooks.
+- **CI/local/K8s:** local dev Compose and GitHub integration/eval jobs now use the repo's cleaned
+  pgvector image instead of the public pgvector image. The Kubernetes learning-track default apply
+  now runs the core stack only, uses local pgvector, connects API/worker directly to Postgres,
+  carries `SECOND_BRAIN_API_TOKEN`, and gates PgBouncer/Prometheus/Grafana templates behind local
+  `*-clean-required` images.
+- **Verified:** focused backend security unit tests passed (27 passed) and focused backend
+  integration tests passed (33 passed); `npm audit --audit-level=moderate`, `npm run lint`,
+  `npm run build`, `bash -n deploy/cron/second-brain-backup`, `git diff --check`, Compose config
+  validation, `kubectl kustomize deploy/k8s`, GitHub workflow YAML parsing, Dockerfile static
+  checks for backend/frontend/pgvector, Caddy config validation, and Docker Scout critical/high
+  scans for the runtime images (`api`, `frontend`, custom pgvector, custom Caddy, Redis) passed.
+  The final closeout rerun of `docker buildx build --check -f deploy/Dockerfile.caddy .` was blocked
+  by Docker Hub rate limiting while resolving `golang:1.26.4-alpine`; the same Caddy static check
+  passed earlier in the session. `pip-audit` was not run because it is not installed in the backend
+  virtualenv.
+- **Remaining:** no open blocker from this security pass; reintroducing on-box Prometheus/Grafana is
+  a future task that should use scanned-clean images or custom builds.
+
+### 2026-06-04 - Local streaming and ops changes stabilized for review
+- **What:** inspected the full uncommitted diff on `main` and verified the local review surface:
+  SSE streaming chat, README/USAGE/runbook updates, env-template/gitignore hygiene, the VPS backup
+  cron template, and the ops runbooks. No unrelated local changes were reverted.
+- **Outcome:** no functional code changes were needed beyond this progress closeout; the existing
+  local changes remain scoped to streaming chat, local env hygiene, backup/restore operations, and
+  README/docs synchronization.
+- **Verified:** focused backend tests passed
+  (`tests/unit/test_chat_stream.py`, `tests/integration/test_chat.py`,
+  `tests/integration/test_api.py`, `tests/integration/test_briefing.py`); `npm run lint` passed;
+  `npm run build` passed with the existing Next.js multiple-lockfile workspace-root warning;
+  `git diff --check` passed; `bash -n deploy/cron/second-brain-backup` passed; the VPS Compose
+  example rendered with `docker compose ... config`.
+
+### 2026-06-04 - README refreshed with latest operations and streaming state
+- **What:** updated `README.md` so the repository overview now reflects the latest production
+  operations hardening, streaming chat, local environment hygiene, current capabilities, and
+  follow-ups.
+- **Tone/layout:** kept the professional portfolio structure while refreshing the current-status,
+  recent-updates, capabilities, deploy, cost/privacy, and known-follow-ups sections.
+- **Verified:** README consistency checks and diff review were run in this session.
+
+### 2026-06-04 - Production operations hardening runbooks
+- **What:** hardened the VPS operations docs with `ufw` allow-list steps for 22/80/443 only,
+  health-check command blocks, automated Postgres backup cron installation, monthly restore-drill
+  procedure, secret rotation steps, and app/migration/prompt rollback guidance.
+- **Deploy/docs:** added `deploy/cron/second-brain-backup` as the installable backup script
+  template, noted the firewall expectation in the VPS Compose example, and updated
+  `docs/USAGE.md` plus the deploy, backup/restore, and incident-response runbooks.
+- **Verified:** docs consistency and Compose config validation were run in this session.
+
+### 2026-06-04 - Local API key entry point documented and ignored
+- **What:** clarified the local Gemini API key location in `backend/.env.example`, added a
+  frontend API-base template at `frontend/.env.example`, and tightened root/frontend `.gitignore`
+  rules so real `.env` / `.env.*` files stay out of Git while `.env.example` templates remain
+  commit-able.
+- **Verified:** checked ignore status so local `backend/.env` and `frontend/.env.local` remain
+  untracked/private.
+
+### 2026-06-04 - SSE streaming chat shipped
+- **What:** added a streaming-capable LLM interface (`generate_stream`) with Gemini, Ollama, and
+  fake-driver implementations; added `POST /chat/stream` as SSE while preserving the existing
+  non-streaming `POST /chat`; shared the retrieval/finalization path so persisted assistant
+  messages, retrieval rows, and final citations match the JSON endpoint.
+- **Frontend:** `/chat` now streams assistant deltas via `fetch()` SSE parsing, finalizes with the
+  normal `ChatResponse` payload so citation cards and feedback still work, and falls back to
+  `/chat` when the stream endpoint reports that the selected provider cannot stream.
+- **Tests/docs:** added SSE framing and stream completion coverage, documented `/chat/stream` in
+  `docs/USAGE.md`, and stabilized a briefing integration test timestamp window that was flaky
+  against the local Postgres clock.
+- **Verified:** backend suite passed against local pgvector (`187 passed, 6 warnings`);
+  `npm run lint` passed; `npm run build` passed with the existing Next.js multiple-lockfile
+  workspace-root warning.
 
 ### 2026-06-04 - README synchronized with live state and professionalized
 - **What:** refreshed `README.md` into a cleaner portfolio-grade layout with current status,

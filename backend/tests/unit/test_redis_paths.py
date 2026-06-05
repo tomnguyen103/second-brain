@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from app import deps
 from app.cache.embedding import encode_with_cache
-from app.cache.rate_limit import check_rate_limit
+from app.cache.rate_limit import check_rate_limit, client_identity
 from app.cache.search import bump_search_cache_epoch, get_search_cache, set_search_cache
 from app.chat.service import ChatResult
 from app.config import Settings
@@ -81,7 +82,7 @@ def test_rate_limit_allows_then_blocks(monkeypatch):
     assert second.retry_after_seconds == 60
 
 
-def test_rate_limit_fails_open_when_redis_errors():
+def test_rate_limit_fails_closed_when_redis_errors_by_default():
     decision = check_rate_limit(
         FailingRedis(),
         redis_settings(),
@@ -90,7 +91,41 @@ def test_rate_limit_fails_open_when_redis_errors():
         limit=1,
         window_seconds=60,
     )
+    assert decision.allowed is False
+    assert decision.retry_after_seconds == 60
+
+
+def test_rate_limit_can_fail_open_when_explicitly_configured():
+    decision = check_rate_limit(
+        FailingRedis(),
+        redis_settings(rate_limit_fail_closed=False),
+        bucket="chat",
+        identity="client",
+        limit=1,
+        window_seconds=60,
+    )
     assert decision.allowed is True
+
+
+def test_client_identity_ignores_spoofable_forwarded_for_by_default():
+    request = Request({
+        "type": "http",
+        "method": "GET",
+        "path": "/chat",
+        "headers": [(b"x-forwarded-for", b"203.0.113.9")],
+        "client": ("198.51.100.5", 12345),
+        "server": ("testserver", 80),
+        "scheme": "http",
+    })
+
+    assert client_identity(request, Settings(_env_file=None, redis_enabled=False)) == "198.51.100.5"
+    assert (
+        client_identity(
+            request,
+            Settings(_env_file=None, redis_enabled=False, trust_forwarded_for=True),
+        )
+        == "203.0.113.9"
+    )
 
 
 def test_embedding_cache_reuses_vectors_without_raw_text_keys():

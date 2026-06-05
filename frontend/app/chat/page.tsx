@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api/client";
+import { useQuery } from "@tanstack/react-query";
+import { api, isChatStreamUnavailableError } from "@/lib/api/client";
 import { queryClient } from "@/lib/query-client";
 import type { ChatMessage } from "@/components/MessageList";
+import type { ChatRequest, ChatResponse } from "@/lib/api/types";
 import { MessageList } from "@/components/MessageList";
 import { ChatComposer } from "@/components/ChatComposer";
 import { SourceFilter } from "@/components/SourceFilter";
@@ -19,9 +20,11 @@ function ChatPage() {
   const [conversationId, setConversationId] = useState<number | null>(
     cidParam ? parseInt(cidParam, 10) : null
   );
+  const [isSending, setIsSending] = useState(false);
   const [sourceIds, setSourceIds] = useState<number[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const { data: history } = useQuery({
     queryKey: ["conversation", conversationId],
@@ -60,43 +63,96 @@ function ChatPage() {
   }, [history]);
 
   const displayMessages = messages.length > 0 ? messages : historyMessages;
+  const hasStreamingMessage = displayMessages.some((m) => m.isStreaming);
 
-  const { mutate: sendMessage, isPending } = useMutation({
-    mutationFn: (payload: { message: string; privateMode: boolean }) =>
-      api.chat({
-        message: payload.message,
-        conversation_id: conversationId,
-        filters: {
-          source_ids: sourceIds.length ? sourceIds : undefined,
-          tags: tags.length ? tags : undefined,
-        },
-        options: { private_mode: payload.privateMode, include_chunks: true },
-      }),
-    onMutate: ({ message }) => {
-      setMessages((p) => [
-        ...(p.length > 0 ? p : historyMessages),
-        { role: "user", content: message },
-      ]);
-    },
-    onSuccess: (data) => {
-      setMessages((p) => [...p, { role: "assistant", content: data.answer, response: data }]);
-      if (!conversationId) {
-        setConversationId(data.conversation_id);
-        router.replace(`/chat?cid=${data.conversation_id}`, { scroll: false });
+  const finishAssistant = (data: ChatResponse, requestConversationId: number | null) => {
+    setMessages((prev) => {
+      const idx = prev.findLastIndex((m) => m.role === "assistant" && m.isStreaming);
+      if (idx === -1) {
+        return [...prev, { role: "assistant", content: data.answer, response: data }];
       }
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
-    },
-    onError: (err) => {
-      setMessages((p) => [...p, {
-        role: "assistant",
-        content: `Error: ${err instanceof Error ? err.message : "Unknown error"}`,
-      }]);
-    },
-  });
+      const next = [...prev];
+      next[idx] = { role: "assistant", content: data.answer, response: data };
+      return next;
+    });
+    if (!requestConversationId) {
+      setConversationId(data.conversation_id);
+      router.replace(`/chat?cid=${data.conversation_id}`, { scroll: false });
+    }
+    queryClient.invalidateQueries({ queryKey: ["conversations"] });
+  };
 
+  const showAssistantError = (err: unknown) => {
+    const content = `Error: ${err instanceof Error ? err.message : "Unknown error"}`;
+    setMessages((prev) => {
+      const idx = prev.findLastIndex((m) => m.role === "assistant" && m.isStreaming);
+      if (idx === -1) return [...prev, { role: "assistant", content }];
+      const next = [...prev];
+      next[idx] = { role: "assistant", content };
+      return next;
+    });
+  };
+
+  const sendMessage = async (payload: { message: string; privateMode: boolean }) => {
+    if (isSending) return;
+
+    const req: ChatRequest = {
+      message: payload.message,
+      conversation_id: conversationId,
+      filters: {
+        source_ids: sourceIds.length ? sourceIds : undefined,
+        tags: tags.length ? tags : undefined,
+      },
+      options: { private_mode: payload.privateMode, include_chunks: true },
+    };
+
+    const base = messages.length > 0 ? messages : historyMessages;
+    setMessages([...base, { role: "user", content: payload.message }]);
+    setIsSending(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      await api.chatStream(req, {
+        signal: controller.signal,
+        onDelta: ({ text }) => {
+          if (!text) return;
+          setMessages((prev) => {
+            const idx = prev.findLastIndex((m) => m.role === "assistant" && m.isStreaming);
+            if (idx === -1) {
+              return [...prev, { role: "assistant", content: text, isStreaming: true }];
+            }
+            const next = [...prev];
+            next[idx] = { ...next[idx], content: next[idx].content + text };
+            return next;
+          });
+        },
+        onComplete: (data) => finishAssistant(data, req.conversation_id ?? null),
+      });
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      if (isChatStreamUnavailableError(err)) {
+        try {
+          const data = await api.chat(req);
+          finishAssistant(data, req.conversation_id ?? null);
+        } catch (fallbackErr) {
+          showAssistantError(fallbackErr);
+        }
+      } else {
+        showAssistantError(err);
+      }
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      setIsSending(false);
+    }
+  };
+
+  const lastMessageContent = displayMessages[displayMessages.length - 1]?.content;
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [displayMessages.length, isPending]);
+  }, [displayMessages.length, lastMessageContent, isSending]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -105,10 +161,10 @@ function ChatPage() {
           {conversationId ? `Conversation #${conversationId}` : "New conversation"}
         </span>
       </header>
-      <MessageList messages={displayMessages} isLoading={isPending} />
+      <MessageList messages={displayMessages} isLoading={isSending && !hasStreamingMessage} />
       <div ref={bottomRef} />
       <SourceFilter sourceIds={sourceIds} tags={tags} onChangeSourceIds={setSourceIds} onChangeTags={setTags} />
-      <ChatComposer onSend={(msg, pm) => sendMessage({ message: msg, privateMode: pm })} disabled={isPending} />
+      <ChatComposer onSend={(msg, pm) => { void sendMessage({ message: msg, privateMode: pm }); }} disabled={isSending} />
     </div>
   );
 }

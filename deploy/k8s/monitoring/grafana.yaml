@@ -10,6 +10,9 @@
 #     --from-file=deploy/grafana/dashboards/second-brain.json --dry-run=client -o yaml | kubectl apply -f -
 #
 # Admin password comes from the Secret. Storage is emptyDir (ephemeral — learning track).
+# Standalone template only: not included in deploy/k8s/kustomization.yaml. Build and scan a local
+# Grafana image with the tag below before applying it; imagePullPolicy prevents accidental public
+# pulls of known-vulnerable vendor images.
 apiVersion: v1
 kind: Service
 metadata:
@@ -47,7 +50,8 @@ spec:
     spec:
       containers:
         - name: grafana
-          image: grafana/grafana:latest
+          image: second-brain-grafana:phase7-clean-required
+          imagePullPolicy: Never
           ports:
             - name: http
               containerPort: 3000

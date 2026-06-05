@@ -9,6 +9,202 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Browser-provided capture instead of scraping (2026-06-05)
+
+- **What:** added a `/capture` API and `/capture` web page that save a URL, title, selected text,
+  notes, and tags into the normal ingest pipeline as a `bookmark` source/document. The document
+  body includes the title, URL, selected text, notes, and tags, so normal chunking, embeddings,
+  full-text search, and RAG citations work without a separate capture store.
+- **Why:** the frictionless path should be cheap and deterministic: the browser/user supplies the
+  text worth keeping, and Second Brain stores it. This avoids a paid read-it-later provider and
+  avoids brittle page scraping.
+- **Trade-off / what I gave up:** capture does not fetch the remote page or try to reconstruct the
+  full article. URL validation rejects non-HTTP(S), credentialed, localhost, and literal
+  private/internal IP URLs, but because capture does not fetch, it intentionally avoids DNS lookups
+  in the request path. Any future server-side fetch should reuse the stronger DNS-pinned public URL
+  pattern from source-backed research.
+- **Affects:** `backend/app/api/capture.py`, `backend/app/capture/service.py`,
+  `backend/app/schemas/capture.py`, `frontend/app/capture/page.tsx`,
+  `frontend/lib/api/{client,types}.ts`, `frontend/components/ConversationSidebar.tsx`,
+  `README.md`, `docs/USAGE.md`.
+
+## SSE citation validation buffers provider chunks (2026-06-05)
+
+- **What:** changed `/chat/stream` so provider chunks are collected server-side and are not emitted
+  as SSE `delta` events until the complete answer has passed the shared citation-validation path.
+  If the model omits citations or cites invalid markers, the raw generated text is withheld and the
+  client only receives the citation-failure completion.
+- **Why:** retrieved personal notes are untrusted prompt context. Emitting raw deltas before
+  validation let prompt-injected or uncited model text reach the browser even when the final stored
+  answer was replaced by `CITATION_FAILURE_TEXT`.
+- **Trade-off / what I gave up:** `/chat/stream` is now an SSE delivery path for validated answers,
+  not true token-by-token RAG display. This preserves the Gemini/Ollama/fake streaming seam and the
+  frontend fallback behavior while choosing citation integrity and data confidentiality over
+  perceived latency.
+- **Affects:** `backend/app/chat/service.py`, `backend/tests/integration/test_chat.py`,
+  `backend/tests/integration/test_api.py`, `README.md`, `docs/USAGE.md`.
+
+## Security review follow-ups: auth, MCP, citation support, and research ports (2026-06-05)
+
+- **What:** split destructive data-ops authorization into two independent secrets: normal
+  personal-data API calls still use `Authorization: Bearer <SECOND_BRAIN_API_TOKEN>`, while
+  export/delete/retention purge additionally require `X-Second-Brain-Admin-Token:
+  <SECOND_BRAIN_ADMIN_TOKEN>`. The admin token no longer passes the normal API gate.
+- **What:** MCP durable mutations now require `SECOND_BRAIN_MCP_ENABLE_MUTATIONS=true`; read-only
+  tools remain visible for trusted local clients.
+- **What:** chat finalization now rejects answer segments that have no marker or whose valid marker
+  has too little lexical overlap with the cited chunk/title/source. Research URL fetching now
+  accepts only default HTTP(S) ports after the existing public-IP and redirect validation.
+- **Why:** fixes the review findings where the admin token was a super-token, MCP could mutate
+  durable personal data through a separate local trust path, valid citation markers could be pasted
+  onto unsupported claims, and authenticated research URLs could act as a limited public-port probe.
+- **Trade-off / what I gave up:** the citation support check is conservative lexical validation, not
+  semantic entailment; good paraphrases may be refused until a richer verifier exists. MCP remains a
+  trusted-local interface rather than a network-authenticated API.
+- **Affects:** `backend/app/{deps,mcp_server,config}.py`, `backend/app/chat/service.py`,
+  `backend/app/research/service.py`, `frontend/{lib/api/client.ts,app/admin/page.tsx}`, tests,
+  README, and `docs/USAGE.md`.
+
+## Single-owner bearer auth finalized (2026-06-05)
+
+- **What:** completed the no-cost single-owner auth layer. Normal personal-data routes now require
+  `SECOND_BRAIN_API_TOKEN` when configured: chat/streaming chat, conversations, ingest, search,
+  briefing, feedback, tasks, research jobs, sources, and admin/data-ops surfaces. Destructive
+  data-ops routes (`/data/export`, `/data/sources/{id}`, `/admin/retention/purge`) also require
+  `SECOND_BRAIN_ADMIN_TOKEN` as a separate admin header in addition to the normal API bearer.
+- **Why:** the app is a personal single-owner system and should not expose notes, conversations, or
+  delete/export actions on the public Caddy `/api/*` path. A pair of operator-provided bearer
+  tokens closes that gap without accounts, cookies, an auth provider, or any recurring cost.
+- **Trade-off / what I gave up:** this is not multi-user auth, device management, session expiry, or
+  phishing-resistant login. The frontend stores the normal API token in browser local storage for
+  local-dev ergonomics and simple production use, so the browser profile should be treated as
+  holding a bearer secret. Local development remains keyless unless `SECOND_BRAIN_API_TOKEN` is set.
+- **Affects:** `backend/app/deps.py`, `backend/app/api/*`, `backend/tests/unit/test_api_auth.py`,
+  `backend/tests/integration/test_dataops_api.py`, `frontend/lib/api/client.ts`,
+  `frontend/components/ConversationSidebar.tsx`, `deploy/.env.prod.example`,
+  `backend/.env.example`, `README.md`, `docs/USAGE.md`.
+
+## Security hardening after local review (2026-06-04)
+
+- **What:** added `SECOND_BRAIN_API_TOKEN` as a single-user bearer token for normal personal-data
+  endpoints (notes/search/chat/conversations/sources/feedback/tasks/research), while keeping
+  `SECOND_BRAIN_ADMIN_TOKEN` separate for export/delete/retention actions. The frontend stores the
+  API token in browser local storage and attaches it at request time; no `NEXT_PUBLIC_*` token is
+  baked into the bundle.
+- **Why:** the production API is reachable through Caddy at `/api/*`, and the prior local changes
+  left user-data endpoints public. A single-user bearer token fits the app's current scope without
+  introducing accounts, cookies, sessions, or recurring infrastructure.
+- **Trade-off / what I gave up:** local dev remains keyless unless `SECOND_BRAIN_API_TOKEN` is set,
+  so production Compose now requires the token explicitly. Browser local storage is simpler than a
+  cookie/session system but should be treated as a bearer secret on that machine.
+- **Affects:** `backend/app/deps.py`, user-data routers, `frontend/lib/api/client.ts`,
+  `frontend/components/ConversationSidebar.tsx`, env templates, runbooks.
+
+- **What:** removed PgBouncer from the production Compose runtime and pointed API/worker directly at
+  Postgres. Prometheus/Grafana runtime containers were also removed from production Compose after
+  their current vendor images scanned with critical/high CVEs; `/metrics`, alert rules, and
+  dashboard config artifacts remain in the repo for a future scanned-clean monitoring runtime. Caddy
+  is built from source in `deploy/Dockerfile.caddy` with patched Go transitive dependencies instead
+  of using the upstream prebuilt image.
+- **Why:** Docker Scout reported high CVEs in the PgBouncer package with no fixed version, and
+  current Prometheus/Grafana vendor images still report critical/high Go dependency CVEs. For this
+  single-user VPS, direct Postgres connections are acceptable and the safest default is to avoid
+  shipping a production path that can start vulnerable observability images. Docker Scout also
+  reported critical/high findings in the upstream Caddy binary; rebuilding Caddy from source with
+  patched Go modules scanned clean for critical/high findings while preserving auto-HTTPS.
+- **Trade-off / what I gave up:** fewer default services and less attack surface, but no external
+  pooler, a longer Caddy image build, and no on-box Prometheus/Grafana dashboard until clean images
+  or custom builds are selected. SQLAlchemy/Postgres pooling is the production default now; monitor
+  DB connections if traffic grows.
+- **Affects:** `deploy/{docker-compose.prod.yml,docker-compose.vps.yml.example,Dockerfile.caddy}`,
+  `docs/USAGE.md`, runbooks, `README.md`.
+
+- **What:** aligned local dev Compose, GitHub CI, and the Kubernetes learning-track manifests with
+  the hardened container posture. The dev DB and CI database now build the repo's cleaned pgvector
+  image; the K8s default apply uses that local pgvector image, connects API/worker directly to
+  Postgres, requires `SECOND_BRAIN_API_TOKEN`, and omits PgBouncer/Prometheus/Grafana from the
+  default kustomization. The standalone PgBouncer and monitoring manifests now require local
+  `*-clean-required` images with `imagePullPolicy: Never`.
+- **Why:** otherwise non-production paths still pulled public images that had the same unresolved
+  CVE class removed from production. K8s remains a local learning track, but `kubectl apply -k
+  deploy/k8s` should not accidentally start vulnerable images.
+- **Trade-off / what I gave up:** the learning track no longer demonstrates Prometheus/Grafana or
+  PgBouncer out of the box. Re-enabling those demos now requires building/scanning local images first.
+- **Affects:** `docker-compose.yml`, `.github/workflows/{ci,k8s}.yml`, `deploy/k8s/*`.
+
+- **What:** split backend production image dependencies into `backend/requirements.prod.txt`,
+  upgraded the local embedding dependency line to `sentence-transformers>=5.5,<6` with
+  `transformers>=5.10.2,<6`, and pinned CPU-only Torch (`torch==2.12.0+cpu`) through the PyTorch
+  CPU wheel index. The backend, frontend, pgvector, and Caddy images now use scratch final stages
+  after runtime cleanup; `.dockerignore` excludes `.env.*` so local env files are not copied into
+  Docker build contexts.
+- **Why:** the API/worker image does not need MLflow, PyArrow, MCP, or pytest, and shipping them
+  created avoidable CVE findings. Plain `sentence-transformers` also pulled CUDA Torch wheels into
+  a CPU VPS image. Scratch final stages make scanners inspect the cleaned runtime filesystem rather
+  than inherited/deleted base-layer artifacts, and excluding `.env.local` prevents Next Docker builds
+  from accidentally baking local public env values into the bundle.
+- **Trade-off / what I gave up:** production image dependencies now differ intentionally from the
+  full dev/test requirements; eval and MCP tooling stay local/CI-only unless a future service needs
+  a dedicated image. CPU-only Torch preserves the local embedding seam while giving up accidental
+  CUDA support in the small-VPS container.
+- **Affects:** `backend/{requirements.txt,requirements.prod.txt}`,
+  `deploy/Dockerfile.{backend,frontend,pgvector,caddy}`, `.dockerignore`.
+
+- **What:** hardened URL research fetching with DNS validation plus pinned public-IP connects per
+  request/redirect, sanitized streaming SSE errors, wrapped retrieved RAG context as untrusted data,
+  and replaced uncited/out-of-range cited model answers with a safe citation-failure response.
+- **Why:** this closes the SSRF DNS-rebinding gap, avoids leaking raw exception details over SSE,
+  reduces prompt-injection obedience, and makes citation integrity deterministic after generation.
+- **Trade-off / what I gave up:** initially, streaming still emitted raw deltas before final
+  validation. The 2026-06-05 follow-up now withholds those deltas until citation validation passes,
+  choosing confidentiality over true token-by-token RAG display.
+- **Affects:** `backend/app/research/service.py`, `backend/app/api/chat.py`,
+  `backend/app/chat/{prompt,service}.py`, focused tests.
+
+- **What:** changed Redis rate limits to fail closed by default when Redis is enabled but unavailable
+  (`SECOND_BRAIN_RATE_LIMIT_FAIL_CLOSED=true`), while caches remain best-effort. Added an npm
+  `overrides` pin so Next's transitive PostCSS resolves to patched `8.5.15`.
+- **Why:** a Redis outage should not silently remove public mutation/chat throttling in production,
+  and `npm audit` reported a PostCSS advisory under Next's nested dependency while 16.2.7 remains
+  the latest stable Next release.
+- **Trade-off / what I gave up:** a Redis outage can temporarily 429 chat/ingest until fixed unless
+  the operator explicitly chooses fail-open. The PostCSS override is dependency-policy maintenance
+  to revisit when Next ships the patched transitive version itself.
+- **Affects:** `backend/app/cache/rate_limit.py`, `backend/app/config.py`,
+  `frontend/package.json`, `frontend/package-lock.json`, docs/tests.
+
+## No-cost production backup default (2026-06-04)
+
+- **What:** added an installable cron backup template at `deploy/cron/second-brain-backup` and
+  updated the runbooks to install it as `/usr/local/sbin/second-brain-backup` via
+  `/etc/cron.d/second-brain-backup`. The script writes local custom-format Postgres dumps,
+  checksums them, and keeps 14 days by default.
+- **Why:** the project needs automated backups, but the production constraint is one low-cost VPS
+  and no new recurring infrastructure without explicit approval.
+- **Trade-off / what I gave up:** the default backup copy lives on the same VPS, so it protects
+  against bad migrations/operator mistakes but not total VPS loss. The runbook now calls out a
+  no-cost off-box copy to a trusted local machine; paid object storage remains an explicit
+  approval item.
+- **Affects:** `deploy/cron/second-brain-backup`, `docs/runbooks/backup-restore.md`,
+  `docs/runbooks/deploy-checklist.md`, `docs/USAGE.md`.
+
+## SSE chat streaming finalizes citations at completion (2026-06-04)
+
+- **What:** added `POST /chat/stream` with SSE `delta`, `complete`, and `error` events while
+  keeping `POST /chat` unchanged. Gemini, Ollama, and the fake test driver now implement
+  `generate_stream`; the chat UI uses the stream when available and falls back to `/chat` on a
+  pre-stream `409`.
+- **Why:** streaming improves perceived latency, but citations should still come from the same
+  final answer/citation parsing path as the non-streaming endpoint. The `complete` event therefore
+  carries the full `ChatResponse` shape, including final citations and persisted `message_id`.
+- **Trade-off / what I gave up:** citations are not clickable while partial text is still
+  streaming because the final marker set is only trustworthy after completion. If a provider fails
+  mid-stream, the client shows an error instead of automatically retrying `/chat` to avoid
+  duplicating a partially generated turn.
+- **Affects:** `backend/app/llm/*`, `backend/app/chat/service.py`, `backend/app/api/chat.py`,
+  `frontend/app/chat/page.tsx`, `frontend/lib/api/*`, `frontend/components/MessageList.tsx`,
+  `docs/USAGE.md`.
+
 ## Redis-backed rate limits and caches (2026-06-04)
 
 - **What:** added optional Redis use for API rate limiting on `/chat` and `/ingest`, short-lived
@@ -18,11 +214,11 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 - **Why:** the production stack already hosts Redis and the project plan reserved it for caching and
   rate limiting. Keeping the paths small gives practical protection/reuse without moving durable
   state or core retrieval correctness out of Postgres.
-- **Trade-off / what I gave up:** Redis failures deliberately fail open, so rate limits and caches
-  can be bypassed during a Redis outage. That is preferable for this single-user app because Redis
-  should not become a hard dependency for chat/ingest/search availability. Search cache TTL is short
-  and ingest bumps a cache epoch, but worker/MCP ingest paths may still rely on TTL if they do not
-  pass a Redis client.
+- **Trade-off / what I gave up:** originally Redis failures deliberately failed open for both caches
+  and rate limits. The later 2026-06-04 security hardening kept caches fail-open but changed
+  rate-limit failures to fail closed by default in production. Search cache TTL is short and ingest
+  bumps a cache epoch, but worker/MCP ingest paths may still rely on TTL if they do not pass a Redis
+  client.
 - **Affects:** `backend/app/cache/*`, `backend/app/api/{chat,ingest,search}.py`,
   `backend/app/{config,deps}.py`, `backend/app/{ingest/service,retrieval/hybrid,chat/service}.py`,
   `backend/app/obs/metrics.py`, `deploy/docker-compose.prod.yml`, `backend/requirements.txt`,

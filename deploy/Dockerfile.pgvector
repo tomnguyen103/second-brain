@@ -1,0 +1,43 @@
+# Postgres 16 + pgvector for the production Compose stack.
+#
+# The upstream pgvector image is convenient, but its Debian-based pg16 tag
+# currently carries high/critical scanner findings in packages unrelated to
+# Second Brain. This image keeps the same Postgres major version, builds the
+# same pgvector extension version, and replaces the Go-built gosu helper with
+# Alpine's su-exec so Docker Scout has a smaller default-runtime surface.
+FROM postgres:16-alpine AS pgvector-builder
+
+ARG PGVECTOR_VERSION=0.8.2
+
+RUN apk add --no-cache build-base clang19 git llvm19-dev
+
+WORKDIR /tmp
+RUN git clone --depth 1 --branch "v${PGVECTOR_VERSION}" https://github.com/pgvector/pgvector.git
+
+WORKDIR /tmp/pgvector
+RUN make && make install
+
+FROM postgres:16-alpine AS runtime
+
+RUN apk upgrade --no-cache \
+    && apk add --no-cache su-exec \
+    && rm -f /usr/local/bin/gosu /usr/local/bin/su-exec \
+    && ln -s /sbin/su-exec /usr/local/bin/gosu
+
+COPY --from=pgvector-builder /usr/local/lib/postgresql/vector.so /usr/local/lib/postgresql/vector.so
+COPY --from=pgvector-builder /usr/local/lib/postgresql/bitcode /usr/local/lib/postgresql/bitcode
+COPY --from=pgvector-builder /usr/local/share/postgresql/extension/vector* /usr/local/share/postgresql/extension/
+
+FROM scratch
+
+COPY --from=runtime / /
+
+ENV LANG=en_US.utf8 \
+    PGDATA=/var/lib/postgresql/data \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["postgres"]
+STOPSIGNAL SIGINT
+EXPOSE 5432
+VOLUME ["/var/lib/postgresql/data"]

@@ -1,6 +1,6 @@
 # Durable-job worker (Phase 5, ADR-0013). Same image as the api; runs the resident poll loop
 # (`python -m app.jobs.worker --loop`) instead of uvicorn. Drains the jobs queue (daily briefing +
-# async research). No ports, no migrations (the migrate Job owns those). Connects via pgbouncer.
+# async research). No ports, no migrations (the migrate Job owns those). Connects directly to db.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -42,7 +42,7 @@ spec:
                   name: second-brain-config
                   key: POSTGRES_DB
             - name: SECOND_BRAIN_DATABASE_URL
-              value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@pgbouncer:6432/$(POSTGRES_DB)
+              value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)
             - name: SECOND_BRAIN_LLM_PROVIDER
               valueFrom:
                 configMapKeyRef:

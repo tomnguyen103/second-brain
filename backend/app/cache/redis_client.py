@@ -1,7 +1,7 @@
 """Redis client construction.
 
-Redis is optional: local development defaults it off, and production paths fail open if the
-server is temporarily unavailable. Callers still catch operation errors around each use.
+Redis is optional: local development defaults it off. Cache callers fail open, while rate-limit
+callers use the configured fail-open/fail-closed posture around each operation.
 """
 from __future__ import annotations
 

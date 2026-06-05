@@ -27,10 +27,10 @@ docker compose version
 ```bash
 git clone <repo> second-brain && cd second-brain
 cp deploy/.env.prod.example deploy/.env.prod
-#   edit deploy/.env.prod — set POSTGRES_PASSWORD, SECOND_BRAIN_GEMINI_API_KEY,
-#   SECOND_BRAIN_ADMIN_TOKEN (long random), GRAFANA_ADMIN_PASSWORD
+#   edit deploy/.env.prod — set POSTGRES_PASSWORD, SECOND_BRAIN_API_TOKEN,
+#   SECOND_BRAIN_GEMINI_API_KEY, optional SECOND_BRAIN_ADMIN_TOKEN
 ```
-`deploy/.env.prod` and `deploy/pgbouncer/userlist.txt` are gitignored — they never enter git.
+`deploy/.env.prod` is gitignored — real secrets never enter git.
 
 ## 3. Pre-flight: confirm CI is green (the eval gate)
 Only deploy a commit whose GitHub Actions run passed — that means unit + integration tests and
@@ -40,18 +40,39 @@ retrieval/citation quality regressed. Locally you can re-run it:
 cd backend && python -m app.eval.gate    # exit 0 = quality OK
 ```
 
-## 4. Bring up the DB first, then generate the PgBouncer userlist
-```bash
-DC="docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod"
+## 4. Configure the host firewall (ufw)
+Keep the current SSH session open while enabling `ufw`; verify a second SSH session works before
+closing it. The public surface is Caddy on 80/443 plus SSH on 22. The direct API/frontend ports stay
+bound to localhost by `deploy/docker-compose.vps.yml`.
 
-$DC up -d db
-# wait for healthy, then copy the SCRAM verifier into the (gitignored) userlist:
-cp deploy/pgbouncer/userlist.txt.example deploy/pgbouncer/userlist.txt
-$DC exec db \
-  psql -U second_brain -tAc \
-  "SELECT '\"'||rolname||'\" \"'||rolpassword||'\"' FROM pg_authid WHERE rolname='second_brain';" \
-  > deploy/pgbouncer/userlist.txt
+```bash
+sudo apt-get update
+sudo apt-get install -y ufw
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 22/tcp comment "ssh"
+sudo ufw allow 80/tcp comment "http-caddy"
+sudo ufw allow 443/tcp comment "https-caddy"
+sudo ufw --force enable
+sudo ufw status verbose
 ```
+
+Expected public allow list:
+
+```text
+22/tcp   ALLOW IN
+80/tcp   ALLOW IN
+443/tcp  ALLOW IN
+```
+
+If an earlier experiment opened app or monitoring ports, remove them:
+
+```bash
+sudo ufw status numbered
+sudo ufw delete <rule-number>
+```
+
+Do not allow 3000, 8000, 5432, 5433, or 6379 from the public internet.
 
 ## 5. Bring up the whole stack
 ```bash
@@ -59,18 +80,33 @@ DC="docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/d
 
 $DC up -d --build
 ```
-The `api` service applies migrations (`alembic upgrade head`, against the DB directly — not via
-PgBouncer) then starts uvicorn. Services: db, pgbouncer (6432), redis, api (8000), frontend
-(3000), prometheus (9090), grafana (3001), caddy (80/443). Caddy is the public HTTPS entrypoint;
-the VPS override keeps the direct app and monitoring ports bound to localhost.
+The `api` service applies migrations (`alembic upgrade head`, against the DB directly) then starts
+uvicorn. Default services: db, redis, api (8000), worker, frontend (3000), and caddy (80/443).
+Caddy is the public HTTPS entrypoint; the base file and VPS override keep direct app ports bound
+to localhost. The API exposes Prometheus-format metrics at `/metrics`; production Compose does not
+start Prometheus/Grafana containers until a scanned-clean runtime is selected.
 
 ## 6. Verify
 ```bash
 curl -s localhost:8000/health        # {"status":"ok","db":"ok",...}
 curl -s localhost:8000/metrics | head
-#   Grafana http://<host>:3001 (admin / GRAFANA_ADMIN_PASSWORD) → "Second Brain — service overview"
-#   Prometheus http://<host>:9090/alerts → rules loaded
 ```
+
+Additional health checks:
+
+```bash
+$DC ps
+curl -fsS localhost:8000/health
+curl -fsS https://YOUR_VPS_IP.sslip.io/api/health
+$DC exec -T db sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+$DC exec -T redis redis-cli ping
+$DC exec -T db sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;"'
+```
+
+Prometheus/Grafana configs remain in `deploy/prometheus/` and `deploy/grafana/`, but production
+Compose no longer includes monitoring containers because the current upstream vendor images scanned
+with critical/high CVE findings. Reintroduce monitoring only with scanned-clean images or custom
+builds.
 
 ## 7. Schedule the daily briefing (OS cron — ADR-0013 D2)
 The `worker` service drains the jobs queue continuously; a host cron line enqueues the
@@ -86,15 +122,50 @@ ingested since the previous briefing's `period_end`; a re-run over an empty tail
 queue any time: `SELECT id,type,status,attempts,last_error FROM jobs ORDER BY id DESC LIMIT 10;`
 (`status='failed'` is the dead-letter view).
 
-## 8. Rollback
+## 8. Install automated DB backup cron
+Install the checked-in backup template, create a private backup directory, and schedule a nightly
+logical dump. This uses the existing VPS disk and adds no recurring cost.
+
+```bash
+cd /root/second-brain
+sudo install -m 0750 deploy/cron/second-brain-backup /usr/local/sbin/second-brain-backup
+sudo mkdir -p /var/backups/second-brain
+sudo chmod 700 /var/backups/second-brain
+echo '17 2 * * * root /usr/local/sbin/second-brain-backup >> /var/log/second-brain-backup.log 2>&1' | sudo tee /etc/cron.d/second-brain-backup
+sudo /usr/local/sbin/second-brain-backup
+sudo ls -lh /var/backups/second-brain
+sudo tail -n 50 /var/log/second-brain-backup.log
+```
+
+The script keeps 14 days by default. Change retention without editing the script by adding an
+environment assignment to the cron line, for example
+`SECOND_BRAIN_BACKUP_RETENTION_DAYS=30`. Run the restore drill in `backup-restore.md` after the
+first successful backup and monthly after that.
+
+## 9. Rollback
+Use the previous green SHA from GitHub Actions. For app-only regressions:
+
 ```bash
 git checkout <previous-green-sha>
 DC="docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod"
 
 $DC up -d --build
-#   DB: only if a migration must be undone -> alembic downgrade -1 (see backup-restore first)
-#   Prompt rollback needs no deploy: set SECOND_BRAIN_PROMPT_VERSION=rag-v1 and restart api (ADR-0009)
+curl -fsS localhost:8000/health
 ```
+
+If the bad release included a migration, prefer restoring the pre-migration dump from
+`backup-restore.md`. Only run `alembic downgrade -1` when the downgrade was tested and is known
+not to destroy wanted data; run it while the migration code is still checked out:
+
+```bash
+$DC run --rm --no-deps api alembic downgrade -1
+git checkout <previous-green-sha>
+$DC up -d --build
+curl -fsS localhost:8000/health
+```
+
+Prompt rollback needs no deploy: set `SECOND_BRAIN_PROMPT_VERSION=rag-v1` in
+`deploy/.env.prod`, then `$DC up -d --force-recreate api` (ADR-0009).
 
 ## Update flow (steady state)
 `git pull` a green commit → run the canonical `$DC up -d --build` command above → verify

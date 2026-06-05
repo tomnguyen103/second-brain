@@ -1,5 +1,5 @@
 # Phase 7 — Kubernetes (kind) smoke pipeline (D8).
-# Stands the full stack up on a throwaway multi-node kind cluster, applies the SAME manifests +
+# Stands the core stack up on a throwaway multi-node kind cluster, applies the SAME manifests +
 # add-ons used locally, waits for every rollout, smokes /health + the UI through ingress, then
 # tears the cluster down (helm/kind-action deletes it in its post step — D10, nothing left running).
 # This is SEPARATE from the eval-gated ci.yml (which stays untouched). HPA load-scaling is proven
@@ -28,10 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The backend image carries CUDA torch wheels (~several GB); the hosted runner's ~14 GB free
-      # disk overflows when `kind load` does `docker save` to /tmp. Reclaim ~20+ GB of preinstalled
-      # toolchains we don't use (Android SDK, .NET, GHC, CodeQL). (CPU-only torch would slim the
-      # image itself — deferred, see ADR-0014.)
+      # Docker image builds plus kind image loads need room. Reclaim preinstalled toolchains we
+      # don't use (Android SDK, .NET, GHC, CodeQL).
       - name: Free up runner disk space
         run: |
           df -h / | tail -1
@@ -50,6 +48,7 @@ jobs:
 
       - name: Build images
         run: |
+          docker build -f deploy/Dockerfile.pgvector -t second-brain-pgvector:phase7 .
           docker build -f deploy/Dockerfile.backend -t second-brain-api:phase7 .
           docker build -f deploy/Dockerfile.frontend \
             --build-arg NEXT_PUBLIC_API_BASE_URL=http://api.second-brain.local \
@@ -57,26 +56,18 @@ jobs:
 
       - name: Load images into kind (no registry, D2)
         run: |
+          kind load docker-image second-brain-pgvector:phase7 --name second-brain
           kind load docker-image second-brain-api:phase7 --name second-brain
           kind load docker-image second-brain-web:phase7 --name second-brain
 
-      - name: Namespace + Secret (throwaway CI values) + monitoring ConfigMaps
+      - name: Namespace + Secret (throwaway CI values)
         run: |
           kubectl apply -f deploy/k8s/namespace.yaml
           kubectl -n second-brain create secret generic second-brain-secrets \
             --from-literal=POSTGRES_PASSWORD=ci_postgres_pw \
+            --from-literal=SECOND_BRAIN_API_TOKEN=ci-api-token \
             --from-literal=SECOND_BRAIN_ADMIN_TOKEN=ci-admin-token \
-            --from-literal=SECOND_BRAIN_GEMINI_API_KEY= \
-            --from-literal=GRAFANA_ADMIN_PASSWORD=ci-admin
-          kubectl -n second-brain create configmap prometheus-config \
-            --from-file=prometheus.yml=deploy/prometheus/prometheus.yml \
-            --from-file=alerts.yml=deploy/prometheus/alerts.yml --dry-run=client -o yaml | kubectl apply -f -
-          kubectl -n second-brain create configmap grafana-datasources \
-            --from-file=deploy/grafana/provisioning/datasources/datasource.yml --dry-run=client -o yaml | kubectl apply -f -
-          kubectl -n second-brain create configmap grafana-dashboard-provider \
-            --from-file=deploy/grafana/provisioning/dashboards/dashboards.yml --dry-run=client -o yaml | kubectl apply -f -
-          kubectl -n second-brain create configmap grafana-dashboard-json \
-            --from-file=deploy/grafana/dashboards/second-brain.json --dry-run=client -o yaml | kubectl apply -f -
+            --from-literal=SECOND_BRAIN_GEMINI_API_KEY=
 
       - name: Install ingress-nginx + metrics-server (pinned)
         run: |
@@ -102,7 +93,7 @@ jobs:
         run: |
           kubectl -n second-brain rollout status statefulset/db --timeout=300s
           kubectl -n second-brain wait --for=condition=complete job/migrate --timeout=300s
-          for d in pgbouncer redis api worker frontend prometheus grafana; do
+          for d in redis api worker frontend; do
             kubectl -n second-brain rollout status deploy/$d --timeout=300s
           done
 

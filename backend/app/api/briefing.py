@@ -9,7 +9,7 @@ from app import deps
 from app.db.models import Briefing
 from app.schemas.briefing import BriefingListResponse, BriefingOut
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(deps.require_api_access)])
 
 
 @router.get("/briefing", response_model=BriefingOut)

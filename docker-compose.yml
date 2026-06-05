@@ -2,7 +2,9 @@
 # App/worker services are added in Phase 1.
 services:
   db:
-    image: pgvector/pgvector:pg16
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.pgvector
     container_name: second_brain_db
     environment:
       POSTGRES_USER: second_brain

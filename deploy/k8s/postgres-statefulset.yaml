@@ -41,7 +41,8 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: pgvector/pgvector:pg16
+          image: second-brain-pgvector:phase7
+          imagePullPolicy: IfNotPresent
           ports:
             - name: postgres
               containerPort: 5432

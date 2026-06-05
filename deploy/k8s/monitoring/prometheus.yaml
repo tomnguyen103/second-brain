@@ -8,6 +8,9 @@
 #     --dry-run=client -o yaml | kubectl apply -f -
 #
 # TSDB is an emptyDir (ephemeral — fine for the learning track).
+# Standalone template only: not included in deploy/k8s/kustomization.yaml. Build and scan a local
+# Prometheus image with the tag below before applying it; imagePullPolicy prevents accidental public
+# pulls of known-vulnerable vendor images.
 apiVersion: v1
 kind: Service
 metadata:
@@ -45,7 +48,8 @@ spec:
     spec:
       containers:
         - name: prometheus
-          image: prom/prometheus:latest
+          image: second-brain-prometheus:phase7-clean-required
+          imagePullPolicy: Never
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus

@@ -1,6 +1,10 @@
 import type {
+  CaptureRequest,
+  CaptureResponse,
   ChatRequest,
   ChatResponse,
+  ChatStreamComplete,
+  ChatStreamDelta,
   ConversationDetailResponse,
   ConversationListResponse,
   DataExportResponse,
@@ -27,11 +31,46 @@ import type {
 } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const API_TOKEN_STORAGE_KEY = "second-brain.api-token";
+
+export function getStoredApiToken(): string {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(API_TOKEN_STORAGE_KEY) ?? "";
+}
+
+export function setStoredApiToken(token: string): void {
+  if (typeof window === "undefined") return;
+  const trimmed = token.trim();
+  if (trimmed) {
+    window.localStorage.setItem(API_TOKEN_STORAGE_KEY, trimmed);
+  } else {
+    window.localStorage.removeItem(API_TOKEN_STORAGE_KEY);
+  }
+  window.dispatchEvent(new Event("second-brain-api-token-changed"));
+}
+
+export class ChatStreamUnavailableError extends Error {
+  constructor(message = "Streaming chat is unavailable") {
+    super(message);
+    this.name = "ChatStreamUnavailableError";
+  }
+}
+
+export function isChatStreamUnavailableError(error: unknown): error is ChatStreamUnavailableError {
+  return error instanceof ChatStreamUnavailableError;
+}
+
+export interface ChatStreamHandlers {
+  onDelta: (delta: ChatStreamDelta) => void;
+  onComplete: (complete: ChatStreamComplete) => void;
+  signal?: AbortSignal;
+}
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = buildHeaders(init?.headers);
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
     ...init,
+    headers,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
@@ -47,7 +86,104 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+function buildHeaders(initHeaders?: HeadersInit): Headers {
+  const headers = new Headers(initHeaders);
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (!headers.has("Authorization")) {
+    const token = getStoredApiToken();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+  }
+  return headers;
+}
+
+function parseSseBlock(block: string): { event: string; data: unknown } | null {
+  let event = "message";
+  const dataLines: string[] = [];
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) {
+      event = line.slice("event:".length).trim();
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+  if (dataLines.length === 0) return null;
+  return { event, data: JSON.parse(dataLines.join("\n")) as unknown };
+}
+
+async function streamChat(req: ChatRequest, handlers: ChatStreamHandlers): Promise<void> {
+  const res = await fetch(`${BASE}/chat/stream`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify(req),
+    signal: handlers.signal,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    let message = text || res.statusText;
+    try {
+      const parsed = JSON.parse(text) as { detail?: unknown };
+      if (typeof parsed.detail === "string") message = parsed.detail;
+    } catch {
+      // Keep the raw body when it is not JSON.
+    }
+    if ([404, 409, 501].includes(res.status)) {
+      throw new ChatStreamUnavailableError(message);
+    }
+    throw new Error(`${res.status} ${message}`);
+  }
+
+  if (!res.body) {
+    throw new ChatStreamUnavailableError("This browser cannot read streaming responses");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completed = false;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
+
+    let separator = buffer.indexOf("\n\n");
+    while (separator !== -1) {
+      const block = buffer.slice(0, separator);
+      buffer = buffer.slice(separator + 2);
+      const parsed = parseSseBlock(block);
+      if (parsed?.event === "delta") {
+        handlers.onDelta(parsed.data as ChatStreamDelta);
+      } else if (parsed?.event === "complete") {
+        completed = true;
+        handlers.onComplete(parsed.data as ChatStreamComplete);
+      } else if (parsed?.event === "error") {
+        const data = parsed.data as { message?: unknown };
+        throw new Error(typeof data.message === "string" ? data.message : "Streaming chat failed");
+      }
+      separator = buffer.indexOf("\n\n");
+    }
+
+    if (done) break;
+  }
+
+  if (buffer.trim()) {
+    const parsed = parseSseBlock(buffer.trim());
+    if (parsed?.event === "complete") {
+      completed = true;
+      handlers.onComplete(parsed.data as ChatStreamComplete);
+    }
+  }
+
+  if (!completed) {
+    throw new Error("Streaming chat ended before completion");
+  }
+}
+
 export const api = {
+  capture(req: CaptureRequest): Promise<CaptureResponse> {
+    return apiFetch("/capture", { method: "POST", body: JSON.stringify(req) });
+  },
+
   ingest(req: IngestRequest): Promise<IngestResponse> {
     return apiFetch("/ingest", { method: "POST", body: JSON.stringify(req) });
   },
@@ -55,6 +191,8 @@ export const api = {
   chat(req: ChatRequest): Promise<ChatResponse> {
     return apiFetch("/chat", { method: "POST", body: JSON.stringify(req) });
   },
+
+  chatStream: streamChat,
 
   search(params: { q: string; top_k?: number; source_ids?: number[]; tags?: string[] }): Promise<SearchResponse> {
     const sp = new URLSearchParams({ q: params.q });
@@ -144,14 +282,14 @@ export const api = {
 
   exportSource(sourceId: number, adminToken: string): Promise<DataExportResponse> {
     return apiFetch(`/data/export?source_id=${sourceId}`, {
-      headers: { Authorization: `Bearer ${adminToken}` },
+      headers: { "X-Second-Brain-Admin-Token": adminToken },
     });
   },
 
   deleteSource(sourceId: number, adminToken: string): Promise<DeleteSourceResponse> {
     return apiFetch(`/data/sources/${sourceId}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${adminToken}` },
+      headers: { "X-Second-Brain-Admin-Token": adminToken },
     });
   },
 
@@ -159,7 +297,7 @@ export const api = {
     const suffix = params.older_than_days ? `?older_than_days=${params.older_than_days}` : "";
     return apiFetch(`/admin/retention/purge${suffix}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${params.adminToken}` },
+      headers: { "X-Second-Brain-Admin-Token": params.adminToken },
     });
   },
 };

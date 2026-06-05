@@ -8,7 +8,7 @@ The two hot retrieval paths (ADR-0005) are vector KNN (pgvector HNSW) and lexica
 > prefers a sequential scan — an index only earns its keep once the table grows. To measure the
 > indexes honestly we inflated each table to a realistic size **inside a transaction, ran the
 > plans, then `ROLLBACK`** (so the dev DB is untouched and nothing synthetic is committed).
-> Numbers below are from the local `pgvector/pgvector:pg16` container on host port 5433.
+> Numbers below are from the local pgvector-backed Docker database on host port 5433.
 
 ## 1. Vector KNN — HNSW (`ix_embeddings_hnsw`, `vector_cosine_ops`)
 

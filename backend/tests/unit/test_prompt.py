@@ -8,6 +8,8 @@ def test_build_messages_numbers_context_and_includes_history():
     assert msgs[0].role == "system" and msgs[0].content == SYSTEM_PROMPT
     assert msgs[1].content == "earlier"
     assert "[1]" in msgs[-1].content and "[2]" in msgs[-1].content and "Question: q?" in msgs[-1].content
+    assert "untrusted quoted data" in msgs[-1].content
+    assert "<context>" in msgs[-1].content and "</context>" in msgs[-1].content
 
 
 def test_parse_citations_dedup_and_range():

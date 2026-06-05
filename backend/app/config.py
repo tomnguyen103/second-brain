@@ -63,12 +63,20 @@ class Settings(BaseSettings):
 
     # API
     cors_origins: list[str] = ["http://localhost:3000"]
+    # Single-user API bearer token for notes, conversations, sources, tasks, feedback, and
+    # research endpoints. None keeps local/dev tests keyless; prod compose requires it.
+    api_token: str | None = None
 
     # Redis-backed optional paths. Local development defaults Redis off; prod compose enables it.
     redis_enabled: bool = False
     redis_url: str = "redis://localhost:6379/0"
     redis_socket_timeout_seconds: float = 0.25
     rate_limit_enabled: bool = True
+    # When Redis is enabled but unavailable, deny rate-limited mutation/chat traffic by default
+    # instead of silently removing protection. Can be relaxed only as an explicit ops decision.
+    rate_limit_fail_closed: bool = True
+    # X-Forwarded-For is spoofable unless every caller reaches the app through a trusted proxy.
+    trust_forwarded_for: bool = False
     chat_rate_limit_requests: int = 30
     chat_rate_limit_window_seconds: int = 60
     ingest_rate_limit_requests: int = 10
@@ -89,6 +97,8 @@ class Settings(BaseSettings):
     metrics_enabled: bool = True            # expose Prometheus /metrics + request middleware
     audit_enabled: bool = True              # write audit_log rows on governed data actions
     pgbouncer_url: str | None = None         # optional pooled DSN for the always-on service
+    # MCP clients are trusted local processes. Keep durable mutations off unless explicitly enabled.
+    mcp_enable_mutations: bool = False
 
 
 settings = Settings()

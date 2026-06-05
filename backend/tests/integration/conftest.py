@@ -44,6 +44,7 @@ def client(db_session, fake_embedder, test_settings):
     app.dependency_overrides[deps.get_settings] = lambda: test_settings
 
     with TestClient(app) as c:
+        c.headers.update({"Authorization": "Bearer test-api-token"})
         yield c
 
     app.dependency_overrides.clear()

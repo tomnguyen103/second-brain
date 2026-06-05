@@ -1,6 +1,6 @@
 # FastAPI backend. Runs ONLY uvicorn (the image's default CMD) — migrations are the migrate Job's
-# job (D3), so this never runs alembic. Connects to Postgres via pgbouncer:6432. CPU `requests`
-# are set so the HPA (api-hpa.yaml) can compute a CPU-utilisation %. The embedder (MiniLM/torch)
+# job (D3), so this never runs alembic. Connects directly to Postgres, matching hardened Compose.
+# CPU `requests` are set so the HPA (api-hpa.yaml) can compute a CPU-utilisation %. The embedder (MiniLM/torch)
 # loads lazily on first ingest/chat, NOT at startup, so /health stays cheap.
 apiVersion: v1
 kind: Service
@@ -60,10 +60,9 @@ spec:
                 configMapKeyRef:
                   name: second-brain-config
                   key: POSTGRES_DB
-            # App traffic goes through PgBouncer (session pooling). Assembled via $(VAR) so the
-            # password lives only in the Secret.
+            # Assembled via $(VAR) so the password lives only in the Secret.
             - name: SECOND_BRAIN_DATABASE_URL
-              value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@pgbouncer:6432/$(POSTGRES_DB)
+              value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)
             - name: SECOND_BRAIN_LLM_PROVIDER
               valueFrom:
                 configMapKeyRef:
@@ -74,6 +73,11 @@ spec:
                 secretKeyRef:
                   name: second-brain-secrets
                   key: SECOND_BRAIN_GEMINI_API_KEY
+            - name: SECOND_BRAIN_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: second-brain-secrets
+                  key: SECOND_BRAIN_API_TOKEN
             - name: SECOND_BRAIN_ADMIN_TOKEN
               valueFrom:
                 secretKeyRef:

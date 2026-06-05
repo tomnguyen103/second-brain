@@ -10,11 +10,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+import http.client
 import ipaddress
 import socket
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+import ssl
+from urllib.error import URLError
+from urllib.parse import urljoin, urlparse, urlunparse
 
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,7 @@ MAX_SOURCE_BYTES = 1_000_000
 MAX_SOURCE_CHARS = 12_000
 METADATA_EXCERPT_CHARS = 700
 URL_FETCH_TIMEOUT_SECONDS = 10
+MAX_URL_REDIRECTS = 3
 _TEXT_CONTENT_TYPES = {
     "application/json",
     "application/ld+json",
@@ -162,6 +164,35 @@ def _is_private_or_special_address(raw_address: str) -> bool:
     )
 
 
+def _resolve_public_addresses(hostname: str, port: int) -> list[str]:
+    try:
+        infos = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise ValueError(f"could not resolve source URL host: {hostname}") from exc
+
+    addresses: list[str] = []
+    for info in infos:
+        address = info[4][0]
+        if _is_private_or_special_address(address):
+            raise ValueError("source URL host must resolve to a public address")
+        if address not in addresses:
+            addresses.append(address)
+    if not addresses:
+        raise ValueError(f"could not resolve source URL host: {hostname}")
+    return addresses
+
+
+def _url_port(parsed) -> int:  # noqa: ANN001 - urllib ParseResult is version-stable but verbose
+    default_port = 443 if parsed.scheme == "https" else 80
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("source URL includes an invalid port") from exc
+    if port is not None and port != default_port:
+        raise ValueError("source URLs may only use default http/https ports")
+    return default_port
+
+
 def _validate_public_http_url(url: str) -> str:
     url = (url or "").strip()
     parsed = urlparse(url)
@@ -171,31 +202,86 @@ def _validate_public_http_url(url: str) -> str:
         raise ValueError("source URL must include a hostname")
     if parsed.username or parsed.password:
         raise ValueError("source URLs must not include credentials")
-    try:
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
-    except ValueError as exc:
-        raise ValueError("source URL includes an invalid port") from exc
 
     hostname = parsed.hostname
+    port = _url_port(parsed)
     if hostname.lower() in {"localhost", "localhost.localdomain"}:
         raise ValueError("source URL host must be public")
 
+    _resolve_public_addresses(hostname, port)
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path or "/", parsed.params, parsed.query, ""))
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, hostname: str, port: int, connect_address: str) -> None:
+        super().__init__(hostname, port=port, timeout=URL_FETCH_TIMEOUT_SECONDS)
+        self._connect_address = connect_address
+
+    def connect(self) -> None:
+        self.sock = socket.create_connection(
+            (self._connect_address, self.port),
+            self.timeout,
+            self.source_address,
+        )
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, hostname: str, port: int, connect_address: str) -> None:
+        context = ssl.create_default_context()
+        super().__init__(hostname, port=port, timeout=URL_FETCH_TIMEOUT_SECONDS, context=context)
+        self._connect_address = connect_address
+        self._ssl_context = context
+
+    def connect(self) -> None:
+        sock = socket.create_connection(
+            (self._connect_address, self.port),
+            self.timeout,
+            self.source_address,
+        )
+        self.sock = self._ssl_context.wrap_socket(sock, server_hostname=self.host)
+
+
+def _request_target(parsed) -> str:  # noqa: ANN001 - urllib ParseResult is version-stable but verbose
+    return urlunparse(("", "", parsed.path or "/", parsed.params, parsed.query, ""))
+
+
+def _fetch_public_url_bytes(url: str, redirects: int = 0) -> tuple[str, str, str | None, bytes]:
+    safe_url = _validate_public_http_url(url)
+    parsed = urlparse(safe_url)
+    hostname = parsed.hostname
+    if hostname is None:
+        raise ValueError("source URL must include a hostname")
+    port = _url_port(parsed)
+    connect_address = _resolve_public_addresses(hostname, port)[0]
+
+    connection_cls = _PinnedHTTPSConnection if parsed.scheme == "https" else _PinnedHTTPConnection
+    connection = connection_cls(hostname, port, connect_address)
     try:
-        infos = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
-        raise ValueError(f"could not resolve source URL host: {hostname}") from exc
-
-    for info in infos:
-        address = info[4][0]
-        if _is_private_or_special_address(address):
-            raise ValueError("source URL host must resolve to a public address")
-    return url
-
-
-class _SafeRedirectHandler(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
-        _validate_public_http_url(newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        connection.request(
+            "GET",
+            _request_target(parsed),
+            headers={
+                "Host": parsed.netloc,
+                "User-Agent": "SecondBrainResearch/1.0 (+https://second-brain.local)",
+                "Accept": "text/*, application/json, application/xml;q=0.9, */*;q=0.1",
+            },
+        )
+        response = connection.getresponse()
+        if 300 <= response.status < 400:
+            location = response.getheader("Location")
+            if not location:
+                raise URLError(f"HTTP {response.status} redirect missing Location")
+            if redirects >= MAX_URL_REDIRECTS:
+                raise URLError("too many redirects while fetching research source")
+            return _fetch_public_url_bytes(urljoin(safe_url, location), redirects + 1)
+        if response.status >= 400:
+            raise URLError(f"HTTP {response.status}")
+        content_type = response.headers.get_content_type()
+        charset = response.headers.get_content_charset()
+        data = response.read(MAX_SOURCE_BYTES + 1)
+        return safe_url, content_type, charset, data
+    finally:
+        connection.close()
 
 
 def _included_evidence(
@@ -242,18 +328,9 @@ def _failed_url_evidence(source_id: str, url: str, error: str) -> ResearchEviden
 
 def _fetch_url_evidence(url: str, source_id: str) -> ResearchEvidence:
     safe_url = _validate_public_http_url(url)
-    request = Request(
-        safe_url,
-        headers={"User-Agent": "SecondBrainResearch/1.0 (+https://second-brain.local)"},
-    )
-    opener = build_opener(_SafeRedirectHandler)
     try:
-        with opener.open(request, timeout=URL_FETCH_TIMEOUT_SECONDS) as response:
-            final_url = _validate_public_http_url(response.geturl())
-            content_type = response.headers.get_content_type()
-            charset = response.headers.get_content_charset()
-            data = response.read(MAX_SOURCE_BYTES + 1)
-    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+        final_url, content_type, charset, data = _fetch_public_url_bytes(safe_url)
+    except (http.client.HTTPException, URLError, TimeoutError, OSError, ValueError) as exc:
         return _failed_url_evidence(source_id, safe_url, str(exc))
 
     byte_truncated = len(data) > MAX_SOURCE_BYTES

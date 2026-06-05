@@ -1,10 +1,11 @@
 import os
 import pytest
-from app.chat.service import chat
+from app.chat.service import CITATION_FAILURE_TEXT, chat, stream_chat
 from app.config import Settings
+from app.db.models import Message
 from app.ingest.service import DocumentInput, SourceSpec, ingest_documents
 from app.llm.fake import FakeLLMClient
-from app.llm.base import LLMMessage, LLMResponse
+from app.llm.base import LLMMessage, LLMResponse, LLMStreamChunk
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("SECOND_BRAIN_TEST_DATABASE_URL"), reason="no test DB")
@@ -37,6 +38,38 @@ class _CountingLLM:
         return LLMResponse(text="should not be called [1]", model=self.model)
 
 
+class _UncitedLLM:
+    model = "uncited-fake"
+
+    def generate(self, messages: list[LLMMessage]) -> LLMResponse:
+        return LLMResponse(text="This answer has no citation marker.", model=self.model)
+
+
+class _UnsupportedCitedLLM:
+    model = "unsupported-cited-fake"
+
+    def generate(self, messages: list[LLMMessage]) -> LLMResponse:
+        return LLMResponse(text="The moon is made of cheese [1].", model=self.model)
+
+
+class _LeakyStreamingLLM:
+    model = "leaky-stream-fake"
+
+    def generate(self, messages: list[LLMMessage]) -> LLMResponse:
+        return LLMResponse(text="SECRET_STREAM_LEAK with no citation marker.", model=self.model)
+
+    def generate_stream(self, messages: list[LLMMessage]):
+        yield LLMStreamChunk(text="SECRET_STREAM_LEAK ", model=self.model)
+        yield LLMStreamChunk(text="with no citation marker.", model=self.model)
+        yield LLMStreamChunk(
+            model=self.model,
+            prompt_tokens=1,
+            completion_tokens=2,
+            total_tokens=3,
+            done=True,
+        )
+
+
 def test_chat_refuses_weak_context_without_llm_call(db_session, fake_embedder):
     ingest_documents(db_session, fake_embedder, source=SourceSpec("manual", "Weak"),
                      documents=[DocumentInput(title="Recipe",
@@ -52,6 +85,35 @@ def test_chat_refuses_weak_context_without_llm_call(db_session, fake_embedder):
     assert llm.calls == 0
 
 
+def test_chat_replaces_uncited_answer_with_citation_failure(db_session, fake_embedder):
+    ingest_documents(db_session, fake_embedder, source=SourceSpec("manual", "Citations"),
+                     documents=[DocumentInput(title="Citation policy",
+                                             content="Every sourced claim needs markers. " * 20)])
+    r = chat(db_session, fake_embedder, _UncitedLLM(), Settings(),
+             message="What does the policy require?")
+
+    assert r.answer == CITATION_FAILURE_TEXT
+    assert r.citations == []
+    assert r.retrieval["citation_validation_failed"] is True
+    stored = db_session.get(Message, r.message_id)
+    assert stored is not None
+    assert stored.content == CITATION_FAILURE_TEXT
+
+
+def test_chat_replaces_unsupported_cited_answer_with_citation_failure(db_session, fake_embedder):
+    ingest_documents(db_session, fake_embedder, source=SourceSpec("manual", "Support"),
+                     documents=[DocumentInput(title="Citation support",
+                                             content="Every sourced claim needs markers. " * 20)])
+    r = chat(db_session, fake_embedder, _UnsupportedCitedLLM(), Settings(),
+             message="What does the policy require?")
+
+    assert r.answer == CITATION_FAILURE_TEXT
+    assert r.citations == []
+    assert r.retrieval["citation_validation_failed"] is True
+    assert r.retrieval["citation_failure_reason"] == "unsupported_claims"
+    assert r.retrieval["unsupported_citation_segments"]
+
+
 def test_chat_continues_conversation(db_session, fake_embedder):
     ingest_documents(db_session, fake_embedder, source=SourceSpec("manual", "Conv"),
                      documents=[DocumentInput(title="Doc",
@@ -62,3 +124,42 @@ def test_chat_continues_conversation(db_session, fake_embedder):
               message="Any more details?", conversation_id=r1.conversation_id)
     assert r2.conversation_id == r1.conversation_id
     assert r2.message_id != r1.message_id
+
+
+def test_stream_chat_emits_deltas_and_persists_cited_completion(db_session, fake_embedder):
+    ingest_documents(db_session, fake_embedder, source=SourceSpec("manual", "Stream"),
+                     documents=[DocumentInput(title="Streaming",
+                                             content="SSE token streaming citations. " * 20)])
+    events = list(stream_chat(db_session, fake_embedder, FakeLLMClient(), Settings(),
+                              message="What does streaming preserve?"))
+
+    deltas = [e.text for e in events if e.type == "delta"]
+    complete = next(e.result for e in events if e.type == "complete")
+
+    assert "".join(deltas) == complete.answer
+    assert complete.citations
+    assert complete.model == "fake"
+    stored = db_session.get(Message, complete.message_id)
+    assert stored is not None
+    assert stored.content == complete.answer
+
+
+def test_stream_chat_does_not_emit_uncited_model_deltas(db_session, fake_embedder):
+    ingest_documents(db_session, fake_embedder, source=SourceSpec("manual", "Stream Security"),
+                     documents=[DocumentInput(title="Private",
+                                             content="Private stream security context. " * 20)])
+
+    events = list(stream_chat(db_session, fake_embedder, _LeakyStreamingLLM(), Settings(),
+                              message="What does private stream security say?"))
+
+    leaked_delta_text = "".join(e.text or "" for e in events if e.type == "delta")
+    complete = next(e.result for e in events if e.type == "complete")
+
+    assert "SECRET_STREAM_LEAK" not in leaked_delta_text
+    assert leaked_delta_text == ""
+    assert complete.answer == CITATION_FAILURE_TEXT
+    assert complete.citations == []
+    assert complete.retrieval["citation_validation_failed"] is True
+    stored = db_session.get(Message, complete.message_id)
+    assert stored is not None
+    assert stored.content == CITATION_FAILURE_TEXT

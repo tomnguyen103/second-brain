@@ -37,4 +37,4 @@ def fake_embedder():
 
 @pytest.fixture
 def test_settings():
-    return Settings(llm_provider="fake")
+    return Settings(llm_provider="fake", api_token="test-api-token")

@@ -60,8 +60,8 @@ cluster** (D10). Key decisions (full list D1–D13 in `docs/phase-7-plan.md`):
 **Bad / trade-offs**
 - The manifests are a learning artifact, not the prod runtime — they drift from compose unless kept
   in sync (mitigated: monitoring configs are reused `--from-file`, not duplicated).
-- The backend image carries CUDA torch wheels (large); fine on kind, but a CPU-only torch build
-  would slim it — deferred (it's the existing Phase-1 requirements, out of Phase 7 scope).
+- The backend image uses CPU-only Torch wheels for the small-VPS runtime; K8s remains a learning
+  artifact and can still drift from Compose unless reviewed before reuse.
 - HPA scaling isn't gated in CI (D13) — demonstrated locally instead.
 
 ## Alternatives rejected

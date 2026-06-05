@@ -6,6 +6,19 @@
 # Swap in a real domain later by changing CADDY_SITE_ADDRESS — no other change needed.
 {$CADDY_SITE_ADDRESS} {
 	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# Keep metrics internal to the Compose network; Prometheus scrapes api:8000 directly.
+	handle_path /api/metrics {
+		respond 404
+	}
 
 	# API: strip the /api prefix and forward to the FastAPI service.
 	#   https://<host>/api/chat        -> api:8000/chat

@@ -1,4 +1,5 @@
 from functools import lru_cache
+import secrets
 
 from fastapi import Depends, Header, HTTPException, status
 
@@ -30,7 +31,9 @@ def get_redis(settings=Depends(get_settings)):
 
 
 def require_admin(
-    authorization: str | None = Header(default=None),
+    x_second_brain_admin_token: str | None = Header(
+        default=None, alias="X-Second-Brain-Admin-Token"
+    ),
     settings=Depends(get_settings),
 ) -> bool:
     """Guard for destructive/admin endpoints (Phase 6, ADR-0012).
@@ -43,10 +46,42 @@ def require_admin(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="admin endpoints are disabled (set SECOND_BRAIN_ADMIN_TOKEN to enable)",
         )
-    if authorization != f"Bearer {settings.admin_token}":
+    token = (x_second_brain_admin_token or "").strip()
+    if not token or not secrets.compare_digest(token, settings.admin_token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid or missing admin token",
+        )
+    return True
+
+
+def _bearer_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+    return token.strip()
+
+
+def require_api_access(
+    authorization: str | None = Header(default=None),
+    settings=Depends(get_settings),
+) -> bool:
+    """Guard personal-data API endpoints with a single-user bearer token.
+
+    Local development remains keyless unless SECOND_BRAIN_API_TOKEN is set. Production compose
+    requires it so public /api routes cannot read or mutate notes, conversations, sources,
+    feedback, tasks, or research jobs without an operator-provided token.
+    """
+    if not settings.api_token:
+        return True
+
+    token = _bearer_token(authorization)
+    if token is None or not secrets.compare_digest(token, settings.api_token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid or missing API token",
         )
     return True
 
@@ -58,4 +93,5 @@ __all__ = [
     "get_redis",
     "get_llm_client",
     "require_admin",
+    "require_api_access",
 ]
