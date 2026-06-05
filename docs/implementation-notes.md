@@ -9,6 +9,25 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## CodeRabbit security follow-up posture (2026-06-05)
+
+- **What:** applied the PR #21 review feedback with minimal changes: server-side logging for
+  streaming chat failures, controlled failure on malformed Ollama stream JSON, malformed SSE-block
+  tolerance in the frontend client, semantic capture form submission, CI cleanup for throwaway
+  database containers, non-root Caddy with `NET_BIND_SERVICE`, a pinned Redis digest in the
+  Kubernetes learning manifest, and clearer monitoring-runtime documentation.
+- **Why:** these are hardening and operability improvements around the already chosen auth/security
+  posture. They do not change the single-owner auth model, the Docker Compose production runtime,
+  or the Gemini/Ollama/fake LLM seams.
+- **Trade-off / what I gave up:** Prometheus/Grafana remain absent from the production Compose
+  runtime until scanned-clean self-hosted images are selected. The Kubernetes Redis digest is pinned
+  for the local learning track, while production Compose continues to use the maintained
+  `redis:7.4-alpine` tag and constrains Redis to transient cache/rate-limit state.
+- **Affects:** `backend/app/api/chat.py`, `backend/app/llm/ollama.py`,
+  `frontend/lib/api/client.ts`, `frontend/app/capture/page.tsx`, `.github/workflows/ci.yml`,
+  `deploy/{Dockerfile.caddy,docker-compose.prod.yml,docker-compose.vps.yml.example}`,
+  `deploy/k8s/{redis.yaml,README.md}`.
+
 ## Browser-provided capture instead of scraping (2026-06-05)
 
 - **What:** added a `/capture` API and `/capture` web page that save a URL, title, selected text,

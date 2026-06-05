@@ -1,8 +1,11 @@
 import json
+import logging
 from collections.abc import Iterator
 
 import httpx
 from app.llm.base import LLMMessage, LLMResponse, LLMStreamChunk
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaClient:
@@ -29,7 +32,11 @@ class OllamaClient:
             for line in r.iter_lines():
                 if not line:
                     continue
-                data = json.loads(line)
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    logger.warning("ollama streaming response contained malformed JSON", exc_info=True)
+                    raise RuntimeError("Ollama returned malformed streaming JSON") from exc
                 if data.get("done"):
                     prompt_tokens = data.get("prompt_eval_count")
                     completion_tokens = data.get("eval_count")

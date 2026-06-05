@@ -51,7 +51,7 @@ def validate_capture_url(raw_url: str) -> str:
         raise ValueError("capture URL host must be public")
 
     try:
-        parsed.port
+        _ = parsed.port
     except ValueError as exc:
         raise ValueError("capture URL includes an invalid port") from exc
 

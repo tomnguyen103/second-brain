@@ -52,7 +52,7 @@ def test_wrong_token_rejected(client):
     )
 
 
-def test_admin_token_alone_is_not_api_access(client):
+def test_admin_token_does_not_substitute_api_token(client):
     _enable_admin()
     r = client.get(
         "/data/export",

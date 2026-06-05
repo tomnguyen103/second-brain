@@ -56,7 +56,13 @@ function CapturePageContent() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Panel>
           <PanelHeader title="Bookmark" />
-          <div className="grid gap-3 p-4">
+          <form
+            className="grid gap-3 p-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (canSubmit) capture.mutate();
+            }}
+          >
             {capture.error && (
               <InlineError message={capture.error instanceof Error ? capture.error.message : "Capture failed"} />
             )}
@@ -107,15 +113,14 @@ function CapturePageContent() {
             </label>
             <div className="flex justify-end border-t border-border pt-3">
               <button
-                type="button"
-                onClick={() => capture.mutate()}
+                type="submit"
                 disabled={!canSubmit}
                 className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-semibold text-white shadow-sm shadow-amber-200/60 transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-40 dark:shadow-none"
               >
                 {capture.isPending ? "Capturing" : "Capture"} <ArrowRight size={14} weight="bold" />
               </button>
             </div>
-          </div>
+          </form>
         </Panel>
 
         <Panel>

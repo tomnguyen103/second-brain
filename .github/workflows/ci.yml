@@ -83,6 +83,9 @@ jobs:
         run: alembic upgrade head
       - name: Run full test suite (unit + integration)
         run: pytest -q
+      - name: Stop cleaned pgvector database
+        if: always()
+        run: docker rm -f second-brain-ci-db || true
 
   eval-gate:
     name: Eval quality gate
@@ -126,3 +129,6 @@ jobs:
         run: alembic upgrade head
       - name: Run eval gate (fails the build on quality regression)
         run: python -m app.eval.gate
+      - name: Stop cleaned pgvector database
+        if: always()
+        run: docker rm -f second-brain-ci-db || true

@@ -80,6 +80,25 @@ under `deploy/prometheus/` and `deploy/grafana/`. Those manifests intentionally 
 `*-clean-required` image tags with `imagePullPolicy: Never`; build and scan clean local images before
 applying them.
 
+Example local-only flow:
+
+```bash
+# Build or import locally maintained, pinned Prometheus/Grafana images first, then tag them for
+# the learning manifests. Keep the source Dockerfiles or provenance notes out of this default
+# runtime until they scan clean.
+docker tag <scanned-clean-prometheus-image> second-brain-prometheus:phase7-clean-required
+docker tag <scanned-clean-grafana-image> second-brain-grafana:phase7-clean-required
+trivy image --severity CRITICAL,HIGH --exit-code 1 second-brain-prometheus:phase7-clean-required
+trivy image --severity CRITICAL,HIGH --exit-code 1 second-brain-grafana:phase7-clean-required
+kind load docker-image second-brain-prometheus:phase7-clean-required --name second-brain
+kind load docker-image second-brain-grafana:phase7-clean-required --name second-brain
+kubectl apply -f deploy/k8s/monitoring/
+```
+
+Redis is pinned to a Redis 7.4 Alpine digest in this learning-track manifest. Second Brain uses
+Redis only for cache/rate-limit commands, not Lua scripts, ACL loading, bit operations, or durable
+RDB persistence; the CI kind smoke plus backend cache/rate-limit tests are the verification path.
+
 ## Teardown
 
 ```bash

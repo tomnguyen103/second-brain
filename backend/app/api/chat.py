@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import Iterator
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -13,6 +14,7 @@ from app.llm.base import supports_streaming
 from app.schemas.chat import ChatRequest, ChatResponse, CitationOut, UsageOut
 
 router = APIRouter(dependencies=[Depends(deps.require_api_access)])
+logger = logging.getLogger(__name__)
 
 
 def _check_chat_rate_limit(request: Request, redis_client, settings: Settings) -> None:
@@ -102,6 +104,7 @@ def _stream_events(db: Session, embedder, llm, settings: Settings, req: ChatRequ
                     _chat_response(event.result).model_dump(mode="json"),
                 )
     except Exception:
+        logger.exception("streaming chat failed")
         yield _format_sse("error", {"message": "streaming chat failed"})
 
 

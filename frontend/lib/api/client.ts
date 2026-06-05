@@ -107,7 +107,11 @@ function parseSseBlock(block: string): { event: string; data: unknown } | null {
     }
   }
   if (dataLines.length === 0) return null;
-  return { event, data: JSON.parse(dataLines.join("\n")) as unknown };
+  try {
+    return { event, data: JSON.parse(dataLines.join("\n")) as unknown };
+  } catch {
+    return null;
+  }
 }
 
 async function streamChat(req: ChatRequest, handlers: ChatStreamHandlers): Promise<void> {

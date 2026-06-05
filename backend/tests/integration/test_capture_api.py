@@ -17,7 +17,7 @@ def _capture_payload(url: str = "https://example.com/second-brain-capture"):
             "The bookmark pipeline stores the quoted passage."
         ),
         "notes": "Remember to connect this to the source review workflow.",
-        "tags": ["capture", "inbox", "capture"],
+        "tags": ["capture", "inbox"],
     }
 
 

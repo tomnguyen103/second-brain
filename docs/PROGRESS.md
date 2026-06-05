@@ -23,6 +23,26 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-05 - CodeRabbit security follow-up applied
+- **What:** addressed PR #21 review feedback: streaming chat failures are now logged server-side
+  while clients still receive a generic SSE error, Ollama malformed streaming JSON fails with a
+  controlled exception, the frontend ignores malformed SSE blocks, the capture form submits
+  semantically, CI always removes its temporary pgvector container, and Caddy now runs as a
+  non-root user with only `NET_BIND_SERVICE` in the VPS override.
+- **Deploy/docs:** kept production Docker Compose as the core runtime without reintroducing
+  Prometheus/Grafana containers; documented the scanned-clean monitoring-image requirement in the
+  Compose file and Kubernetes learning-track notes. The K8s Redis learning manifest is pinned to a
+  Redis 7.4 Alpine digest, with Redis usage limited to cache/rate-limit paths.
+- **Verified:** focused DB-backed backend tests passed (`57 passed, 1 warning`); full backend suite
+  passed (`226 passed, 6 warnings`); frontend lint and production build passed; `npm audit
+  --audit-level=high` reported zero vulnerabilities; production Compose and VPS override configs
+  rendered with dummy secrets; `kubectl kustomize deploy/k8s` rendered successfully; and
+  `git diff --check` reported only existing CRLF normalization warnings.
+- **Not verified locally:** rebuilding the Caddy image was blocked by Docker Hub 429 pull-rate
+  limiting while resolving `golang:1.26.4-alpine`; standalone monitoring `kubectl apply
+  --dry-run=client` needs a live Kubernetes API for discovery, so the default `kubectl kustomize`
+  render remains the local no-cluster check.
+
 ### 2026-06-05 - Security review findings fixed
 - **What:** fixed the follow-up findings from the security review: the admin token no longer passes
   the normal API gate, destructive data-ops now require both the API bearer and

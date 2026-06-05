@@ -88,5 +88,8 @@ services:
       - "127.0.0.1:3000:3000"
     restart: unless-stopped
 
+# The production Compose runtime intentionally runs the core stack only. The Prometheus/Grafana
+# configs remain under deploy/prometheus/ and deploy/grafana/ for a future scanned-clean
+# self-hosted monitoring image set; see README.md and docs/USAGE.md before reintroducing them.
 volumes:
   db_data:
