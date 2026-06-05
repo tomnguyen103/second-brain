@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
+from app.config import Settings
 from app.db.models import Source
+from app.ingest.service import DocumentInput, SourceSpec, ingest_documents
 from app.jobs import handlers, queue, worker
 from app.llm.fake import FakeLLMClient
 
@@ -71,6 +73,97 @@ def test_run_once_rolls_back_partial_writes_on_failure(db_session, fake_embedder
     assert "boom" in (job.last_error or "")
     # the orphaned source was rolled back, not committed with the failure
     assert db_session.scalar(select(Source).where(Source.name == marker)) is None
+
+
+def test_run_once_rolls_back_non_committing_ingest_on_failure(db_session, fake_embedder):
+    marker = "ATOMIC_RESEARCH_STYLE_INGEST"
+
+    def ingests_then_raises(db, payload, *, embedder, llm):
+        ingest_documents(
+            db,
+            embedder,
+            source=SourceSpec(type="research_note", name=marker),
+            documents=[DocumentInput(title="staged research", content="worker staged content")],
+            commit=False,
+        )
+        raise RuntimeError("boom after staged ingest")
+
+    queue.enqueue(db_session, type="embed")
+    job = worker.run_once(
+        db_session,
+        embedder=fake_embedder,
+        llm=FakeLLMClient(),
+        max_attempts=1,
+        handlers={"embed": ingests_then_raises},
+    )
+
+    assert job is not None and job.status == "failed"
+    assert db_session.scalar(select(Source).where(Source.name == marker)) is None
+
+
+def test_run_once_invalidates_search_cache_after_searchable_job(db_session, fake_embedder):
+    class FakeRedis:
+        def __init__(self):
+            self.keys: list[str] = []
+
+        def incr(self, key):
+            self.keys.append(key)
+
+    redis = FakeRedis()
+
+    def searchable_handler(db, payload, *, embedder, llm):
+        return {"searchable": True}
+
+    queue.enqueue(db_session, type="embed")
+    job = worker.run_once(
+        db_session,
+        embedder=fake_embedder,
+        llm=FakeLLMClient(),
+        max_attempts=1,
+        handlers={"embed": searchable_handler},
+        redis_client=redis,
+        cache_settings=Settings(llm_provider="fake", redis_enabled=True),
+    )
+
+    assert job is not None and job.status == "done"
+    assert redis.keys == ["cache:search:epoch"]
+
+
+def test_run_once_does_not_invalidate_search_cache_when_mark_done_fails(
+    db_session,
+    fake_embedder,
+    monkeypatch,
+):
+    class FakeRedis:
+        def __init__(self):
+            self.keys: list[str] = []
+
+        def incr(self, key):
+            self.keys.append(key)
+
+    def searchable_handler(db, payload, *, embedder, llm):
+        return {"searchable": True}
+
+    def failing_mark_done(db, job, result=None):
+        raise RuntimeError("mark_done failed")
+
+    redis = FakeRedis()
+    queue.enqueue(db_session, type="embed")
+    monkeypatch.setattr(queue, "mark_done", failing_mark_done)
+
+    job = worker.run_once(
+        db_session,
+        embedder=fake_embedder,
+        llm=FakeLLMClient(),
+        max_attempts=1,
+        handlers={"embed": searchable_handler},
+        redis_client=redis,
+        cache_settings=Settings(llm_provider="fake", redis_enabled=True),
+    )
+
+    assert job is not None and job.status == "failed"
+    assert "mark_done failed" in (job.last_error or "")
+    assert redis.keys == []
 
 
 def test_run_once_returns_none_when_no_job(db_session, fake_embedder):

@@ -1,18 +1,23 @@
-# Phase 6 — Productionize + data-ops hardening Implementation Plan
+# Phase 6 — Operations hardening + optional cloud deploy Implementation Plan
 
+> **Runtime update (2026-06-05):** ADR-0015 supersedes the VPS default. Phase 6 remains complete
+> as operations hardening plus an optional cloud deploy recipe, but daily use is now local-first
+> Docker Compose so the project does not pay for idle VPS uptime.
 > Work TDD (red → green → commit), DRY, YAGNI. Pure logic is DB-free unit-tested; services are
 > integration-tested vs the real Postgres on 5433; deploy/observability artifacts are config,
 > verified to parse/lint. Commit after each green task.
 
-**Goal:** Turn the working app into something operable: **data governance** (RLS posture,
+**Goal:** Turn the working app into something operable without requiring paid always-on hosting:
+**data governance** (RLS posture,
 audit log, retention TTL, GDPR export + delete-my-data), **connection pooling** (PgBouncer),
 **observability** (Prometheus metrics + Grafana dashboards + alert rules), an **eval-gated
 CI/CD** pipeline (GitHub Actions blocks merge if answer quality regresses), and the **ops
 docs** (deploy checklist, backup/restore + incident runbooks, query-tuning before/after).
 
-**Scope reality:** the live VPS deploy is a **documented runbook**, not executed here — the box
-is provisioned separately (ADR-0011). Everything in this phase is code/config that builds and
-tests **without** a purchased server, mirroring how Phases 1–4 deferred their out-of-scope tails.
+**Scope reality:** the default runtime is local-first/on-demand Docker Compose (ADR-0015).
+The VPS deploy remains a **documented optional recipe**, not a standing requirement. Everything
+in this phase is code/config that builds and tests **without** a purchased server, mirroring how
+Phases 1–4 deferred their out-of-scope tails.
 
 **Architecture:** keep the Phase 1 seams. New logic lives in **services that take a `db`
 session** (`app/dataops/*`), tested with the rolled-back `db_session` fixture. Metrics are a
@@ -26,13 +31,12 @@ and unit/integration-testable.
 hardening). New top-level `deploy/` (compose.prod, Dockerfiles, pgbouncer/prometheus/grafana
 config) and `docs/runbooks/`. New `.github/workflows/ci.yml`.
 
-## Decisions (recommended defaults, revisable — full rationale in ADR-0011 / ADR-0012)
+## Decisions (recommended defaults, revisable — full rationale in ADR-0012 / ADR-0015)
 
-- **D1 — VPS = Oracle Cloud Always Free (Singapore) primary, Contabo SG (~$5/mo, 8 GB) paid
-  fallback.** Low cost is the priority and the app is SEA-local; Oracle is $0 + 24 GB + low
-  latency, Contabo is the cheap reliable backstop. Hetzner is excellent but EU/US-only (latency).
-  RAM is the binding constraint (Postgres + torch embedder + monitoring stack), not CPU (the LLM
-  is offloaded to Gemini). *Recorded in ADR-0011.*
+- **D1 — Runtime = local-first Docker Compose; VPS = optional recipe only.** Low cost is the
+  priority and usage is intermittent, so paying a droplet to idle is the wrong default. Keep the
+  production Compose/Caddy artifacts as a demo or future always-on recipe, but do not require a
+  running VPS for daily use. *Recorded in ADR-0015; supersedes ADR-0011 as the default runtime.*
 - **D2 — Audit log is written app-layer via a service, not DB triggers.** A `record(...)` call
   in the data-ops paths is portable, unit-testable, and explicit about *actor/action/entity*.
   *Gave up:* automatic capture of out-of-band SQL — acceptable for a single-user app where all
@@ -43,10 +47,11 @@ config) and `docs/runbooks/`. New `.github/workflows/ci.yml`.
   per-tenant scoping if the app ever goes multi-user. *Gave up:* enforced row scoping now (no
   second user to scope against).
 - **D4 — Retention nulls `documents.raw_text` after embedding + TTL; chunks/embeddings stay.**
-  `raw_text` is the only PII-bearing free text retained post-ingest (the model already flags it
-  "purged after embedding"); chunks are the retrieval units and must remain. Retrieval/citation
-  code already tolerates a missing source row (`conversations.py` skips purged chunks). *Gave up:*
-  hard-deleting chunks on TTL — that would break search; retention ≠ erasure.
+  `raw_text` is the original full-document copy retained for fresh export/debugging; chunks are the
+  retrieval units and intentionally remain searchable after the retention purge. Retrieval/citation
+  code tolerates missing raw text/source material where needed. *Gave up:* hard-deleting chunks on
+  TTL — that would break search; retention is not anonymization, and source erasure is the path that
+  removes the document/chunk/embedding subtree.
 - **D5 — Delete-my-data = delete a `source` (cascades to documents→chunks→embeddings via FK
   `ON DELETE CASCADE`) + an audit `delete` row; export returns the same subtree as JSON first.**
   Honest GDPR "right to erasure" + "right to access" at the source granularity (the unit the user
@@ -56,10 +61,11 @@ config) and `docs/runbooks/`. New `.github/workflows/ci.yml`.
   (`hit_at_k`, `citation_validity`, `refusal_accuracy`) which are LLM-independent (D2/ADR-0008).
   *Gave up:* gating on answer-text quality in CI — that needs the real `gemini` run (manual,
   documented). The gate is a pure `check_thresholds(...)` (unit-tested) + a `__main__` runner.
-- **D7 — `docker-compose.prod.yml` is additive and never run in CI.** It composes db + pgbouncer
-  + redis + api + frontend + prometheus + grafana for the VPS. Verified with `docker compose
-  config` (parse/lint). The dev `docker-compose.yml` (db-only) is untouched. *Gave up:* a fully
-  exercised prod stack in CI — too heavy; `config` lint + the deploy runbook cover it.
+- **D7 — `docker-compose.prod.yml` is additive and never run in CI.** It composes db + redis +
+  api + worker + frontend plus optional Caddy bindings for the single-box recipe. Verified with
+  `docker compose config` (parse/lint). The dev `docker-compose.yml` (db-only) is untouched.
+  *Gave up:* a fully exercised optional cloud stack in CI — too heavy; `config` lint + the
+  runbook cover it.
 
 ## File structure (created/modified in this phase)
 
@@ -164,13 +170,13 @@ docs/
     full-text candidate queries; capture index-on vs `enable_indexscan=off`/`SET hnsw.ef_search`
     contrasts; write `docs/query-optimization.md` with the before/after and the takeaway. Commit
     `docs: query-optimization EXPLAIN ANALYZE before/after`.
-12. **ADRs + runbooks + docs (DB-free).** ADR-0011 (VPS), ADR-0012 (productionization + governance);
+12. **ADRs + runbooks + docs (DB-free).** ADR-0011 (then VPS), ADR-0012 (productionization + governance);
     index them. `docs/runbooks/{deploy-checklist,backup-restore,incident-response}.md`. README Phase 6
     run/verify. Flip PROGRESS Phase 6 → ✅ with a dated entry; record off-spec calls in
     implementation-notes. Commit `docs: phase-6 ADRs + runbooks + run/verify + progress`.
 
 ## Self-review (against project-plan Phase 6 + JD)
-- Deploy Docker Compose to VPS → Task 10 (compose.prod + Dockerfiles) + deploy runbook (Task 12); live deploy deferred ✅
+- Optional Docker Compose cloud recipe → Task 10 (compose.prod + Dockerfiles) + deploy runbook (Task 12); live deploy not required ✅
 - CI/CD with eval gate → Tasks 8, 9 ✅
 - Prometheus/Grafana + alerting + runbooks → Tasks 6, 10, 12 ✅
 - RLS + audit log → Tasks 2, 7 ✅
@@ -179,7 +185,7 @@ docs/
 - Backup/restore runbook → Task 12 ✅
 - Query-optimization before/after → Task 11 ✅
 - Tests alongside code (unit + integration vs real Postgres) → every code task ✅
-- $0 / no recurring bill beyond the one VPS (ADR-0011 picks the $0/cheap box; CI on free minutes) ✅
+- $0 default recurring infrastructure bill (ADR-0015 local-first runtime; CI on free minutes) ✅
 
 ## Known sharp edges (flagged, not placeholders)
 1. **RLS must not break the app.** The app connects as the table **owner** (`second_brain`), which

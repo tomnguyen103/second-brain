@@ -3,15 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-06-02
 - **Phase:** 7
-- **Supersedes / relates:** ADR-0011 (VPS = production runtime), ADR-0012 (productionization). This
-  ADR does **not** change the production runtime — it adds a *learning track*.
+- **Relates:** ADR-0012 (productionization), ADR-0015 (local-first runtime). This ADR does **not**
+  change the default runtime — it adds a *learning track*.
 
 ## Context
 
-AGENTS.md fixes the production runtime as **one small VPS running Docker Compose** (ADR-0011/0012):
+ADR-0015 fixes the default runtime as **local-first Docker Compose**:
 a single-user app gets no benefit from Kubernetes' multi-node scheduling/autoscaling/self-healing,
-and managed K8s would blow the ~$5/mo budget to $70+/mo. But "can operate the app on real
-Kubernetes" is a signal worth demonstrating. The roadmap therefore carved out Phase 7 as a
+and managed K8s would create a recurring bill. But "can operate the app on real Kubernetes" is a
+signal worth demonstrating. The roadmap therefore carved out Phase 7 as a
 **learning track**: prove the stack runs on real K8s with proper manifests, then tear it down so it
 costs nothing and is never the prod runtime. The input was the 8-service prod compose stack
 (`deploy/docker-compose.prod.yml`): `db`, `pgbouncer`, `redis`, `api`, `worker`, `frontend`,

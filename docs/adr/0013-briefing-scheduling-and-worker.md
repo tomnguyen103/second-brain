@@ -12,8 +12,9 @@ The roadmap's feature is a **morning briefing** you open with coffee, produced b
 worker drains queued work, a **briefing** summarizes what's new since the last one via the
 `LLMClient` and is stored for display, and the same worker runs **async `research_topic`**
 (closing the ADR-0010 Phase-5 deferral). It must reuse every Phase 1 seam, stay testable
-without the resident loop, cost `$0`, and run as one more container on the single VPS
-(ADR-0011). Phase 5 was skipped when the owner jumped 4 → 6; this picks up the deferred items.
+without the resident loop, cost `$0`, and run as a worker process/container wherever the active
+runtime is running. Phase 5 was skipped when the owner jumped 4 → 6; this picks up the deferred
+items. ADR-0015 later changed the default runtime to local-first/on-demand.
 
 ## Decision
 
@@ -23,9 +24,9 @@ without the resident loop, cost `$0`, and run as one more container on the singl
 for N workers without a `LISTEN/NOTIFY` connection. The `NOTIFY` wake-up (ADR-0004) is deferred
 as a latency optimization — single-user polling every few seconds is plenty.
 
-**D2 — Scheduler = OS cron enqueues the daily `briefing` job.** The prod stack runs the worker
-as a `--loop` service; a host cron line (`python -m app.jobs.enqueue briefing`, in the deploy
-runbook) enqueues the briefing daily. `$0`, no resident scheduler dependency. *Rejected:*
+**D2 — Scheduler = OS cron enqueues the daily `briefing` job.** The runtime runs the worker
+as a `--loop` service/process; a host scheduler line (`python -m app.jobs.enqueue briefing`)
+enqueues the briefing when desired. `$0`, no resident scheduler dependency. *Rejected:*
 APScheduler (extra resident dep), `pg_cron` (extension install).
 
 **D3 — Delivery = store-and-display, not email (v1).** Briefings persist to a `briefings`

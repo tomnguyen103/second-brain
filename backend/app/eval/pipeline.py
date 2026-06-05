@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.agentic_rag.service import answer_agentic_question
 from app.chat.prompt import ContextItem, build_messages, get_prompt
 from app.config import Settings
 from app.retrieval.hybrid import hybrid_search, load_display_chunks
@@ -27,8 +28,29 @@ class AnswerResult:
 
 
 def answer_question(db: Session, embedder, llm, settings: Settings, question: str,
-                    *, top_k: int | None = None, source_ids: list[int] | None = None
+                    *, top_k: int | None = None, source_ids: list[int] | None = None,
+                    agentic: bool = False,
                     ) -> AnswerResult:
+    if agentic:
+        result = answer_agentic_question(
+            db,
+            embedder,
+            llm,
+            settings,
+            question,
+            top_k=top_k,
+            filters={"source_ids": source_ids} if source_ids else None,
+        )
+        seen: set[str] = set()
+        retrieved_docs: list[str] = []
+        for hit in result.hits:
+            title = result.display[hit.chunk_id].document_title
+            if title not in seen:
+                seen.add(title)
+                retrieved_docs.append(title)
+        return AnswerResult(result.answer, retrieved_docs, result.n_context,
+                            result.latency_ms, result.model)
+
     retrieval_query, _rewrite_meta = maybe_rewrite_query(llm, settings, question)
     hits, _meta = hybrid_search(db, embedder, settings, retrieval_query, top_k=top_k,
                                 source_ids=source_ids)

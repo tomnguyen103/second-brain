@@ -485,6 +485,7 @@ def research_topic(
     *,
     source_urls: Sequence[str] | None = None,
     source_texts: Sequence[SourceTextLike] | None = None,
+    commit: bool = True,
 ) -> ResearchResult:
     topic = (topic or "").strip()
     if not topic:
@@ -510,6 +511,7 @@ def research_topic(
                 "sources": source_metadata,
             },
         )],
+        commit=commit,
     )
     doc = result.documents[0]
     return ResearchResult(

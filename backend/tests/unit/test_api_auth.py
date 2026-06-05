@@ -103,6 +103,33 @@ def test_authenticated_request_passes_api_gate_but_still_validates_request_body(
         app.dependency_overrides.clear()
 
 
+def test_cors_preflight_allows_admin_token_header():
+    app.dependency_overrides[deps.get_settings] = lambda: Settings(
+        _env_file=None,
+        cors_origins=["http://localhost:3000"],
+        metrics_enabled=False,
+    )
+    try:
+        with TestClient(app) as client:
+            response = client.options(
+                "/data/export?source_id=1",
+                headers={
+                    "Origin": "http://localhost:3000",
+                    "Access-Control-Request-Method": "GET",
+                    "Access-Control-Request-Headers": (
+                        "Authorization, X-Second-Brain-Admin-Token"
+                    ),
+                },
+            )
+
+        assert response.status_code == 200
+        allowed = response.headers["access-control-allow-headers"].lower()
+        assert "authorization" in allowed
+        assert "x-second-brain-admin-token" in allowed
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_destructive_dataops_requires_admin_after_api_gate(monkeypatch):
     class DummyDb:
         committed = False

@@ -55,6 +55,7 @@ def handle_research(db: Session, payload: dict, *, embedder, llm) -> dict:
         payload.get("topic", ""),
         source_urls=payload.get("source_urls"),
         source_texts=payload.get("source_texts"),
+        commit=False,
     )
     return {
         "topic": res.topic,

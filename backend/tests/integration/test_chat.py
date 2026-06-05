@@ -23,7 +23,14 @@ def test_chat_persists_and_cites(db_session, fake_embedder):
 
 
 def test_chat_empty_corpus_refuses(db_session, fake_embedder):
-    r = chat(db_session, fake_embedder, FakeLLMClient(), Settings(), message="anything?")
+    r = chat(
+        db_session,
+        fake_embedder,
+        FakeLLMClient(),
+        Settings(),
+        message="anything?",
+        filters={"source_ids": [-1]},
+    )
     assert r.citations == [] and r.model is None
 
 
@@ -50,6 +57,28 @@ class _UnsupportedCitedLLM:
 
     def generate(self, messages: list[LLMMessage]) -> LLMResponse:
         return LLMResponse(text="The moon is made of cheese [1].", model=self.model)
+
+
+class _RepairingCitationLLM:
+    model = "repairing-citation-fake"
+
+    def __init__(self):
+        self.calls = 0
+
+    def generate(self, messages: list[LLMMessage]) -> LLMResponse:
+        self.calls += 1
+        if self.calls == 1:
+            return LLMResponse(
+                text=(
+                    "Here is what the notes say. "
+                    "Hybrid retrieval combines vector search and full-text search [1]."
+                ),
+                model=self.model,
+            )
+        return LLMResponse(
+            text="Hybrid retrieval combines vector search and full-text search [1].",
+            model=self.model,
+        )
 
 
 class _LeakyStreamingLLM:
@@ -114,6 +143,27 @@ def test_chat_replaces_unsupported_cited_answer_with_citation_failure(db_session
     assert r.retrieval["unsupported_citation_segments"]
 
 
+def test_chat_repairs_uncited_framing_before_persisting(db_session, fake_embedder):
+    ingest_documents(db_session, fake_embedder, source=SourceSpec("manual", "Repair"),
+                     documents=[DocumentInput(title="Hybrid retrieval",
+                                             content=(
+                                                 "Hybrid retrieval combines vector search "
+                                                 "and full-text search. "
+                                             ) * 20)])
+    llm = _RepairingCitationLLM()
+    r = chat(db_session, fake_embedder, llm, Settings(),
+             message="What does hybrid retrieval combine?")
+
+    assert llm.calls == 2
+    assert r.answer == "Hybrid retrieval combines vector search and full-text search [1]."
+    assert r.citations
+    assert r.retrieval["citation_repair_attempted"] is True
+    assert r.retrieval["citation_repair_succeeded"] is True
+    stored = db_session.get(Message, r.message_id)
+    assert stored is not None
+    assert stored.content == r.answer
+
+
 def test_chat_continues_conversation(db_session, fake_embedder):
     ingest_documents(db_session, fake_embedder, source=SourceSpec("manual", "Conv"),
                      documents=[DocumentInput(title="Doc",
@@ -124,6 +174,51 @@ def test_chat_continues_conversation(db_session, fake_embedder):
               message="Any more details?", conversation_id=r1.conversation_id)
     assert r2.conversation_id == r1.conversation_id
     assert r2.message_id != r1.message_id
+
+
+def test_agentic_chat_persists_cited_answer_with_trace(db_session, fake_embedder):
+    from app.agentic_rag.service import agentic_chat
+
+    ingest_documents(db_session, fake_embedder, source=SourceSpec("manual", "Agentic"),
+                     documents=[DocumentInput(title="Agentic HNSW",
+                                             content="HNSW tuning m ef_construction. " * 20)])
+
+    r = agentic_chat(
+        db_session,
+        fake_embedder,
+        FakeLLMClient(),
+        Settings(agentic_rag_enabled=True),
+        message="What about HNSW tuning?",
+    )
+
+    assert r.message_id and r.conversation_id
+    assert r.citations
+    assert r.retrieval["method"] == "agentic_hybrid"
+    assert r.retrieval["agentic"]["enabled"] is True
+    assert r.retrieval["agentic"]["subqueries"]
+    assert r.retrieval["agentic"]["selected_chunks"] >= 1
+    stored = db_session.get(Message, r.message_id)
+    assert stored is not None
+    assert stored.content == r.answer
+
+
+def test_agentic_chat_empty_corpus_refuses_with_trace(db_session, fake_embedder):
+    from app.agentic_rag.service import agentic_chat
+
+    r = agentic_chat(
+        db_session,
+        fake_embedder,
+        FakeLLMClient(),
+        Settings(agentic_rag_enabled=True),
+        message="anything?",
+        filters={"source_ids": [-1]},
+    )
+
+    assert r.citations == []
+    assert r.model is None
+    assert r.retrieval["refusal_reason"] == "weak_context"
+    assert r.retrieval["agentic"]["enabled"] is True
+    assert r.retrieval["agentic"]["weak_evidence"] is True
 
 
 def test_stream_chat_emits_deltas_and_persists_cited_completion(db_session, fake_embedder):

@@ -39,7 +39,8 @@ def run_eval(db: Session, embedder, dataset: list[EvalCase], config: EvalConfig,
     rows: list[dict] = []
     for case in dataset:
         result = answer_question(db, embedder, client, cfg_settings, case.question,
-                                 top_k=config.top_k, source_ids=source_ids)
+                                 top_k=config.top_k, source_ids=source_ids,
+                                 agentic=config.agentic)
         if case.expect_refusal:
             hit = recall = reciprocal = None        # retrieval metrics N/A for refusal cases
             keyword = None

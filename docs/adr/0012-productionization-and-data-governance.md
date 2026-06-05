@@ -5,13 +5,17 @@
 - **Deciders:** project owner (accepted at recommended defaults under the `/goal` directive)
 - **Context phase:** Phase 6 (productionize + data-ops hardening)
 
+> **Runtime update 2026-06-05:** ADR-0015 changes the default runtime to local-first Docker
+> Compose. The governance, CI, metrics, runbook, and optional deploy artifacts in this ADR remain
+> accepted; the VPS is no longer required for daily use.
+
 ## Context
 
 Phase 6 turns the working app into something operable and governable: data governance
 (RLS, audit, retention, GDPR access/erasure), connection pooling, observability + alerting,
 an eval-gated CI/CD pipeline, and ops docs. All of it must be code/config that builds and
-tests **without** a purchased VPS (the live deploy is a runbook), stay `$0` in CI (free
-minutes, fake LLM), and not break the existing suite.
+tests **without** a purchased server, stay `$0` in CI (free minutes, fake LLM), and not break the
+existing suite.
 
 ## Decision
 
@@ -26,10 +30,12 @@ connects as the table **owner** (bypasses RLS) and the permissive policy covers 
 role (e.g. a future least-privilege app role behind PgBouncer). We do **not** `FORCE` RLS. The
 policy predicate is the documented seam for real per-tenant scoping if the app goes multi-user.
 
-**Retention nulls `documents.raw_text` after embedding + TTL (D4).** `raw_text` is the only
-PII-bearing free text kept post-ingest; `purge_raw_text(older_than_days)` nulls it for embedded
-docs past the TTL (`retention_raw_text_days`, default 180). Chunks/embeddings stay — they are
-the retrieval units; retention ≠ erasure. Citation rendering already tolerates a purged source.
+**Retention nulls `documents.raw_text` after embedding + TTL (D4).** `raw_text` is the original
+full-document copy retained for debugging/export while fresh; `purge_raw_text(older_than_days)`
+nulls it for embedded docs past the TTL (`retention_raw_text_days`, default 180). Chunks and
+embeddings stay because they are the retrieval units, so retention reduces duplicate raw-source
+storage but is not anonymization. Erasure is the separate source-delete path. Citation rendering
+already tolerates a purged source.
 
 **Delete-my-data = source-level erasure with FK cascade (D5).** `delete_source` issues a Core
 `DELETE` so the DB's `ON DELETE CASCADE` removes documents → chunks → embeddings (the ORM has no
@@ -66,7 +72,7 @@ directly (not through the pooler). `docker-compose.prod.yml` is additive and nev
   `deploy/.env.prod` and `deploy/pgbouncer/userlist.txt` are gitignored.
 - **Constraint:** admin endpoints are off until a token is set (safe default for a single-user
   box). RLS is permissive (no second tenant to scope against yet).
-- **Deferred:** live VPS deploy (runbook); transaction-mode pooling; remote MLflow; LLM-as-judge
+- **Deferred:** optional VPS/cloud deploy; transaction-mode pooling; remote MLflow; LLM-as-judge
   eval. Frontend currently served via `npm start` in its image (standalone-output optimization
   left for later given the Next 16 breaking changes).
 
@@ -77,8 +83,8 @@ directly (not through the pooler). `docker-compose.prod.yml` is additive and nev
 - **FORCE RLS with real row scoping now.** No second user to scope against; forcing it would
   break owner access and the suite for zero governance gain today. Permissive policy + documented
   seam is the honest middle.
-- **Hard-delete chunks on retention TTL.** Would break search; retention only nulls the raw
-  source text, erasure (a separate path) removes the subtree.
+- **Hard-delete chunks on retention TTL.** Would break search; retention only nulls the original
+  `documents.raw_text` copy, erasure (a separate path) removes the source subtree.
 - **Gate CI on answer-text quality.** Needs the real Gemini run (non-deterministic, keyed,
   costs quota) — unfit for CI; gated metrics are the LLM-independent ones.
 - **Exercise the full prod stack in CI.** Too heavy; `docker compose config` lint + the deploy

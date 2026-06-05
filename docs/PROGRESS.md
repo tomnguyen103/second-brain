@@ -14,7 +14,7 @@ session — the master prompt treats it as the source of truth for "where we are
 | 3 | Evaluation + MLOps: eval set, MLflow, A/B, prompt versioning + rollback | ✅ Complete |
 | 4 | MCP server + agentic actions incl. self-research tool | ✅ Complete |
 | 5 | Daily briefing + scheduled pipelines | ✅ Complete |
-| 6 | Productionize on VPS + data-ops hardening | ✅ Complete |
+| 6 | Operations hardening + optional cloud deploy recipe | ✅ Complete |
 | 7 | Kubernetes learning track on local k3s/kind | ✅ Complete |
 
 Legend: ⬜ not started · 🟡 in progress · ✅ complete
@@ -22,6 +22,99 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 ## Session log
 
 Add a dated entry per working session. Most recent on top.
+
+### 2026-06-05 - PR review follow-up for Agentic RAG
+- **What:** addressed the actionable CodeRabbit review comments on PR #23. Disabled agentic
+  requests now fail before LLM provider initialization, worker search-cache invalidation only
+  happens after successful job finalization, demo seeding guards empty ingests, and the chat UI
+  ignores stale non-stream responses after route aborts.
+- **Docs/UI:** clarified optional VPS override setup and local-vs-proxy admin routes, fixed local
+  runtime wording, and added accessible state metadata to the Agentic RAG composer toggle.
+- **Verified:** full backend suite passed (`261 passed, 8 warnings`); frontend `npm run lint` and
+  `npm run build` passed; `git diff --check` passed with only expected Windows CRLF notices.
+
+### 2026-06-05 - Agentic RAG v1 implemented
+- **What:** added opt-in, read-only Agentic RAG for `/chat` behind
+  `SECOND_BRAIN_AGENTIC_RAG_ENABLED=true` plus request `options.agentic=true`. The LangGraph
+  request graph plans bounded subqueries, searches existing notes with the current hybrid retriever,
+  dedupes/merges evidence, optionally retries weak evidence with the original wording, and answers
+  through the existing citation/support finalizer.
+- **Frontend/docs:** added optional web toggle support gated by
+  `NEXT_PUBLIC_AGENTIC_RAG_ENABLED=true`, compact answer-footer trace metadata, ADR-0016, usage
+  docs, env templates, and Compose build/runtime wiring for the false-by-default flags.
+- **Local test fix:** expanded default dev CORS origins to include both `http://localhost:3000`
+  and `http://127.0.0.1:3000`, fixing browser `Failed to fetch` errors when the app is opened via
+  `127.0.0.1`.
+- **Chat UI fix:** clicking **New Chat** from an existing `/chat?cid=...` conversation now resets
+  the mounted chat page state to a blank new conversation instead of keeping the old messages.
+- **History menu fix:** the sidebar **Recent** list now collapses duplicate conversation titles
+  created by repeated test prompts, while keeping the active duplicate visible if it is open.
+- **Citation reliability fix:** grouped citation markers like `[1, 2]` now validate correctly,
+  fenced planner JSON is parsed correctly, and failed cited drafts get one internal citation-repair
+  retry before the existing failure response is used.
+- **Eval:** added `agentic` and `gemini-agentic` eval configs so the new path can be compared
+  against the regular RAG baseline before becoming default.
+- **Verified:** focused unit tests passed (`9 passed`); focused chat/API integration tests passed
+  (`19 passed`); eval-focused tests passed (`24 passed, 2 skipped`); full backend suite passed
+  (`257 passed, 8 warnings`); eval runner `baseline,agentic --no-mlflow` completed with both at
+  `1.000` hit/recall/citation/refusal on the fake-driver set; frontend `npm run lint`, `npm run
+  build`, and `npm audit --audit-level=high` passed; frontend lint/build were re-run after the
+  New Chat and History menu state fixes; citation parser/planner/repair focused tests passed (`14 unit`, `5`
+  integration), and the reported comparison prompt returned cited answers in three live agentic
+  API runs plus one regular API run after the fix; production Compose and VPS override configs
+  rendered; `kubectl kustomize deploy/k8s`, workflow YAML parsing, `uv pip check`, and
+  `git diff --check` passed.
+- **Note:** raw `bash -n deploy/cron/second-brain-backup` fails on the Windows worktree copy because
+  of CRLF line endings, but the non-mutating normalized check
+  `tr -d '\r' < deploy/cron/second-brain-backup | bash -n` passed.
+
+### 2026-06-05 - Demo loop and eval export closure
+- **What:** closed the remaining review findings: duplicate feedback-promotion races now return
+  `409`, worker-owned searchable jobs invalidate Redis search cache after the final commit, and
+  durable `eval_cases` rows can be exported as reviewable YAML fragments with
+  `python -m app.eval.export_cases`.
+- **Demo:** added `python -m app.demo.seed` to create the case-study flow end to end: capture-backed
+  bookmark, cited chat answer, and negative feedback ready for `/feedback` review.
+- **Docs:** README, usage guide, implementation notes, and case study now present the demo loop as
+  capture -> chat/search -> feedback promotion -> eval export/gate.
+- **Verified:** focused exporter/demo/worker/promotion regressions passed (`30 passed`); full
+  backend suite passed (`249 passed, 8 warnings`); eval gate passed at `1.000` for `hit_at_k`,
+  `citation_validity`, and `refusal_accuracy`; `python -m app.eval.export_cases --help` and
+  `python -m app.demo.seed --help` loaded cleanly; frontend `npm run lint`, `npm run build`, and
+  `npm audit --audit-level=high` passed; production Compose, tracked VPS template, and local
+  gitignored VPS override all rendered with dummy env; `git diff --check` passed with only CRLF
+  normalization warnings.
+
+### 2026-06-05 - Runtime default changed to local-first
+- **What:** superseded the always-on VPS default with a local-first/on-demand Docker Compose
+  runtime. The DigitalOcean/Caddy deployment remains documented as an optional cloud demo recipe,
+  but it is no longer the recommended daily-use path.
+- **Docs:** updated AGENTS, README, project plan, Phase 6 plan, usage guide, ADR index, and added
+  ADR-0015. ADR-0011 is now marked superseded by the local-first runtime decision.
+- **Cost/privacy:** default recurring infrastructure cost is now $0; user data stays local by
+  default except for configured hosted Gemini generation/embedding calls.
+- **Operational note:** the current DigitalOcean droplet can be destroyed after local startup is
+  verified and a fresh droplet Postgres dump/env/backups have been copied and checked locally.
+
+### 2026-06-05 - Reliability and case-study reassessment pass
+- **What:** fixed the two review-blocking reliability issues. Research jobs now let the worker own
+  the DB transaction during ingest, so a later handler failure rolls back the whole job; reviewed
+  feedback promotion now writes a durable `eval_cases` Postgres row instead of mutating
+  `backend/eval/dataset.yaml` from the API.
+- **Hardening:** added the `eval_cases` migration/model/RLS coverage, kept promotion validation
+  against the fixed eval corpus, added CORS preflight coverage for
+  `X-Second-Brain-Admin-Token`, and added CI Compose rendering for both the production file and the
+  VPS override template.
+- **Docs/demo:** rewrote active privacy/governance wording so retention is described precisely
+  (raw text is nulled; searchable chunks remain until erasure; hosted Gemini modes send text to
+  Google) and added `docs/case-study.md` around the tight demo flow: capture -> search/chat ->
+  feedback promotion/eval gate.
+- **Verified:** Alembic upgraded through `0005_eval_cases`; focused regressions passed (`68
+  passed`); full backend suite passed (`243 passed, 8 warnings`); eval gate passed at `1.000` for
+  `hit_at_k`, `citation_validity`, and `refusal_accuracy`; frontend `npm run lint`, `npm run
+  build`, and `npm audit --audit-level=high` passed; production Compose, tracked VPS template, and
+  local gitignored VPS override all rendered with dummy env; `git diff --check` passed with only
+  CRLF normalization warnings.
 
 ### 2026-06-05 - Feedback promotion security findings fixed
 - **What:** fixed the security review findings on the reviewed feedback-to-eval promotion path.
@@ -638,10 +731,9 @@ Add a dated entry per working session. Most recent on top.
 - **Next:** Phase 0 — design the Postgres schema and produce the ER diagram.
 
 ## Open questions / parking lot
-- ~~Which VPS provider to buy~~ — RESOLVED 2026-06-02 in ADR-0011: **Oracle Cloud Always Free
-  (Singapore)** primary ($0, 24 GB, low SEA latency), **Contabo SG ~$5/mo (8 GB)** paid fallback.
-  Low cost was the priority; refreshed 2026 pricing (Hetzner is EU/US-only → latency cost for a
-  Vietnam daily-use UI).
+- ~~Which VPS provider to buy~~ — SUPERSEDED 2026-06-05 in ADR-0015: default runtime is now
+  local-first Docker Compose; VPS/cloud hosting is optional and temporary unless explicitly
+  re-approved.
 - ~~Chunking strategy specifics (size/overlap)~~ — RESOLVED in ADR-0003 (~512 tok / ~15% overlap, semantic boundaries).
 - ~~**Install Docker Desktop** before Phase 1 end-to-end / integration tests~~ — DONE 2026-06-01: installed, Phase 0 migration applied live; Docker DB on host **5433** (native PG holds 5432).
 - ~~Whether to do the optional managed-cluster (GKE/EKS) capstone in Phase 7~~ — DECIDED 2026-06-02

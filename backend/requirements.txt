@@ -24,6 +24,7 @@ pyyaml>=6,<7           # eval dataset (eval/dataset.yaml)
 
 # Phase 4 — MCP server + agentic actions
 mcp>=1.2,<2            # Model Context Protocol server (FastMCP, stdio) exposing the agent tools
+langgraph>=1.0,<2      # Low-level graph orchestration for opt-in agentic RAG
 
 # Phase 6 — productionization + observability
 prometheus-client>=0.20,<1   # /metrics exposition for self-hosted Prometheus

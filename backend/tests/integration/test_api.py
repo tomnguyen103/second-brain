@@ -58,6 +58,46 @@ def test_chat_empty_corpus(client):
     assert body["model"] is None
 
 
+def test_agentic_chat_disabled_by_default(client):
+    r = client.post("/chat", json={
+        "message": "anything?",
+        "options": {"agentic": True},
+    })
+    assert r.status_code == 409
+    assert r.json()["detail"] == "agentic RAG is disabled"
+
+
+def test_agentic_chat_endpoint_returns_trace_when_enabled(client, test_settings):
+    test_settings.agentic_rag_enabled = True
+    ing = client.post("/ingest", json={
+        "source": {"type": "manual", "name": "Agentic API Notes"},
+        "documents": [{"title": "Agentic HNSW",
+                       "content": "HNSW tuning m ef_construction. " * 20}],
+    })
+    assert ing.status_code == 200, ing.text
+
+    r = client.post("/chat", json={
+        "message": "How do I tune HNSW?",
+        "options": {"agentic": True},
+    })
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["citations"]
+    assert body["retrieval"]["method"] == "agentic_hybrid"
+    assert body["retrieval"]["agentic"]["enabled"] is True
+    assert body["retrieval"]["agentic"]["subqueries"]
+
+
+def test_agentic_chat_stream_returns_unavailable(client):
+    r = client.post("/chat/stream", json={
+        "message": "anything?",
+        "options": {"agentic": True},
+    })
+    assert r.status_code == 409
+    assert r.json()["detail"] == "streaming is unavailable for agentic RAG"
+
+
 def test_chat_stream_sends_sse_deltas_and_completion(client):
     ing = client.post("/ingest", json={
         "source": {"type": "manual", "name": "Streaming Notes"},

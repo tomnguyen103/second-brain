@@ -14,3 +14,4 @@ def test_build_messages_numbers_context_and_includes_history():
 
 def test_parse_citations_dedup_and_range():
     assert parse_citations("uses [2] and [1] and [2] and [9]", n_items=3) == [2, 1]
+    assert parse_citations("uses grouped markers [2, 1, 2] and bad [9]", n_items=3) == [2, 1]

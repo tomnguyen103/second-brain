@@ -5,6 +5,10 @@
 - **Deciders:** project owner
 - **Context phase:** Phase 0 (formalizes a decision already fixed in the spec)
 
+> **Runtime update 2026-06-05:** ADR-0015 changed the default runtime from a small VPS to
+> local-first/on-demand Docker Compose. The Gemini-vs-Ollama abstraction decision still stands;
+> the original VPS wording below is historical context.
+
 ## Context
 
 The assistant needs an LLM for generation (RAG answers, briefing summaries, research). The runtime

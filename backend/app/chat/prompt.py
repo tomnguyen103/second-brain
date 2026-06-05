@@ -49,7 +49,7 @@ PROMPT_VERSION = _RAG_V1.version
 SYSTEM_PROMPT = _RAG_V1.system_prompt
 REFUSAL_TEXT = _RAG_V1.refusal_text
 
-_MARKER = re.compile(r"\[(\d+)\]")
+_MARKER_GROUP = re.compile(r"\[((?:\s*\d+\s*)(?:,\s*\d+\s*)*)\]")
 
 
 def get_prompt(version: str) -> PromptSpec:
@@ -91,14 +91,29 @@ def build_messages(question: str, items: list[ContextItem],
     return msgs
 
 
+def citation_markers_in_text(text: str) -> list[int]:
+    """Ordered, de-duplicated markers in one text span, including grouped markers.
+
+    Gemini commonly emits compact citations like ``[1, 2]``. Treat those the same as
+    ``[1] [2]`` so citation validation follows the marker contract humans see.
+    """
+    seen: list[int] = []
+    for group in _MARKER_GROUP.findall(text or ""):
+        for marker in re.findall(r"\d+", group):
+            i = int(marker)
+            if i not in seen:
+                seen.append(i)
+    return seen
+
+
+def strip_citation_markers(text: str) -> str:
+    """Remove recognized citation marker groups from text."""
+    return _MARKER_GROUP.sub("", text or "")
+
+
 def all_citation_markers(answer: str) -> list[int]:
     """Ordered, de-duplicated markers emitted by the model, regardless of validity."""
-    seen: list[int] = []
-    for m in _MARKER.findall(answer):
-        i = int(m)
-        if i not in seen:
-            seen.append(i)
-    return seen
+    return citation_markers_in_text(answer)
 
 
 def parse_citations(answer: str, n_items: int) -> list[int]:

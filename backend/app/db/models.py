@@ -10,6 +10,7 @@ from datetime import datetime
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     Computed,
     DateTime,
@@ -229,6 +230,32 @@ class Feedback(Base):
     comment: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created()
     message: Mapped["Message"] = relationship(back_populates="feedback")
+
+
+class EvalCaseRecord(Base):
+    """A reviewed feedback-derived eval case persisted durably in Postgres.
+
+    The source-controlled `backend/eval/dataset.yaml` remains the fixed CI gate dataset.
+    This table is the production-safe review ledger for cases promoted from live feedback.
+    """
+    __tablename__ = "eval_cases"
+    __table_args__ = (
+        UniqueConstraint("case_id", name="uq_eval_cases_case_id"),
+        Index("ix_eval_cases_feedback_id", "feedback_id"),
+    )
+    id: Mapped[int] = _pk()
+    case_id: Mapped[str] = mapped_column(Text, nullable=False)
+    feedback_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("feedback.id", ondelete="SET NULL")
+    )
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_docs: Mapped[list[str]] = mapped_column(JSONB, nullable=False, server_default="[]")
+    expected_keywords: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    expect_refusal: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    review: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    created_at: Mapped[datetime] = _created()
 
 
 class AuditLog(Base):

@@ -19,13 +19,14 @@ services:
   frontend:
     build:
       args:
-        NEXT_PUBLIC_API_BASE_URL: https://YOUR_VPS_IP.sslip.io/api
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://YOUR_VPS_IP.sslip.io/api}
+        NEXT_PUBLIC_AGENTIC_RAG_ENABLED: ${NEXT_PUBLIC_AGENTIC_RAG_ENABLED:-false}
     ports: !override
       - "127.0.0.1:3000:3000"
 
   api:
     environment:
-      SECOND_BRAIN_CORS_ORIGINS: '["https://YOUR_VPS_IP.sslip.io"]'
+      SECOND_BRAIN_CORS_ORIGINS: ${SECOND_BRAIN_CORS_ORIGINS:-["https://YOUR_VPS_IP.sslip.io"]}
     ports: !override
       - "127.0.0.1:8000:8000"
 

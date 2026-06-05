@@ -13,7 +13,11 @@ def test_defaults(monkeypatch):
                 "SECOND_BRAIN_API_TOKEN",
                 "SECOND_BRAIN_RATE_LIMIT_FAIL_CLOSED",
                 "SECOND_BRAIN_TRUST_FORWARDED_FOR",
-                "SECOND_BRAIN_MCP_ENABLE_MUTATIONS"]:
+                "SECOND_BRAIN_MCP_ENABLE_MUTATIONS",
+                "SECOND_BRAIN_AGENTIC_RAG_ENABLED",
+                "SECOND_BRAIN_AGENTIC_RAG_MAX_SUBQUERIES",
+                "SECOND_BRAIN_AGENTIC_RAG_VERIFIER_ENABLED",
+                "SECOND_BRAIN_AGENTIC_RAG_RECURSION_LIMIT"]:
         monkeypatch.delenv(key, raising=False)
     s = Settings(_env_file=None)
     assert s.llm_provider == "gemini"
@@ -23,10 +27,15 @@ def test_defaults(monkeypatch):
     assert s.retrieval_query_rewrite_enabled is False
     assert s.prompt_version == "rag-v1"
     assert s.mlflow_tracking_uri == "file:./mlruns"
+    assert s.cors_origins == ["http://localhost:3000", "http://127.0.0.1:3000"]
     assert s.api_token is None
     assert s.rate_limit_fail_closed is True
     assert s.trust_forwarded_for is False
     assert s.mcp_enable_mutations is False
+    assert s.agentic_rag_enabled is False
+    assert s.agentic_rag_max_subqueries == 4
+    assert s.agentic_rag_verifier_enabled is True
+    assert s.agentic_rag_recursion_limit == 8
 
 
 def test_env_override(monkeypatch):
@@ -38,6 +47,10 @@ def test_env_override(monkeypatch):
     monkeypatch.setenv("SECOND_BRAIN_RATE_LIMIT_FAIL_CLOSED", "false")
     monkeypatch.setenv("SECOND_BRAIN_TRUST_FORWARDED_FOR", "true")
     monkeypatch.setenv("SECOND_BRAIN_MCP_ENABLE_MUTATIONS", "true")
+    monkeypatch.setenv("SECOND_BRAIN_AGENTIC_RAG_ENABLED", "true")
+    monkeypatch.setenv("SECOND_BRAIN_AGENTIC_RAG_MAX_SUBQUERIES", "3")
+    monkeypatch.setenv("SECOND_BRAIN_AGENTIC_RAG_VERIFIER_ENABLED", "false")
+    monkeypatch.setenv("SECOND_BRAIN_AGENTIC_RAG_RECURSION_LIMIT", "6")
     s = Settings()
     assert s.llm_provider == "fake"
     assert s.retrieval_top_k == 3
@@ -47,3 +60,7 @@ def test_env_override(monkeypatch):
     assert s.rate_limit_fail_closed is False
     assert s.trust_forwarded_for is True
     assert s.mcp_enable_mutations is True
+    assert s.agentic_rag_enabled is True
+    assert s.agentic_rag_max_subqueries == 3
+    assert s.agentic_rag_verifier_enabled is False
+    assert s.agentic_rag_recursion_limit == 6

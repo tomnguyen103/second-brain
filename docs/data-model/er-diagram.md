@@ -1,8 +1,7 @@
 # Second Brain — Phase 0 Data Model (ER Diagram)
 
-> **Status: DRAFT — for review.** No migrations are written yet. Review this diagram and the
-> [Open design decisions](#open-design-decisions-need-your-sign-off) below; once you sign off I
-> turn each real decision into an ADR and write the Alembic migrations.
+> **Status:** implemented. The original Phase 0 schema has since grown through Alembic migrations;
+> this document captures the relational spine plus the major supporting tables.
 
 This is the relational spine for the whole project: the `sources → documents → chunks → embeddings`
 ingest lineage, the `conversations → messages → retrievals → feedback` chat/evidence lineage, plus
@@ -148,6 +147,18 @@ erDiagram
         timestamptz finished_at     "nullable"
         timestamptz created_at
     }
+
+    eval_cases {
+        bigint      id PK
+        text        case_id         "unique; reviewed eval case label"
+        bigint      feedback_id FK  "nullable if source feedback is erased"
+        text        question
+        jsonb       expected_docs
+        jsonb       expected_keywords
+        boolean     expect_refusal
+        jsonb       review          "review provenance + confirmations"
+        timestamptz created_at
+    }
 ```
 
 ---
@@ -167,6 +178,7 @@ erDiagram
 | `retrievals` | `btree (message_id)`, `btree (chunk_id)` | citation lookups both directions |
 | `feedback` | `btree (message_id)` | answer-quality analytics |
 | `jobs` | `btree (status, scheduled_at)` | worker poll |
+| `eval_cases` | `UNIQUE (case_id)`, `btree (feedback_id)` | durable reviewed eval-case storage |
 
 ---
 
@@ -200,9 +212,9 @@ Diagram uses `bigint GENERATED ALWAYS AS IDENTITY` (smaller, faster joins/indexe
 counts. Single-user app → bigint wins.
 
 ### D5 — `raw_text` retention
-`documents.raw_text` is nullable on purpose: store on ingest, **null it out after embedding** per the
-retention/“delete-my-data” story (Phase 6). Chunks keep the text needed for retrieval; the original blob
-is disposable. Confirm you want raw text purged post-embed (vs kept for re-chunking convenience).
+`documents.raw_text` is nullable on purpose: store on ingest, then null it out after the retention TTL
+while preserving chunks for retrieval. This reduces duplicate raw-source storage but is not
+anonymization; source erasure is the path that removes documents, chunks, and embeddings.
 
 ---
 

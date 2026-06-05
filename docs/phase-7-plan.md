@@ -10,7 +10,7 @@ manifests, a Postgres StatefulSet, a migrate Job, Deployments for api/worker/fro
 **ingress**, **HPA** autoscaling under load, reused **Prometheus + Grafana**, and a **CI/CD**
 workflow that stands the whole thing up on `kind` and tears it down — then **`kind delete cluster`**
 so **nothing is left running ($0)**. Kubernetes is a **LEARNING TRACK only**, *not* the production
-runtime (that stays the single-VPS Docker Compose stack, ADR-0011/0012). Managed cloud (GKE/EKS) is
+runtime (that now stays local-first Docker Compose by ADR-0015). Managed cloud (GKE/EKS) is
 **off by default** (D9) — no paid resource without an explicit OK.
 
 **Scope reality:** this mirrors how Phases 1–6 deferred their out-of-scope tails. The deliverable is

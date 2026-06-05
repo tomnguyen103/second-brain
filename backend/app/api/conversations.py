@@ -7,17 +7,19 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app import deps
 from app.chat.prompt import parse_citations
 from app.dataops import audit
-from app.db.models import Conversation, Feedback, Message
+from app.db.models import Conversation, EvalCaseRecord, Feedback, Message
 from app.eval.dataset import (
     CORPUS_DIR as EVAL_CORPUS_DIR,
     DEFAULT_DATASET as EVAL_DATASET_PATH,
     EvalCase,
-    append_eval_case,
+    load_dataset,
+    validate_new_eval_case,
 )
 from app.retrieval.hybrid import load_display_chunks
 from app.schemas.chat import CitationOut
@@ -464,8 +466,13 @@ def promote_feedback_eval_candidate(
         },
     }
 
+    fixed_case_ids = {
+        case.id for case in load_dataset(EVAL_DATASET_PATH, corpus_dir=EVAL_CORPUS_DIR)
+    }
+    stored_case_ids = set(db.scalars(select(EvalCaseRecord.case_id)).all())
+
     try:
-        reviewed = append_eval_case(
+        reviewed = validate_new_eval_case(
             EvalCase(
                 id=req.id,
                 question=req.question,
@@ -474,7 +481,7 @@ def promote_feedback_eval_candidate(
                 expect_refusal=req.expect_refusal,
                 review=review,
             ),
-            path=EVAL_DATASET_PATH,
+            existing_ids=fixed_case_ids | stored_case_ids,
             corpus_dir=EVAL_CORPUS_DIR,
         )
     except ValueError as exc:
@@ -482,28 +489,53 @@ def promote_feedback_eval_candidate(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
 
-    audit.record(
-        db,
-        actor="eval-reviewer",
-        action="create",
-        entity_type="eval_case",
-        entity_id=feedback_id,
-        detail={
-            "op": "promote_eval_case",
-            "feedback_id": feedback_id,
-            "case_id": reviewed.id,
-            "expected_docs": reviewed.expected_docs,
-            "expected_keywords": reviewed.expected_keywords,
-            "expect_refusal": reviewed.expect_refusal,
-            "review": reviewed.review,
-        },
-        enabled=settings.audit_enabled,
+    stored_case = EvalCaseRecord(
+        case_id=reviewed.id,
+        feedback_id=feedback_id,
+        question=reviewed.question,
+        expected_docs=reviewed.expected_docs,
+        expected_keywords=reviewed.expected_keywords,
+        expect_refusal=reviewed.expect_refusal,
+        review=reviewed.review,
     )
-    db.commit()
+    savepoint = db.begin_nested()
+    try:
+        db.add(stored_case)
+        db.flush()
+
+        audit.record(
+            db,
+            actor="eval-reviewer",
+            action="create",
+            entity_type="eval_case",
+            entity_id=stored_case.id,
+            detail={
+                "op": "promote_eval_case",
+                "storage": "postgres",
+                "eval_case_record_id": stored_case.id,
+                "feedback_id": feedback_id,
+                "case_id": reviewed.id,
+                "expected_docs": reviewed.expected_docs,
+                "expected_keywords": reviewed.expected_keywords,
+                "expect_refusal": reviewed.expect_refusal,
+                "review": reviewed.review,
+            },
+            enabled=settings.audit_enabled,
+        )
+        if savepoint.is_active:
+            savepoint.commit()
+        db.commit()
+    except IntegrityError as exc:
+        if savepoint.is_active:
+            savepoint.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"eval case id already exists: {reviewed.id}",
+        ) from exc
 
     return PromoteEvalCandidateResponse(
         promoted_at=promoted_at,
-        dataset_path="backend/eval/dataset.yaml",
+        dataset_path="postgres:eval_cases",
         case=EvalCandidate(
             id=reviewed.id,
             question=reviewed.question,
@@ -512,8 +544,10 @@ def promote_feedback_eval_candidate(
             expect_refusal=reviewed.expect_refusal,
             metadata={
                 "feedback_id": feedback_id,
+                "eval_case_record_id": stored_case.id,
                 "needs_review": False,
                 "promoted_from": "feedback",
+                "storage": "postgres",
                 "review": reviewed.review,
             },
         ),

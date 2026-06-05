@@ -25,7 +25,7 @@ import {
 } from "@phosphor-icons/react";
 import { api, getStoredApiToken, setStoredApiToken } from "@/lib/api/client";
 import { queryClient } from "@/lib/query-client";
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 
 function SidebarContent() {
   const pathname = usePathname();
@@ -55,6 +55,29 @@ function SidebarContent() {
     queryFn: () => api.listConversations(),
     refetchInterval: 15_000,
   });
+  const activeConversationId = activeCid ? Number.parseInt(activeCid, 10) : null;
+  const historyItems = useMemo(() => {
+    const groups = new Map<string, {
+      conversation: NonNullable<typeof data>["conversations"][number];
+      duplicateCount: number;
+    }>();
+
+    for (const conversation of data?.conversations ?? []) {
+      const title = conversation.title?.trim();
+      const key = title ? title.toLowerCase() : `id:${conversation.id}`;
+      const existing = groups.get(key);
+      if (!existing) {
+        groups.set(key, { conversation, duplicateCount: 1 });
+        continue;
+      }
+      existing.duplicateCount += 1;
+      if (conversation.id === activeConversationId) {
+        existing.conversation = conversation;
+      }
+    }
+
+    return Array.from(groups.values());
+  }, [data?.conversations, activeConversationId]);
 
   // Theme is unknown during SSR / first client render; reading it before mount
   // produces an icon/aria-label that differs between server and client and
@@ -157,20 +180,20 @@ function SidebarContent() {
 
       {/* History */}
       <div className="flex-1 overflow-y-auto px-2 pb-3 min-h-0">
-        {data && data.conversations.length > 0 && (
+        {historyItems.length > 0 && (
           <>
             <p className="px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
               Recent
             </p>
             <AnimatePresence initial={false}>
-              {data.conversations.map((c, i) => (
+              {historyItems.map(({ conversation: c, duplicateCount }, i) => (
                 <motion.div key={c.id}
                   initial={{ opacity: 0, x: -4 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.035, type: "spring", stiffness: 340, damping: 28 }}
                 >
                   <Link href={`/chat?cid=${c.id}`}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs truncate border-l-2 transition-all duration-150 ${
+                    className={`flex min-w-0 items-center gap-2 px-2.5 py-1.5 rounded-md text-xs truncate border-l-2 transition-all duration-150 ${
                       activeCid === String(c.id)
                         ? "border-primary bg-accent text-accent-foreground"
                         : "border-transparent text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -178,7 +201,15 @@ function SidebarContent() {
                     title={c.title ?? `Conversation ${c.id}`}
                   >
                     <ChatCircle size={11} className="shrink-0 opacity-50" />
-                    <span className="truncate">{c.title ?? `Chat ${c.id}`}</span>
+                    <span className="min-w-0 flex-1 truncate">{c.title ?? `Chat ${c.id}`}</span>
+                    {duplicateCount > 1 && (
+                      <span
+                        className="ml-auto shrink-0 rounded-sm border border-border px-1 text-[9px] leading-4 text-muted-foreground"
+                        title={`${duplicateCount} conversations with this title`}
+                      >
+                        x{duplicateCount}
+                      </span>
+                    )}
                   </Link>
                 </motion.div>
               ))}
