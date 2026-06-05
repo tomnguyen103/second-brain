@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ChartBar, Flask, ThumbsDown, TrendDown } from "@phosphor-icons/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { ChartBar, CheckCircle, Flask, ThumbsDown, TrendDown } from "@phosphor-icons/react";
 
 import { AppPage, EmptyState, InlineError, LoadingRows, Panel, PanelHeader, StatusPill } from "@/components/AppPage";
 import { api } from "@/lib/api/client";
 import { formatDate, formatDateTime } from "@/lib/format";
-import type { FeedbackAnalyticsResponse, NegativeFeedbackItem } from "@/lib/api/types";
+import type { EvalCandidate, FeedbackAnalyticsResponse, NegativeFeedbackItem } from "@/lib/api/types";
 
 const WINDOWS = [7, 30, 90] as const;
 
@@ -19,6 +20,21 @@ function percent(value: number): string {
 function excerpt(value: string | null | undefined, max = 320): string {
   if (!value) return "No text";
   return value.length > max ? `${value.slice(0, max).trim()}...` : value;
+}
+
+function lines(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function feedbackIdFromCandidate(candidate: EvalCandidate): number | null {
+  const raw = candidate.metadata.feedback_id;
+  if (typeof raw === "number" && Number.isInteger(raw)) return raw;
+  if (typeof raw === "string" && /^\d+$/.test(raw)) return Number(raw);
+  const match = /^feedback-(\d+)$/.exec(candidate.id);
+  return match ? Number(match[1]) : null;
 }
 
 function MetricPanel({
@@ -140,8 +156,174 @@ function NegativeFeedbackCard({ item }: { item: NegativeFeedbackItem }) {
   );
 }
 
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <label className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+      {children}
+    </label>
+  );
+}
+
+function ReviewCheckbox({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <label className="flex min-h-8 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-3.5 w-3.5 accent-amber-500"
+      />
+      <span>{children}</span>
+    </label>
+  );
+}
+
+function EvalCandidateReviewCard({ candidate, adminToken }: { candidate: EvalCandidate; adminToken: string }) {
+  const feedbackId = feedbackIdFromCandidate(candidate);
+  const [caseId, setCaseId] = useState(candidate.id);
+  const [question, setQuestion] = useState(candidate.question);
+  const [expectedDocs, setExpectedDocs] = useState(candidate.expected_docs.join("\n"));
+  const [expectedKeywords, setExpectedKeywords] = useState(candidate.expected_keywords.join("\n"));
+  const [expectRefusal, setExpectRefusal] = useState(candidate.expect_refusal);
+  const [docsConfirmed, setDocsConfirmed] = useState(false);
+  const [keywordsConfirmed, setKeywordsConfirmed] = useState(false);
+  const [refusalConfirmed, setRefusalConfirmed] = useState(false);
+  const [promoted, setPromoted] = useState<string | null>(null);
+
+  const promote = useMutation({
+    mutationFn: () => {
+      if (feedbackId === null) throw new Error("Candidate is missing a feedback id");
+      return api.promoteFeedbackEvalCandidate(
+        feedbackId,
+        {
+          id: caseId,
+          question,
+          expected_docs: lines(expectedDocs),
+          expected_keywords: lines(expectedKeywords),
+          expect_refusal: expectRefusal,
+          confirmations: {
+            expected_docs: docsConfirmed,
+            expected_keywords: keywordsConfirmed,
+            expect_refusal: refusalConfirmed,
+          },
+        },
+        adminToken.trim(),
+      );
+    },
+    onSuccess: (response) => {
+      setPromoted(`${response.case.id} promoted to ${response.dataset_path}`);
+    },
+  });
+
+  const canPromote =
+    feedbackId !== null
+    && adminToken.trim().length > 0
+    && docsConfirmed
+    && keywordsConfirmed
+    && refusalConfirmed
+    && !promote.isPending;
+
+  return (
+    <div className="px-4 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="font-mono text-[11px] font-semibold text-foreground">{candidate.id}</p>
+          <StatusPill tone="warning">review</StatusPill>
+        </div>
+        <StatusPill>{feedbackId === null ? "missing feedback id" : `feedback #${feedbackId}`}</StatusPill>
+      </div>
+
+      <div className="mt-3 grid gap-3">
+        <div>
+          <FieldLabel>Case id</FieldLabel>
+          <input
+            value={caseId}
+            onChange={(event) => setCaseId(event.target.value)}
+            className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 font-mono text-xs text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+          />
+        </div>
+        <div>
+          <FieldLabel>Question</FieldLabel>
+          <textarea
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            rows={2}
+            className="mt-1 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-xs leading-5 text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+          />
+        </div>
+        <div>
+          <FieldLabel>Expected sources</FieldLabel>
+          <textarea
+            value={expectedDocs}
+            onChange={(event) => setExpectedDocs(event.target.value)}
+            rows={3}
+            placeholder="One fixed eval corpus document title per line"
+            className="mt-1 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-xs leading-5 text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+          />
+        </div>
+        <div>
+          <FieldLabel>Expected keywords</FieldLabel>
+          <textarea
+            value={expectedKeywords}
+            onChange={(event) => setExpectedKeywords(event.target.value)}
+            rows={2}
+            placeholder="One answer keyword per line"
+            className="mt-1 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-xs leading-5 text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+          />
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <ReviewCheckbox checked={expectRefusal} onChange={setExpectRefusal}>
+          Refusal expected
+        </ReviewCheckbox>
+        <ReviewCheckbox checked={docsConfirmed} onChange={setDocsConfirmed}>
+          Sources confirmed
+        </ReviewCheckbox>
+        <ReviewCheckbox checked={keywordsConfirmed} onChange={setKeywordsConfirmed}>
+          Keywords confirmed
+        </ReviewCheckbox>
+        <ReviewCheckbox checked={refusalConfirmed} onChange={setRefusalConfirmed}>
+          Refusal confirmed
+        </ReviewCheckbox>
+      </div>
+
+      {promote.error && (
+        <div className="mt-3">
+          <InlineError message={promote.error instanceof Error ? promote.error.message : "Promotion failed"} />
+        </div>
+      )}
+      {promoted && (
+        <div className="mt-3 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900/60">
+          <CheckCircle size={14} weight="bold" />
+          <span className="min-w-0 truncate">{promoted}</span>
+        </div>
+      )}
+
+      <button
+        type="button"
+        disabled={!canPromote}
+        onClick={() => promote.mutate()}
+        className="mt-3 inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <Flask size={14} weight="bold" />
+        {promote.isPending ? "Promoting" : "Promote"}
+      </button>
+    </div>
+  );
+}
+
 export default function FeedbackPage() {
   const [days, setDays] = useState<number>(30);
+  const [adminToken, setAdminToken] = useState("");
 
   const analytics = useQuery({
     queryKey: ["feedback-analytics", days],
@@ -277,10 +459,22 @@ export default function FeedbackPage() {
 
         <Panel>
           <PanelHeader
-            title="Eval candidates"
-            description={`${candidates.data?.cases.length ?? 0} staged cases`}
+            title="Eval case review"
+            description={`${candidates.data?.cases.length ?? 0} unpromoted candidates`}
             actions={<Flask size={16} className="text-amber-500" />}
           />
+          <div className="border-b border-border px-4 py-3">
+            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
+              Admin token
+              <input
+                type="password"
+                value={adminToken}
+                onChange={(event) => setAdminToken(event.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+                placeholder="Required to promote"
+              />
+            </label>
+          </div>
           {candidates.isLoading && <LoadingRows rows={4} />}
           {candidates.error && !candidates.isLoading && (
             <div className="p-4">
@@ -293,26 +487,15 @@ export default function FeedbackPage() {
           {candidates.data && candidates.data.cases.length > 0 && (
             <div className="divide-y divide-border">
               {candidates.data.cases.slice(0, 8).map((candidate) => (
-                <div key={candidate.id} className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-mono text-[11px] font-semibold text-foreground">{candidate.id}</p>
-                    <StatusPill tone="warning">review</StatusPill>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                    {candidate.question || "Missing question"}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {candidate.expected_docs.map((doc) => (
-                      <span key={`${candidate.id}-${doc}`} className="inline-flex h-5 items-center rounded-md bg-muted px-2 text-[11px] font-semibold text-muted-foreground">
-                        {doc}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                <EvalCandidateReviewCard
+                  key={candidate.id}
+                  candidate={candidate}
+                  adminToken={adminToken}
+                />
               ))}
               {candidateDocs.length > 0 && (
                 <div className="px-4 py-3">
-                  <p className="text-xs font-semibold text-muted-foreground">Candidate docs</p>
+                  <p className="text-xs font-semibold text-muted-foreground">Candidate source titles</p>
                   <p className="mt-1 text-xs leading-5 text-foreground">{candidateDocs.join(", ")}</p>
                 </div>
               )}

@@ -9,6 +9,32 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Reviewed feedback promotion into fixed evals (2026-06-05)
+
+- **What:** added a manual promotion path for thumbs-down feedback. `GET /feedback/eval-candidates`
+  still exports review-first candidates only; `POST /feedback/eval-candidates/{id}/promote`
+  requires reviewer confirmation of expected sources, expected keywords, and refusal behavior before
+  appending the edited case to `backend/eval/dataset.yaml`. A follow-up security review tightened
+  this write path so promotion also requires `X-Second-Brain-Admin-Token`, stores reviewer
+  provenance in the eval case itself, records a secondary audit row, and returns only a logical
+  dataset path to the client.
+- **Why:** negative feedback is useful eval material, but only after a human has decided what the
+  correct evidence, answer keywords, and refusal label should be. The fixed eval loader now enforces
+  explicit reviewed fields, rejects unknown keys/types, checks expected document titles against the
+  fixed corpus, and validates the whole dataset before any promoted case is written.
+- **Trade-off / what I gave up:** promotion does not copy live user/source snippets into the eval
+  corpus automatically. If a feedback example depends on a document that is not already in
+  `backend/eval/corpus`, the reviewer must add a safe synthetic corpus document separately or choose
+  an existing corpus source; otherwise the promotion endpoint returns `422`.
+- **Trade-off / what I gave up:** the API still writes a repo file and a Postgres audit row through
+  separate durability systems; they cannot be a true ACID transaction. To avoid relying on the DB
+  audit as the only provenance, promoted eval cases now carry their own strict `review` block with
+  feedback id, reviewer identity, timestamp, and confirmation flags. The audit row is operational
+  telemetry, while the dataset remains self-describing if a later DB write is interrupted.
+- **Affects:** `backend/app/eval/dataset.py`, `backend/eval/dataset.yaml`,
+  `backend/app/api/conversations.py`, `backend/app/schemas/feedback.py`,
+  `frontend/app/feedback/page.tsx`, `frontend/lib/api/{client,types}.ts`, `docs/USAGE.md`.
+
 ## CodeRabbit security follow-up posture (2026-06-05)
 
 - **What:** applied the PR #21 review feedback with minimal changes: server-side logging for

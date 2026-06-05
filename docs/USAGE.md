@@ -64,8 +64,9 @@ Additional web pages:
 - **/capture** - save a URL, title, selected text, notes, and tags as a searchable bookmark.
 - **/ingest** - add manual notes or text documents, with source metadata and tags.
 - **/briefing** - read the latest stored briefing and recent briefing history.
-- **/feedback** - review thumbs feedback trends, negative examples, cited source context, and
-  staged eval candidates.
+- **/feedback** - review thumbs feedback trends, inspect negative examples, edit eval candidates,
+  and manually promote reviewed cases into the fixed eval dataset. Promotion requires the admin
+  token in addition to the normal API bearer.
 - **/tasks** - create tasks and mark them open, done, or cancelled.
 - **/research** - enqueue async research jobs with optional public source URLs or pasted source
   text, then watch queued/running/done/failed status.
@@ -212,8 +213,10 @@ Feedback quality endpoints:
 - `GET /feedback/negative` - negative feedback review queue with conversation, message, question,
   answer, retrieval, and citation context.
 - `GET /feedback/eval-candidates` - negative feedback exported as review-first eval candidate
-  cases. `expected_docs` is inferred from cited documents; edit labels before adding cases to the
-  fixed eval set.
+  cases. `expected_docs` is inferred from cited documents; nothing is promoted automatically.
+- `POST /feedback/eval-candidates/{feedback_id}/promote` - append one reviewed case to the fixed
+  eval dataset. This also requires `X-Second-Brain-Admin-Token`; the body must confirm expected
+  sources, expected keywords, and refusal behavior.
 
 Additional API endpoints:
 - `GET /sources`, `GET /sources/{id}/documents` - source and document overview.
@@ -230,7 +233,7 @@ curl -H "$API_AUTH" "https://YOUR_VPS_IP.sslip.io/api/feedback/negative?limit=25
 curl -H "$API_AUTH" "https://YOUR_VPS_IP.sslip.io/api/feedback/eval-candidates?limit=25&days=30"
 ```
 
-Eval candidate responses mirror the fixed eval dataset shape:
+Eval candidate responses mirror the fixed eval dataset shape, but remain review-only:
 
 ```json
 {
@@ -249,6 +252,33 @@ Eval candidate responses mirror the fixed eval dataset shape:
   ]
 }
 ```
+
+Promote exactly one reviewed candidate after editing the labels:
+
+```bash
+curl -X POST https://YOUR_VPS_IP.sslip.io/api/feedback/eval-candidates/123/promote \
+  -H "$API_AUTH" \
+  -H "X-Second-Brain-Admin-Token: <SECOND_BRAIN_ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" -d '{
+    "id": "feedback-123-reviewed",
+    "question": "What should this answer have covered?",
+    "expected_docs": ["FastAPI backend"],
+    "expected_keywords": ["/feedback"],
+    "expect_refusal": false,
+    "confirmations": {
+      "expected_docs": true,
+      "expected_keywords": true,
+      "expect_refusal": true
+    }
+  }'
+```
+
+Promotion is manual, admin-gated, audited, and validation is strict: promoted cases include a
+strict `review` block with the feedback id, reviewer identity, timestamp, and confirmation flags.
+`expected_docs` must be fixed eval corpus document titles, refusal cases must have empty
+`expected_docs` and `expected_keywords`, and malformed or duplicate cases return `422` without
+changing `backend/eval/dataset.yaml`. CI uses the same loader, so bad reviewed candidates cannot
+enter the gate silently.
 
 ### Source-backed research - `POST /research/jobs`
 Research does not use a paid search API. Provide your own evidence as public URLs or source text;
@@ -347,7 +377,7 @@ is baked into the bundle at build time).
 |---|---:|---|
 | `POSTGRES_PASSWORD` | Yes | Database password for the self-hosted Postgres service. |
 | `SECOND_BRAIN_API_TOKEN` | Yes | Single-owner bearer token for personal-data routes and normal web/API use. |
-| `SECOND_BRAIN_ADMIN_TOKEN` | Recommended for data-ops | Enables export, source deletion, and retention purge when sent as `X-Second-Brain-Admin-Token` alongside the normal API bearer. Leave blank to return 503 from destructive endpoints. |
+| `SECOND_BRAIN_ADMIN_TOKEN` | Recommended for data-ops and eval promotion | Enables export, source deletion, retention purge, and fixed-eval promotion when sent as `X-Second-Brain-Admin-Token` alongside the normal API bearer. Leave blank to return 503 from governed endpoints. |
 | `SECOND_BRAIN_GEMINI_API_KEY` | For real Gemini mode | Required when `SECOND_BRAIN_LLM_PROVIDER=gemini`; omit only for `fake` or local Ollama mode. |
 | `SECOND_BRAIN_MCP_ENABLE_MUTATIONS` | Optional local MCP | Defaults to `false`; set `true` only for trusted local MCP clients that may create tasks or research notes. |
 | `NEXT_PUBLIC_API_BASE_URL` | Yes | Browser-visible API base, usually `https://YOUR_VPS_IP.sslip.io/api` in production. |
@@ -402,6 +432,8 @@ Use the normal API bearer plus the separate admin header for these calls:
 - `GET /api/data/export?source_id=…` — export a source (GDPR access).
 - `DELETE /api/data/sources/{id}` — delete a source + its documents (GDPR erasure).
 - `POST /api/admin/retention/purge` — null `raw_text` past the retention TTL.
+- `POST /api/feedback/eval-candidates/{feedback_id}/promote` — append a reviewed case to the
+  fixed eval dataset.
 
 ```bash
 curl -H "Authorization: Bearer <SECOND_BRAIN_API_TOKEN>" \
@@ -411,8 +443,9 @@ curl -H "Authorization: Bearer <SECOND_BRAIN_API_TOKEN>" \
 
 ---
 
-The same actions are available in the web UI at `/admin`; paste the admin token into the page
-when you need to run one of these guarded operations.
+The same data-ops actions are available in the web UI at `/admin`; eval promotion is available in
+`/feedback`. Paste the admin token into the page only when you need to run one of these guarded
+operations.
 
 ## Security notes / hardening
 

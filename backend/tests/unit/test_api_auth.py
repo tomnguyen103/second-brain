@@ -57,6 +57,7 @@ def test_require_admin_rejects_api_token_and_accepts_admin_token():
         ("get", "/briefing", {}),
         ("post", "/feedback", {"json": {}}),
         ("get", "/feedback/analytics", {}),
+        ("post", "/feedback/eval-candidates/1/promote", {"json": {}}),
         ("get", "/tasks", {}),
         ("get", "/research/jobs", {}),
         ("get", "/sources", {}),
