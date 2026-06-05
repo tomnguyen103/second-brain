@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app import deps
+from app.agentic_rag.service import agentic_chat
 from app.cache.rate_limit import check_rate_limit, client_identity
 from app.chat.service import ChatResult, chat, stream_chat
 from app.config import Settings
@@ -122,15 +123,31 @@ def chat_endpoint(
     llm = deps.get_llm_client(settings, private_mode=req.options.private_mode)
     filters = _filters_from_request(req)
 
-    result = chat(
-        db, embedder, llm, settings,
-        message=req.message,
-        conversation_id=req.conversation_id,
-        top_k=req.top_k,
-        filters=filters,
-        include_chunks=req.options.include_chunks,
-        redis_client=redis_client,
-    )
+    if req.options.agentic:
+        if not settings.agentic_rag_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="agentic RAG is disabled",
+            )
+        result = agentic_chat(
+            db, embedder, llm, settings,
+            message=req.message,
+            conversation_id=req.conversation_id,
+            top_k=req.top_k,
+            filters=filters,
+            include_chunks=req.options.include_chunks,
+            redis_client=redis_client,
+        )
+    else:
+        result = chat(
+            db, embedder, llm, settings,
+            message=req.message,
+            conversation_id=req.conversation_id,
+            top_k=req.top_k,
+            filters=filters,
+            include_chunks=req.options.include_chunks,
+            redis_client=redis_client,
+        )
 
     return _chat_response(result)
 
@@ -145,6 +162,12 @@ def chat_stream_endpoint(
     redis_client=Depends(deps.get_redis),
 ):
     _check_chat_rate_limit(request, redis_client, settings)
+
+    if req.options.agentic:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="streaming is unavailable for agentic RAG",
+        )
 
     llm = deps.get_llm_client(settings, private_mode=req.options.private_mode)
     if not supports_streaming(llm):

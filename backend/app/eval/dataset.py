@@ -252,15 +252,31 @@ def append_eval_case(
 ) -> EvalCase:
     dataset_path = Path(path)
     current_text = dataset_path.read_text(encoding="utf-8")
-    corpus = _corpus_titles(corpus_dir)
     existing = load_dataset(dataset_path, corpus_dir=corpus_dir)
-    seen = {item.id for item in existing}
-    reviewed = _case_from_item(_case_item(case), seen=seen, corpus_titles=corpus)
+    reviewed = validate_new_eval_case(
+        case,
+        existing_ids={item.id for item in existing},
+        corpus_dir=corpus_dir,
+    )
 
     base_text = current_text.rstrip()
     if base_text.endswith("cases: []"):
         base_text = base_text[: -len("cases: []")] + "cases:"
     new_text = base_text + _case_block(reviewed)
-    _parse_dataset(yaml.safe_load(new_text), corpus_titles=corpus)
+    _parse_dataset(yaml.safe_load(new_text), corpus_titles=_corpus_titles(corpus_dir))
     dataset_path.write_text(new_text, encoding="utf-8")
     return reviewed
+
+
+def validate_new_eval_case(
+    case: EvalCase,
+    *,
+    existing_ids: set[str] | None = None,
+    corpus_dir: Path | str | None = CORPUS_DIR,
+) -> EvalCase:
+    """Validate a candidate case against the fixed corpus without writing a dataset file."""
+    return _case_from_item(
+        _case_item(case),
+        seen=set(existing_ids or set()),
+        corpus_titles=_corpus_titles(corpus_dir),
+    )

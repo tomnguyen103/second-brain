@@ -9,7 +9,14 @@ from typing import Literal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.chat.prompt import ContextItem, all_citation_markers, build_messages, get_prompt
+from app.chat.prompt import (
+    ContextItem,
+    all_citation_markers,
+    build_messages,
+    citation_markers_in_text,
+    get_prompt,
+    strip_citation_markers,
+)
 from app.config import Settings
 from app.db.models import Conversation, Message, Retrieval
 from app.llm.base import LLMMessage, supports_streaming
@@ -62,7 +69,6 @@ CITATION_FAILURE_TEXT = (
     "Please try again."
 )
 
-_CITATION_MARKER_RE = re.compile(r"\[(\d+)\]")
 _SEGMENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 _SUPPORT_TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_'-]{1,}")
 _SUPPORT_STOPWORDS = {
@@ -84,6 +90,27 @@ class _PreparedChat:
     meta: dict
     item_count: int
     include_chunks: bool
+
+
+@dataclass
+class _CitationValidation:
+    cited: list[int]
+    invalid_markers: list[int]
+    support_failures: list[dict]
+
+    @property
+    def failed(self) -> bool:
+        return bool(self.invalid_markers or not self.cited or self.support_failures)
+
+    @property
+    def reason(self) -> str | None:
+        if self.invalid_markers:
+            return "invalid_citations"
+        if not self.cited:
+            return "missing_citations"
+        if self.support_failures:
+            return "unsupported_claims"
+        return None
 
 
 def _support_tokens(text: str) -> set[str]:
@@ -118,11 +145,10 @@ def _citation_support_failures(answer: str, prepared: _PreparedChat) -> list[dic
     failures: list[dict] = []
     for segment in _claim_segments(answer):
         markers = [
-            int(match.group(1))
-            for match in _CITATION_MARKER_RE.finditer(segment)
-            if 1 <= int(match.group(1)) <= prepared.item_count
+            marker for marker in citation_markers_in_text(segment)
+            if 1 <= marker <= prepared.item_count
         ]
-        claim_text = _CITATION_MARKER_RE.sub("", segment)
+        claim_text = strip_citation_markers(segment)
         claim_tokens = _support_tokens(claim_text)
         if not claim_tokens:
             continue
@@ -143,6 +169,101 @@ def _citation_support_failures(answer: str, prepared: _PreparedChat) -> list[dic
                 "overlap": sorted(overlap)[:10],
             })
     return failures
+
+
+def _validate_citations(answer: str, prepared: _PreparedChat) -> _CitationValidation:
+    emitted_markers = all_citation_markers(answer)
+    invalid_markers = [i for i in emitted_markers if i < 1 or i > prepared.item_count]
+    cited = [i for i in emitted_markers if 1 <= i <= prepared.item_count]
+    support_failures = (
+        [] if invalid_markers or not cited else _citation_support_failures(answer, prepared)
+    )
+    return _CitationValidation(cited, invalid_markers, support_failures)
+
+
+def _repair_citation_messages(prepared: _PreparedChat, draft: str) -> list[LLMMessage]:
+    return [
+        *prepared.messages,
+        LLMMessage(
+            "user",
+            "Your previous draft failed citation validation. Rewrite it using ONLY the "
+            "numbered context above.\n\n"
+            "Rules:\n"
+            "- Every factual sentence must include bracket citations in that same sentence.\n"
+            "- Do not write uncited headings, preambles, markdown labels, or transitions.\n"
+            "- Remove claims that are not directly supported by the numbered context.\n"
+            "- Return only the rewritten answer.\n\n"
+            f"Draft to repair:\n{draft}",
+        ),
+    ]
+
+
+def _merge_usage(base: dict, extra: dict) -> dict:
+    merged = dict(base or {})
+    for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        left = merged.get(key)
+        right = (extra or {}).get(key)
+        if isinstance(left, int) and isinstance(right, int):
+            merged[key] = left + right
+        elif left is None:
+            merged[key] = right
+    return merged
+
+
+def _repair_citations_if_needed(
+    llm,
+    prepared: _PreparedChat,
+    *,
+    answer: str,
+    model: str | None,
+    usage: dict,
+    latency_ms: int,
+) -> tuple[str, str | None, dict, int]:
+    validation = _validate_citations(answer, prepared)
+    if not validation.failed:
+        return answer, model, usage, latency_ms
+
+    prepared.meta = {
+        **prepared.meta,
+        "citation_repair_attempted": True,
+        "citation_repair_original_reason": validation.reason,
+    }
+    try:
+        started = time.perf_counter()
+        repaired = llm.generate(_repair_citation_messages(prepared, answer))
+        repair_latency_ms = int((time.perf_counter() - started) * 1000)
+    except Exception:  # pragma: no cover - provider/network specific
+        prepared.meta = {
+            **prepared.meta,
+            "citation_repair_succeeded": False,
+            "citation_repair_error": "provider_error",
+        }
+        return answer, model, usage, latency_ms
+
+    repaired_usage = {
+        "prompt_tokens": repaired.prompt_tokens,
+        "completion_tokens": repaired.completion_tokens,
+        "total_tokens": repaired.total_tokens,
+    }
+    repaired_validation = _validate_citations(repaired.text, prepared)
+    prepared.meta = {
+        **prepared.meta,
+        "citation_repair_succeeded": not repaired_validation.failed,
+        "citation_repair_latency_ms": repair_latency_ms,
+    }
+    if repaired_validation.failed:
+        prepared.meta = {
+            **prepared.meta,
+            "citation_repair_failure_reason": repaired_validation.reason,
+        }
+        return answer, model, _merge_usage(usage, repaired_usage), latency_ms + repair_latency_ms
+
+    return (
+        repaired.text,
+        repaired.model or model,
+        _merge_usage(usage, repaired_usage),
+        latency_ms + repair_latency_ms,
+    )
 
 
 def _history(db: Session, conversation_id: int, window: int) -> list[LLMMessage]:
@@ -196,26 +317,16 @@ def _prepare_chat(db: Session, embedder, llm, settings: Settings, *, message: st
 
 def _finalize_chat(db: Session, prepared: _PreparedChat, *, answer: str, model: str | None,
                    usage: dict, latency_ms: int) -> ChatResult:
-    emitted_markers = all_citation_markers(answer)
-    invalid_markers = [i for i in emitted_markers if i < 1 or i > prepared.item_count]
-    cited = [i for i in emitted_markers if 1 <= i <= prepared.item_count]
-    support_failures = (
-        [] if invalid_markers or not cited else _citation_support_failures(answer, prepared)
-    )
-    if invalid_markers or not cited or support_failures:
+    validation = _validate_citations(answer, prepared)
+    cited = validation.cited
+    if validation.failed:
         answer = CITATION_FAILURE_TEXT
         prepared.meta = {
             **prepared.meta,
             "citation_validation_failed": True,
-            "citation_failure_reason": (
-                "invalid_citations"
-                if invalid_markers
-                else "missing_citations"
-                if not cited
-                else "unsupported_claims"
-            ),
-            "invalid_citation_markers": invalid_markers,
-            "unsupported_citation_segments": support_failures,
+            "citation_failure_reason": validation.reason,
+            "invalid_citation_markers": validation.invalid_markers,
+            "unsupported_citation_segments": validation.support_failures,
         }
         cited = []
     assistant = Message(conversation_id=prepared.conversation_id, role="assistant",
@@ -268,7 +379,15 @@ def chat(db: Session, embedder, llm, settings: Settings, *, message: str,
 
     usage = {"prompt_tokens": resp.prompt_tokens, "completion_tokens": resp.completion_tokens,
              "total_tokens": resp.total_tokens}
-    return _finalize_chat(db, prepared, answer=resp.text, model=resp.model,
+    answer, model, usage, latency_ms = _repair_citations_if_needed(
+        llm,
+        prepared,
+        answer=resp.text,
+        model=resp.model,
+        usage=usage,
+        latency_ms=latency_ms,
+    )
+    return _finalize_chat(db, prepared, answer=answer, model=model,
                           usage=usage, latency_ms=latency_ms)
 
 
@@ -312,13 +431,24 @@ def stream_chat(db: Session, embedder, llm, settings: Settings, *, message: str,
                 delta_parts.append(chunk.text)
 
         latency_ms = int((time.perf_counter() - started) * 1000)
-        raw_answer = "".join(parts)
-        result = _finalize_chat(db, prepared, answer=raw_answer, model=model,
+        streamed_answer = "".join(parts)
+        final_answer, model, usage, latency_ms = _repair_citations_if_needed(
+            llm,
+            prepared,
+            answer=streamed_answer,
+            model=model,
+            usage=usage,
+            latency_ms=latency_ms,
+        )
+        result = _finalize_chat(db, prepared, answer=final_answer, model=model,
                                 usage=usage, latency_ms=latency_ms)
         # Retrieved notes are untrusted input. Do not send provider chunks until the
         # assembled answer passes citation validation, otherwise prompt-injected text
         # could leak over SSE before the final response is replaced.
-        if not result.retrieval.get("citation_validation_failed") and result.answer == raw_answer:
+        if (
+            not result.retrieval.get("citation_validation_failed")
+            and result.answer == streamed_answer
+        ):
             for text in delta_parts:
                 yield ChatStreamEvent(type="delta", text=text)
         yield ChatStreamEvent(type="complete", result=result)

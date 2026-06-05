@@ -2,16 +2,18 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { PaperPlaneTilt, Lock, LockOpen } from "@phosphor-icons/react";
+import { Brain, PaperPlaneTilt, Lock, LockOpen } from "@phosphor-icons/react";
 
 interface Props {
-  onSend: (message: string, privateMode: boolean) => void;
+  onSend: (message: string, privateMode: boolean, agenticMode: boolean) => void;
   disabled?: boolean;
+  agenticAvailable?: boolean;
 }
 
-export function ChatComposer({ onSend, disabled }: Props) {
+export function ChatComposer({ onSend, disabled, agenticAvailable = false }: Props) {
   const [text, setText] = useState("");
   const [privateMode, setPrivateMode] = useState(false);
+  const [agenticMode, setAgenticMode] = useState(false);
   const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -26,7 +28,7 @@ export function ChatComposer({ onSend, disabled }: Props) {
 
   const submit = () => {
     if (!canSend) return;
-    onSend(text.trim(), privateMode);
+    onSend(text.trim(), privateMode, agenticMode && agenticAvailable);
     setText("");
   };
 
@@ -37,6 +39,14 @@ export function ChatComposer({ onSend, disabled }: Props) {
           <Lock size={11} className="text-amber-500" />
           <p className="text-[11px] text-amber-500 font-medium">
             Private mode — Ollama only, no data sent externally
+          </p>
+        </div>
+      )}
+      {agenticMode && agenticAvailable && (
+        <div className="flex items-center gap-1.5 mb-2 px-1">
+          <Brain size={11} className="text-sky-500" />
+          <p className="text-[11px] text-sky-500 font-medium">
+            Agentic mode - plans multiple note searches before answering
           </p>
         </div>
       )}
@@ -62,6 +72,20 @@ export function ChatComposer({ onSend, disabled }: Props) {
         />
 
         <div className="flex items-center gap-1.5 shrink-0 pb-0.5">
+          {agenticAvailable && (
+            <motion.button whileTap={{ scale: 0.9 }}
+              onClick={() => setAgenticMode((p) => !p)}
+              className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all ${
+                agenticMode
+                  ? "bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-800 text-sky-600 dark:text-sky-400"
+                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+              title={agenticMode ? "Agentic RAG ON" : "Agentic RAG OFF"}
+            >
+              <Brain size={14} weight={agenticMode ? "bold" : "regular"} />
+            </motion.button>
+          )}
+
           <motion.button whileTap={{ scale: 0.9 }}
             onClick={() => setPrivateMode((p) => !p)}
             className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all ${

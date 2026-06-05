@@ -9,31 +9,90 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
-## Reviewed feedback promotion into fixed evals (2026-06-05)
+## Agentic RAG v1 is opt-in, read-only, and request-scoped (2026-06-05)
 
-- **What:** added a manual promotion path for thumbs-down feedback. `GET /feedback/eval-candidates`
-  still exports review-first candidates only; `POST /feedback/eval-candidates/{id}/promote`
-  requires reviewer confirmation of expected sources, expected keywords, and refusal behavior before
-  appending the edited case to `backend/eval/dataset.yaml`. A follow-up security review tightened
-  this write path so promotion also requires `X-Second-Brain-Admin-Token`, stores reviewer
-  provenance in the eval case itself, records a secondary audit row, and returns only a logical
-  dataset path to the client.
-- **Why:** negative feedback is useful eval material, but only after a human has decided what the
-  correct evidence, answer keywords, and refusal label should be. The fixed eval loader now enforces
-  explicit reviewed fields, rejects unknown keys/types, checks expected document titles against the
-  fixed corpus, and validates the whole dataset before any promoted case is written.
-- **Trade-off / what I gave up:** promotion does not copy live user/source snippets into the eval
-  corpus automatically. If a feedback example depends on a document that is not already in
-  `backend/eval/corpus`, the reviewer must add a safe synthetic corpus document separately or choose
-  an existing corpus source; otherwise the promotion endpoint returns `422`.
-- **Trade-off / what I gave up:** the API still writes a repo file and a Postgres audit row through
-  separate durability systems; they cannot be a true ACID transaction. To avoid relying on the DB
-  audit as the only provenance, promoted eval cases now carry their own strict `review` block with
-  feedback id, reviewer identity, timestamp, and confirmation flags. The audit row is operational
-  telemetry, while the dataset remains self-describing if a later DB write is interrupted.
-- **Affects:** `backend/app/eval/dataset.py`, `backend/eval/dataset.yaml`,
-  `backend/app/api/conversations.py`, `backend/app/schemas/feedback.py`,
-  `frontend/app/feedback/page.tsx`, `frontend/lib/api/{client,types}.ts`, `docs/USAGE.md`.
+- **What:** added a LangGraph-backed `agentic_rag` service for `/chat` requests with
+  `options.agentic=true` when `SECOND_BRAIN_AGENTIC_RAG_ENABLED=true`. The graph plans bounded
+  subqueries, runs existing hybrid retrieval for each, merges/dedupes chunks, optionally retries
+  weak evidence with the original wording, and answers through the same citation finalizer as
+  regular chat.
+- **Why:** the regular RAG path was already strong hybrid retrieval. The improvement needed here is
+  orchestration over that retriever, not a replacement datastore, paid reranker, or autonomous tool
+  action layer.
+- **Trade-off / what I gave up:** v1 is non-streaming and checkpoint-free. `/chat/stream` returns
+  `409` for agentic requests so unvalidated answer text is never emitted before citation
+  validation. LangGraph persistence/human-in-the-loop is deferred until a real async or
+  approval-based workflow needs it.
+- **Trade-off / what I gave up:** agentic planning supersedes the optional single query-rewrite hook
+  for that request. This avoids multiplying planner plus rewrite LLM calls across every subquery.
+- **Reliability follow-up:** citation parsing now accepts grouped markers such as `[1, 2]`, and the
+  agentic planner parses Markdown-fenced JSON instead of treating fence lines as search queries.
+- **Trade-off / what I gave up:** if a generated draft fails citation validation, the backend now
+  makes one internal repair call asking the same LLM to rewrite the draft so every factual sentence
+  carries same-sentence citations. This adds latency and one extra provider call only on failed
+  drafts, but preserves the existing rule that unvalidated text is never persisted or streamed to
+  the browser.
+- **Affects:** `backend/app/agentic_rag/service.py`, `backend/app/api/chat.py`,
+  `backend/app/eval/{configs,harness,pipeline}.py`, `frontend/app/chat/page.tsx`,
+  `frontend/components/{ChatComposer,MessageList}.tsx`, `docs/adr/0016-agentic-rag-v1.md`.
+
+## Demo-loop closure and eval export tooling (2026-06-05)
+
+- **What:** added an operator export CLI for durable `eval_cases` rows and a seed CLI for the
+  portfolio loop. `python -m app.eval.export_cases` writes a reviewable YAML fragment; `python -m
+  app.demo.seed` creates a capture-backed bookmark, cited chat answer, and negative feedback row.
+- **Why:** reviewed promotion is intentionally durable in Postgres, but the project still needs a
+  clean bridge into the source-controlled CI eval dataset when a staged case deserves to become a
+  release gate. The seed command makes the strongest demo reproducible without hand-entering data.
+- **Reliability follow-up:** duplicate eval-case insertion races now return `409` instead of leaking
+  a DB integrity exception, and worker-owned searchable jobs bump the Redis search-cache epoch after
+  the final DB commit.
+- **Trade-off / what I gave up:** the exporter produces a patch fragment rather than mutating
+  `eval/dataset.yaml`. That preserves code-review discipline but leaves the final promotion into CI
+  as an operator action.
+- **Affects:** `backend/app/eval/export_cases.py`, `backend/app/demo/seed.py`,
+  `backend/app/api/conversations.py`, `backend/app/jobs/worker.py`, `README.md`, `docs/USAGE.md`,
+  `docs/case-study.md`.
+
+## Local-first runtime replaces always-on VPS default (2026-06-05)
+
+- **What:** changed the default runtime from an always-on VPS to local-first/on-demand Docker
+  Compose. The existing DigitalOcean/Caddy/Compose deployment artifacts remain as an optional
+  cloud demo recipe, and ADR-0015 now supersedes ADR-0011 as the default runtime decision.
+- **Why:** the owner uses the app intermittently, so paying a droplet to sit idle violates the
+  cost-conscious goal even if the monthly cost is small. The project still demonstrates the same
+  core engineering value locally: RAG, pgvector, eval gates, MCP, jobs, governance, and runbooks.
+- **Trade-off / what I gave up:** no permanent public URL, 24/7 briefing job, or always-on remote
+  API by default. Those return only when the local machine is running, a free personal tunnel is
+  active, or a deliberately temporary cloud demo is started.
+- **Shutdown note:** destroy the current DigitalOcean droplet only after local startup is verified
+  and a fresh Postgres dump, env file, backup archives, and any useful evidence have been copied
+  and checked locally.
+- **Affects:** `AGENTS.md`, `README.md`, `docs/project-plan.md`, `docs/USAGE.md`,
+  `docs/phase-6-plan.md`, `docs/adr/0011-vps-provider.md`,
+  `docs/adr/0015-local-first-runtime.md`, `docs/adr/README.md`, `docs/PROGRESS.md`.
+
+## Durable reviewed eval-case staging (2026-06-05)
+
+- **What:** moved reviewed feedback promotion out of direct YAML mutation. `GET
+  /feedback/eval-candidates` still exports review-first thumbs-down candidates, while `POST
+  /feedback/eval-candidates/{id}/promote` now validates the reviewed case against the fixed corpus
+  and stores it as a durable `eval_cases` Postgres row in the same transaction as the audit log.
+  The response reports the logical dataset path `postgres:eval_cases`.
+- **Why:** the previous API path wrote a repo file and then wrote a database audit row, which could
+  not be made truly atomic. Keeping reviewed cases in Postgres makes promotion durable,
+  auditable, and rollback-safe without letting the running API edit source-controlled CI fixtures.
+- **Trade-off / what I gave up:** promoted feedback no longer changes the fixed CI gate
+  automatically. When a case deserves to become part of the repo-controlled baseline, an operator
+  should export/review the `eval_cases` row, add any safe synthetic corpus fixture needed, and commit
+  the YAML change as a normal code review.
+- **Trade-off / what I gave up:** promotion still validates expected document titles against the
+  fixed corpus, so feedback grounded only in private/live documents remains staged until a safe eval
+  corpus equivalent exists.
+- **Affects:** `backend/app/eval/dataset.py`, `backend/app/db/models.py`,
+  `backend/migrations/versions/0005_eval_cases.py`, `backend/app/api/conversations.py`,
+  `backend/tests/integration/test_search.py`, `frontend/app/feedback/page.tsx`, `docs/USAGE.md`,
+  `docs/case-study.md`.
 
 ## CodeRabbit security follow-up posture (2026-06-05)
 

@@ -18,6 +18,7 @@ RLS_TABLES = [
     "messages",
     "retrievals",
     "feedback",
+    "eval_cases",
 ]
 
 

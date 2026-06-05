@@ -1,6 +1,9 @@
 # ADR-0011 — VPS provider for the always-on runtime
 
-- **Status:** Accepted
+> **Superseded 2026-06-05 by ADR-0015.** Local-first Docker Compose is now the default runtime;
+> this VPS provider decision is retained only as historical context and an optional cloud recipe.
+
+- **Status:** Superseded by ADR-0015
 - **Date:** 2026-06-02
 - **Deciders:** project owner (low cost is the stated priority)
 - **Context phase:** Phase 6 (productionize on a VPS)

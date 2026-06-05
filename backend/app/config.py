@@ -53,6 +53,11 @@ class Settings(BaseSettings):
 
     # Chat (ADR-0006)
     history_window: int = 6
+    # Opt-in read-only agentic RAG (ADR-0016). Disabled by default until eval beats baseline.
+    agentic_rag_enabled: bool = False
+    agentic_rag_max_subqueries: int = 4
+    agentic_rag_verifier_enabled: bool = True
+    agentic_rag_recursion_limit: int = 8
 
     # Prompt versioning (ADR-0009) — active prompt; rollback = set this back to a prior version
     prompt_version: str = "rag-v1"          # rag-v1 | rag-v2
@@ -62,7 +67,7 @@ class Settings(BaseSettings):
     mlflow_experiment: str = "second-brain-rag"
 
     # API
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     # Single-user API bearer token for notes, conversations, sources, tasks, feedback, and
     # research endpoints. None keeps local/dev tests keyless; prod compose requires it.
     api_token: str | None = None

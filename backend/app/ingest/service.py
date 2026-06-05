@@ -80,6 +80,7 @@ def ingest_documents(
     documents: list[DocumentInput],
     settings: Settings | None = None,
     redis_client=None,
+    commit: bool = True,
 ) -> IngestResult:
     cfg = settings or default_settings
     src = _get_or_create_source(db, source)
@@ -138,7 +139,8 @@ def ingest_documents(
         except Exception as exc:
             results.append(DocumentResult(None, doc_in.title, "failed", chash, error=str(exc)))
 
-    db.commit()
-    if any(d.status == "embedded" for d in results):
+    if commit:
+        db.commit()
+    if commit and any(d.status == "embedded" for d in results):
         bump_search_cache_epoch(redis_client, cfg)
     return IngestResult(source_id=src.id, documents=results)

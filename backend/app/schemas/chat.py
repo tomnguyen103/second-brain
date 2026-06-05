@@ -12,6 +12,7 @@ class ChatFilters(BaseModel):
 class ChatOptions(BaseModel):
     private_mode: bool = False
     include_chunks: bool = True
+    agentic: bool = False
 
 
 class ChatRequest(BaseModel):

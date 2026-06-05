@@ -1,9 +1,9 @@
 """raw_text retention (ADR-0012, D4).
 
-After a document is embedded, its chunks + embeddings carry the retrievable signal — the
-original `raw_text` is the only PII-bearing free text we keep, and per the retention policy it
-is nulled `retention_raw_text_days` after ingestion. Chunks and embeddings are NOT removed
-(that would break search); retention != erasure (see erasure.py for delete-my-data).
+After a document is embedded, chunks + embeddings carry the retrievable signal. This retention
+path nulls the original `documents.raw_text` copy after `retention_raw_text_days`; it does not
+anonymize the document because `chunks.content` intentionally remains searchable. Retention !=
+erasure (see erasure.py for source-level delete-my-data).
 """
 from __future__ import annotations
 

@@ -158,10 +158,10 @@ $env:SECOND_BRAIN_GEMINI_API_KEY = "..."; Remove-Item Env:\SECOND_BRAIN_LLM_PROV
 
 ## Phase 6 — productionization + data-ops (run & verify)
 
-Data governance (RLS, audit, retention, GDPR export/delete), Prometheus metrics, an eval-gated
-CI pipeline, and the prod Compose stack. Services in `app/dataops/*` + `app/obs/*`; admin API in
-`app/api/dataops.py`; the prod stack + monitoring config in `deploy/`. See ADR-0011 (VPS) and
-ADR-0012 (productionization + governance).
+Data governance (RLS, audit, retention, GDPR export/delete, durable reviewed eval cases),
+Prometheus metrics, an eval-gated CI pipeline, and the prod Compose stack. Services in
+`app/dataops/*` + `app/obs/*`; admin API in `app/api/dataops.py`; the prod stack + monitoring
+config in `deploy/`. See ADR-0011 (VPS) and ADR-0012 (productionization + governance).
 
 ```powershell
 cd backend; .\.venv\Scripts\Activate.ps1
@@ -185,6 +185,7 @@ $env:SECOND_BRAIN_ADMIN_TOKEN = "a-long-random-token"
 #          X-Second-Brain-Admin-Token: <admin-token>
 #   DELETE /data/sources/<id>                 (GDPR erasure)
 #   POST   /admin/retention/purge?older_than_days=180   (null old raw_text)
+#   POST   /feedback/eval-candidates/<id>/promote        (store reviewed eval case)
 
 # 3) Eval gate (the CI quality gate; exit 0 = quality OK)
 python -m app.eval.gate

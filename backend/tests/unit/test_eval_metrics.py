@@ -24,6 +24,7 @@ def test_mrr():
 
 def test_citation_validity():
     assert m.citation_validity("uses [1] and [2]", n_context=3) == 1.0
+    assert m.citation_validity("uses grouped markers [1, 2]", n_context=3) == 1.0
     assert m.citation_validity("uses [1] and [9]", n_context=3) == 0.5   # [9] out of range
     assert m.citation_validity("no markers here", n_context=3) == 1.0    # nothing hallucinated
 

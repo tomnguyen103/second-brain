@@ -219,7 +219,7 @@ function EvalCandidateReviewCard({ candidate, adminToken }: { candidate: EvalCan
       );
     },
     onSuccess: (response) => {
-      setPromoted(`${response.case.id} promoted to ${response.dataset_path}`);
+      setPromoted(`${response.case.id} saved to ${response.dataset_path}`);
     },
   });
 

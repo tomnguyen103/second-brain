@@ -17,6 +17,7 @@ class EvalConfig:
     llm_provider: str       # gemini | ollama | fake
     prompt_version: str     # rag-v1 | rag-v2
     top_k: int
+    agentic: bool = False
 
 
 CONFIGS: dict[str, EvalConfig] = {
@@ -24,9 +25,11 @@ CONFIGS: dict[str, EvalConfig] = {
     # so any metric delta is attributable to the prompt. Proves the harness + config plumbing.
     "baseline": EvalConfig("baseline", "fake", "rag-v1", 5),
     "variant": EvalConfig("variant", "fake", "rag-v2", 5),
+    "agentic": EvalConfig("agentic", "fake", "rag-v1", 5, True),
     # Real prompt A/B (needs a Gemini key) — the meaningful quality comparison rag-v1 vs rag-v2.
     "gemini": EvalConfig("gemini", "gemini", "rag-v1", 5),
     "gemini-v2": EvalConfig("gemini-v2", "gemini", "rag-v2", 5),
+    "gemini-agentic": EvalConfig("gemini-agentic", "gemini", "rag-v1", 5, True),
 }
 
 
@@ -37,4 +40,5 @@ def settings_for(config: EvalConfig, base: Settings | None = None) -> Settings:
         "llm_provider": config.llm_provider,
         "prompt_version": config.prompt_version,
         "retrieval_top_k": config.top_k,
+        "agentic_rag_enabled": config.agentic,
     })

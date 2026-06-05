@@ -9,6 +9,7 @@ export interface ChatFilters {
 export interface ChatOptions {
   private_mode?: boolean;
   include_chunks?: boolean;
+  agentic?: boolean;
 }
 
 export interface ChatRequest {
@@ -41,6 +42,33 @@ export interface Usage {
   total_tokens: number | null;
 }
 
+export interface AgenticTrace {
+  enabled: boolean;
+  strategy: string;
+  subqueries: string[];
+  subquery_hit_counts: number[];
+  deduped_chunks: number;
+  selected_chunks: number;
+  weak_evidence: boolean;
+  planner_failed: boolean;
+  verifier_used: boolean;
+  fallback_used: boolean;
+  step_budget: {
+    max_subqueries: number;
+    recursion_limit: number;
+  };
+}
+
+export interface ChatRetrieval {
+  method: string;
+  candidates_vector?: number;
+  candidates_vector_raw?: number;
+  candidates_fulltext?: number;
+  fused_returned: number;
+  agentic?: AgenticTrace;
+  [key: string]: unknown;
+}
+
 export interface ChatResponse {
   conversation_id: number;
   message_id: number;
@@ -49,12 +77,7 @@ export interface ChatResponse {
   usage: Usage;
   model: string | null;
   latency_ms: number;
-  retrieval: {
-    method: string;
-    candidates_vector: number;
-    candidates_fulltext: number;
-    fused_returned: number;
-  };
+  retrieval: ChatRetrieval;
 }
 
 export interface ChatStreamDelta {

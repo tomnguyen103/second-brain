@@ -18,6 +18,29 @@ env:
   PG_DSN: postgresql+psycopg://second_brain:second_brain@localhost:5432/second_brain
 
 jobs:
+  compose-config:
+    name: Compose config render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render production + VPS template
+        env:
+          POSTGRES_USER: second_brain
+          POSTGRES_PASSWORD: dummy_postgres_password
+          POSTGRES_DB: second_brain
+          SECOND_BRAIN_API_TOKEN: dummy_api_token
+          SECOND_BRAIN_ADMIN_TOKEN: dummy_admin_token
+          SECOND_BRAIN_LLM_PROVIDER: fake
+          SECOND_BRAIN_GEMINI_API_KEY: dummy_gemini_key
+          NEXT_PUBLIC_API_BASE_URL: https://127.0.0.1.sslip.io/api
+          SECOND_BRAIN_CORS_ORIGINS: '["https://127.0.0.1.sslip.io"]'
+          CADDY_SITE_ADDRESS: 127.0.0.1.sslip.io
+        run: |
+          docker compose -p second-brain \
+            -f deploy/docker-compose.prod.yml \
+            -f deploy/docker-compose.vps.yml.example \
+            config >/tmp/second-brain-compose.yml
+
   unit-tests:
     name: Unit tests (DB-free)
     runs-on: ubuntu-latest

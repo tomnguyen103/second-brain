@@ -15,16 +15,38 @@ function ChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const cidParam = searchParams.get("cid");
+  const routeConversationId = useMemo(() => {
+    if (!cidParam) return null;
+    const parsed = Number.parseInt(cidParam, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [cidParam]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [conversationId, setConversationId] = useState<number | null>(
-    cidParam ? parseInt(cidParam, 10) : null
-  );
+  const [conversationId, setConversationId] = useState<number | null>(routeConversationId);
   const [isSending, setIsSending] = useState(false);
   const [sourceIds, setSourceIds] = useState<number[]>([]);
   const [tags, setTags] = useState<string[]>([]);
+  const agenticAvailable = process.env.NEXT_PUBLIC_AGENTIC_RAG_ENABLED === "true";
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const routeConversationIdRef = useRef(routeConversationId);
+  const preserveMessagesForRouteIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (routeConversationIdRef.current === routeConversationId) return;
+    routeConversationIdRef.current = routeConversationId;
+
+    const shouldPreserveMessages =
+      routeConversationId != null && preserveMessagesForRouteIdRef.current === routeConversationId;
+    preserveMessagesForRouteIdRef.current = null;
+
+    if (!shouldPreserveMessages) {
+      abortRef.current?.abort();
+      setIsSending(false);
+      setMessages([]);
+    }
+    setConversationId(routeConversationId);
+  }, [routeConversationId]);
 
   const { data: history } = useQuery({
     queryKey: ["conversation", conversationId],
@@ -33,7 +55,7 @@ function ChatPage() {
   });
 
   const historyMessages = useMemo<ChatMessage[]>(() => {
-    if (!history) return [];
+    if (!history || history.id !== conversationId) return [];
     return history.messages.map((m) => {
       if (m.role === "assistant") {
         // Rehydrate the live-chat shape so replayed history gets clickable [n]
@@ -60,7 +82,7 @@ function ChatPage() {
       }
       return { role: "user" as const, content: m.content };
     });
-  }, [history]);
+  }, [history, conversationId]);
 
   const displayMessages = messages.length > 0 ? messages : historyMessages;
   const hasStreamingMessage = displayMessages.some((m) => m.isStreaming);
@@ -76,6 +98,7 @@ function ChatPage() {
       return next;
     });
     if (!requestConversationId) {
+      preserveMessagesForRouteIdRef.current = data.conversation_id;
       setConversationId(data.conversation_id);
       router.replace(`/chat?cid=${data.conversation_id}`, { scroll: false });
     }
@@ -93,7 +116,11 @@ function ChatPage() {
     });
   };
 
-  const sendMessage = async (payload: { message: string; privateMode: boolean }) => {
+  const sendMessage = async (payload: {
+    message: string;
+    privateMode: boolean;
+    agenticMode: boolean;
+  }) => {
     if (isSending) return;
 
     const req: ChatRequest = {
@@ -103,7 +130,11 @@ function ChatPage() {
         source_ids: sourceIds.length ? sourceIds : undefined,
         tags: tags.length ? tags : undefined,
       },
-      options: { private_mode: payload.privateMode, include_chunks: true },
+      options: {
+        private_mode: payload.privateMode,
+        include_chunks: true,
+        agentic: payload.agenticMode && agenticAvailable,
+      },
     };
 
     const base = messages.length > 0 ? messages : historyMessages;
@@ -113,6 +144,12 @@ function ChatPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
+      if (req.options?.agentic) {
+        const data = await api.chat(req);
+        finishAssistant(data, req.conversation_id ?? null);
+        return;
+      }
+
       await api.chatStream(req, {
         signal: controller.signal,
         onDelta: ({ text }) => {
@@ -164,7 +201,13 @@ function ChatPage() {
       <MessageList messages={displayMessages} isLoading={isSending && !hasStreamingMessage} />
       <div ref={bottomRef} />
       <SourceFilter sourceIds={sourceIds} tags={tags} onChangeSourceIds={setSourceIds} onChangeTags={setTags} />
-      <ChatComposer onSend={(msg, pm) => { void sendMessage({ message: msg, privateMode: pm }); }} disabled={isSending} />
+      <ChatComposer
+        onSend={(msg, pm, am) => {
+          void sendMessage({ message: msg, privateMode: pm, agenticMode: am });
+        }}
+        disabled={isSending}
+        agenticAvailable={agenticAvailable}
+      />
     </div>
   );
 }

@@ -21,6 +21,8 @@ COPY frontend/ ./
 # through ingress. Additive + backwards-compatible.
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_AGENTIC_RAG_ENABLED=false
+ENV NEXT_PUBLIC_AGENTIC_RAG_ENABLED=$NEXT_PUBLIC_AGENTIC_RAG_ENABLED
 
 RUN npm run build
 RUN npm prune --omit=dev --no-audit --no-fund \

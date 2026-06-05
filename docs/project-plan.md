@@ -6,7 +6,7 @@
 
 ## The product in one line
 
-An always-on personal AI assistant you talk to every day: it ingests your notes, PDFs, bookmarks, and activity into a vector store, answers questions with **cited** RAG, gives you a **morning briefing**, does **semantic search** across everything you've fed it, and can **take actions** (create tasks, send a digest) through tools exposed over **MCP** — running on the **Gemini API free tier** (with a local-model private mode behind the same interface), hosted on **one small VPS (~$4–6/mo)**, so it's cheap, always-on, and yours.
+A local-first personal AI assistant you run when you need it: it ingests your notes, PDFs, bookmarks, and activity into a vector store, answers questions with **cited** RAG, gives you a **briefing**, does **semantic search** across everything you've fed it, and can **take actions** (create tasks, send a digest) through tools exposed over **MCP** — running on the **Gemini API free tier** (with a local-model private mode behind the same interface), packaged in Docker Compose so the default recurring infrastructure cost is $0.
 
 You are the user. The "tangible value to users" the JD asks for is real on day one because you use it daily.
 
@@ -18,32 +18,32 @@ The role is an **AI Applications Developer**. The screening criteria are LLM int
 
 ---
 
-## Tech stack (cost-optimized for 24/7, with résumé-relevant swap points)
+## Tech stack (cost-optimized for local/on-demand use, with résumé-relevant swap points)
 
 | Layer | What you'll run | Cost | JD-named equivalent (call this out in your README) |
 |---|---|---|---|
 | **LLM generation** | **Gemini Flash API** (free tier) as the default driver; **local Ollama** behind the same interface as fallback/private mode | **$0** (~1,500 req/day free) | OpenAI / Anthropic / Cohere — one `LLMClient` interface, swap by config |
 | **Embeddings** | local `sentence-transformers` (run on ingest only) | **$0** | OpenAI `text-embedding-3`, Gemini embeddings |
-| **Vector store** | **pgvector** inside self-hosted Postgres | $0 (on the VM) | Pinecone / Weaviate — same retrieval interface |
+| **Vector store** | **pgvector** inside self-hosted Postgres | $0 (local) | Pinecone / Weaviate — same retrieval interface |
 | **Backend / API** | **Python + FastAPI** | $0 | FastAPI named explicitly in the JD |
 | **Frontend** | **React + Next.js + TypeScript** | $0 | named as preferred qual |
 | **Agent tooling** | **MCP server** exposing your tools | $0 | MCP + tool-use / agentic patterns |
-| **Primary datastore** | **self-hosted Postgres** (relational + pgvector + full-text + JSONB + analytics) on the VM | $0 (on the VM) | PostgreSQL — used to its full depth, not as a blob store |
+| **Primary datastore** | **self-hosted Postgres** (relational + pgvector + full-text + JSONB + analytics) in local Compose | $0 | PostgreSQL — used to its full depth, not as a blob store |
 | **Cache / hot path** | **Redis** for embedding cache, query cache, rate limiting | $0 (on the VM) | named: Redis |
-| **Preprocessing** | Pandas/NumPy for chunking, dedupe, PII scrubbing | $0 | named: Pandas, NumPy |
-| **MLOps** | **MLflow** for eval runs + prompt/model versioning | $0 (on the VM) | named: MLflow |
-| **Compute (24/7)** | **one small VPS**, everything in Docker Compose | **~$4–6/mo** | the always-on host |
-| **Containers / orch.** | Docker Compose = the 24/7 runtime; **K8s manifests proven on local k3s/kind** (Phase 7), not run 24/7 | $0 (local cluster torn down after) | named: Docker, Kubernetes |
+| **Preprocessing** | Chunking, dedupe, URL validation, and source metadata normalization | $0 | named: Pandas, NumPy |
+| **MLOps** | **MLflow** for eval runs + prompt/model versioning | $0 local file store | named: MLflow |
+| **Compute** | Local/on-demand Docker Compose; optional temporary VPS demo recipe | **$0 default** | operating the app without paying for idle uptime |
+| **Containers / orch.** | Docker Compose = default runtime; **K8s manifests proven on local k3s/kind** (Phase 7), not run 24/7 | $0 (local cluster torn down after) | named: Docker, Kubernetes |
 | **CI/CD** | GitHub Actions (build, test, eval gate, deploy) | $0 (free minutes) | named: GitHub Actions |
-| **Observability** | Prometheus + Grafana, self-hosted on the VM | $0 (on the VM) | named: Prometheus, Grafana |
+| **Observability** | Prometheus-format metrics plus retained Prometheus/Grafana configs for local or demo runs | $0 | named: Prometheus, Grafana |
 
 ### Cost model — what you actually pay
 
-Essentially everything runs in Docker Compose on **one small VPS**, so your only recurring cost is the box itself: roughly **$4–6/month**. Gemini Flash handles inference off-box on its free tier (~1,500 requests/day — plenty for a personal assistant), so there's **no GPU and no per-token bill**. Embeddings run locally and only on ingest, so they're effectively free. Postgres, Redis, MLflow, Prometheus, and Grafana are all self-hosted containers on the same VM — no managed-service fees, no external storage limits.
+The default recurring infrastructure cost is **$0** because the app runs locally/on demand. Gemini Flash handles inference off-box on its free tier, so there's **no GPU and no per-token bill** for normal usage. Embeddings can run locally on ingest or through the Gemini embedding API, depending on the privacy/performance trade-off you choose. Postgres, Redis, MLflow, and the worker run in local/dev processes or Compose containers instead of a paid always-on server.
 
-**VPS options (x86, no ARM-capacity lottery, predictable):** Hetzner CX22 (~€4/mo, 2 vCPU / 4 GB), DigitalOcean / Vultr / Linode basic (~$5–6/mo). A 4 GB box comfortably runs the whole stack. **The $0 alternative:** Oracle Cloud Always Free (up to 4 ARM cores / 24 GB RAM, never expires) — far more powerful, but ARM capacity is often hard to provision and idle instances can be reclaimed, so it's the "free but fiddly" path.
+**Optional cloud path:** the old VPS/Caddy deployment recipe remains available for a temporary demo or deliberate always-on mode, but it is no longer the default. Any VPS, managed database, paid monitoring, or managed Kubernetes spend must be explicitly approved first.
 
-**Why Gemini Flash API instead of local-only LLM:** keeping a capable model resident 24/7 needs real RAM/CPU (or a GPU) and burns power on a box you're paying for; offloading generation to Gemini's free tier keeps the VPS tiny and cheap. **The privacy trade-off** (note this in your README for the GDPR story): query text and retrieved chunks transit to Google. The plan keeps a **local Ollama path behind the same `LLMClient` interface**, so you can flip to a fully-private, no-external-calls mode — and demonstrating that abstraction is itself a strong engineering signal.
+**Why Gemini Flash API instead of local-only LLM:** keeping a capable local model resident needs real RAM/CPU (or a GPU); offloading generation to Gemini's free tier keeps the local stack light. **The privacy trade-off**: query text and retrieved chunks transit to Google. The plan keeps a **local Ollama path behind the same `LLMClient` interface**, so you can flip to a fully-private, no-external-calls mode — and demonstrating that abstraction is itself a strong engineering signal.
 
 ### Using your Gemini Ultra subscription (by hand, not via the app's API)
 
@@ -91,8 +91,8 @@ Your Ultra subscription and the Gemini *API* are billed separately — Ultra pow
         │ Briefing job    │  pulls new inputs → summarizes → stores digest
         └────────────────┘
 
-  All of the above run as containers in ONE Docker Compose stack on a single ~$4–6/mo VPS.
-  Cross-cutting: Alembic migrations · MLflow (eval + versioning) · Prometheus/Grafana · GitHub Actions CI/CD
+  All of the above run locally/on demand, with an optional cloud Compose recipe retained for demos.
+  Cross-cutting: Alembic migrations · MLflow (eval + versioning) · Prometheus metrics · GitHub Actions CI/CD
 ```
 
 ---
@@ -136,9 +136,9 @@ The earlier draft under-used the database. This version makes Postgres a first-c
 
 **Pipeline triggers without extra infra.** Postgres `LISTEN/NOTIFY` (or a simple `jobs` table polled by workers) drives ingest and briefing without standing up a separate broker — a deliberate "use the database you already have" choice you can defend in an ADR (and contrast with the Redis/queue alternative).
 
-**Privacy & governance (the GDPR/CCPA story).** Row-level security scopes data access; an `audit_log` table records access/changes; a retention policy (TTL on raw inputs after embedding) and a documented "delete my data" path satisfy the JD's data-governance and anonymization bullets. PII scrubbing happens in preprocessing before storage; the audit + retention tables prove you thought about the lifecycle.
+**Privacy & governance (the GDPR/CCPA story).** Row-level security demonstrates the access-control posture; an `audit_log` table records governed actions; a retention policy nulls the original `documents.raw_text` copy after embedding while keeping searchable chunks; and a documented source-level erasure path deletes documents, chunks, embeddings, and related rows. This is not anonymization: searchable chunk text remains until erasure, and hosted Gemini modes send text to Google by design.
 
-**Migrations & operability.** Alembic-versioned migrations (every schema change reviewed and reversible), backward-compatible migration discipline tied into the deploy checklist, connection pooling (PgBouncer) for the always-on service, and a backup/restore runbook. These turn "I use Postgres" into "I operate Postgres."
+**Migrations & operability.** Alembic-versioned migrations (every schema change reviewed and reversible), backward-compatible migration discipline tied into runbooks, connection pooling patterns for the optional cloud path, and a backup/restore runbook. These turn "I use Postgres" into "I operate Postgres."
 
 **Redis, kept honest.** Redis caches embeddings (don't re-embed identical text), caches hot query results, and enforces rate limits — the things a cache/in-memory store is genuinely better at than Postgres. Keeping both, each for its strength, is the realistic-architecture signal.
 
@@ -151,10 +151,10 @@ The earlier draft under-used the database. This version makes Postgres a first-c
 | Design/implement AI features (chatbot, search, summarization, recommendations) | Features 1–4: chat, search, briefing, agent |
 | Robust backend APIs, low latency/high throughput | FastAPI service; latency tracked as an eval metric; Redis caching for embeddings |
 | Integrate AI with frontend; UI/UX collaboration | Next.js/TS chat UI with streaming responses |
-| Data pipelines, preprocessing, quality/privacy/security | Ingest worker: chunking, dedupe, PII scrubbing; Postgres constraints enforce quality; local models = privacy |
+| Data pipelines, preprocessing, quality/privacy/security | Ingest path: chunking, dedupe, source metadata, URL validation, and Postgres constraints; local model modes reduce external data sharing |
 | **PostgreSQL** (named) — modeling, queries, optimization | Normalized relational schema; hybrid pgvector + full-text search; JSONB; materialized views/window functions; HNSW/GIN index tuning with `EXPLAIN ANALYZE` |
 | Feature stores / structured + unstructured data | Chunks + embeddings + JSONB metadata; relational core ties unstructured text to structured sources/tags |
-| Data governance, retention, anonymization (GDPR/CCPA) | Row-level security, `audit_log`, retention TTL, documented delete-my-data path, PII scrubbing before storage |
+| Data governance and privacy posture (GDPR/CCPA) | Row-level security, `audit_log`, raw-text retention TTL, source-level export/erasure; no anonymization claim while chunks remain searchable |
 | Schema versioning / migrations | Alembic versioned, reversible migrations tied to the deploy checklist |
 | Evaluate models — performance, fairness, bias, latency, reliability | Eval harness in MLflow: answer quality, latency, refusal/bias checks |
 | A/B testing + rollback strategies | A/B two prompt/model configs; rollback via versioned prompts + feature flag |
@@ -162,15 +162,15 @@ The earlier draft under-used the database. This version makes Postgres a first-c
 | Monitoring: logging, metrics, tracing, alerting, incident response | Prometheus/Grafana dashboards; alerts on latency/error/queue; runbooks |
 | Clean code, API docs, architecture diagrams, dev guides | OpenAPI docs, this architecture doc, per-service READMEs |
 | Cross-functional translation of requirements | ADRs + system-design docs (you play PM/DS/Sec) |
-| Privacy, security, ethical AI, bias mitigation, explainability | PII scrubbing, GDPR notes, citations = explainability, bias eval |
+| Privacy, security, ethical AI, bias mitigation, explainability | Explicit hosted-model privacy trade-off, local/private mode, URL SSRF guards, citations for explainability, refusal eval |
 | Code reviews, unit/integration tests | Self-review checklist; pytest unit + integration against real Postgres |
 | **Python proficiency / FastAPI** | Backend core |
 | **LLM integration (OpenAI/Cohere/Anthropic)** | Abstracted LLM client; swap from Ollama with a config flag |
 | **Embeddings, vector DBs (Pinecone/Weaviate), retrieval** | pgvector now; documented Pinecone/Weaviate swap |
-| **Cloud + DevOps (Docker, CI/CD, K8s)** | Docker Compose runtime; GitHub Actions; K8s track on local k3s/kind (Phase 7); VPS deploy |
+| **Cloud + DevOps (Docker, CI/CD, K8s)** | Local-first Docker Compose runtime; GitHub Actions; K8s track on local k3s/kind (Phase 7); optional VPS deploy recipe |
 | **React/TypeScript frontend** (preferred) | Next.js dashboard |
 | **MLflow / monitoring (Prometheus/Grafana)** (preferred) | Explicit phases |
-| **GDPR/CCPA, anonymization** (preferred) | PII pipeline + privacy README section |
+| **GDPR/CCPA privacy controls** (preferred) | Access/export, erasure, retention, audit, and a precise privacy README section; anonymization is not claimed |
 
 If you can point at every row of this table in a repo, you are a credible candidate for this role.
 
@@ -190,15 +190,15 @@ If you can point at every row of this table in a repo, you are a credible candid
 
 **Phase 5 — Daily briefing + pipelines.** Scheduled summarization job; morning digest. **Shareable:** your actual morning briefing.
 
-**Phase 6 — Productionize + data ops.** Deploy the Docker Compose stack to the VPS; GitHub Actions CI/CD with an **eval gate** (deploy blocked if quality regresses); self-hosted Prometheus/Grafana, alerting, runbooks. Data-layer hardening: RLS + audit log, retention TTL and delete-my-data path, PgBouncer pooling, backup/restore runbook, and a query-optimization pass (`EXPLAIN ANALYZE`, index tuning) with before/after numbers. **Shareable:** a Grafana dashboard + ER diagram + a query-tuning before/after — the "I can model *and* operate this" proof.
+**Phase 6 — Operations hardening + data ops.** Make the app operable without requiring paid uptime: GitHub Actions CI/CD with an **eval gate** (deploy blocked if quality regresses), Prometheus-compatible metrics, runbooks, and an optional cloud deploy recipe. Data-layer hardening: RLS + audit log, retention TTL and delete-my-data path, pooling patterns, backup/restore runbook, and a query-optimization pass (`EXPLAIN ANALYZE`, index tuning) with before/after numbers. **Shareable:** metrics/config artifacts + ER diagram + a query-tuning before/after — the "I can model *and* operate this" proof.
 
-**Phase 7 — Kubernetes track (learn it without paying to run it).** *Compose remains the 24/7 runtime — this phase is for K8s competence and the JD bullet, run on a free, ephemeral local cluster and torn down after.* See the dedicated **Kubernetes strategy** section below for the full breakdown. In short: author real manifests, prove them on local **k3s/kind**, demonstrate autoscaling and ingress, and wire CI/CD to the cluster. **Shareable:** a screenshot of your pods scaling under load (`kubectl get hpa`/`get pods`) and your Actions pipeline deploying to the cluster — plus a README note explaining *why* the live system runs on Compose. **Optional capstone (only if you want the shiniest demo):** a short, deliberate run on a managed cluster (GKE/EKS), captured, then deleted — see cost note below.
+**Phase 7 — Kubernetes track (learn it without paying to run it).** *Compose remains the default runtime — this phase is for K8s competence and the JD bullet, run on a free, ephemeral local cluster and torn down after.* See the dedicated **Kubernetes strategy** section below for the full breakdown. In short: author real manifests, prove them on local **k3s/kind**, demonstrate autoscaling and ingress, and wire CI/CD to the cluster. **Shareable:** a screenshot of your pods scaling under load (`kubectl get hpa`/`get pods`) and your Actions pipeline deploying to the cluster — plus a README note explaining *why* the real app stays local/on-demand. **Optional capstone (only if you want the shiniest demo):** a short, deliberate run on a managed cluster (GKE/EKS), captured, then deleted — see cost note below.
 
 ---
 
 ## Kubernetes strategy — learn it, demonstrate it, don't pay to run it 24/7
 
-**The decision, stated plainly:** the live assistant runs on **Docker Compose** on one small VPS. Kubernetes is deliberately *not* the production runtime, because this is a single-user app — K8s's value (multi-node scheduling, autoscaling under real traffic, self-healing across machines, team rolling-deploys) solves problems you don't have here, and running it 24/7 would mean either a $70+/mo managed cluster or the operational overhead of babysitting a single-node cluster for zero benefit. **Being able to explain that trade-off is a stronger interview signal than "I run everything on K8s"** — it shows you know the tool *and* when not to reach for it.
+**The decision, stated plainly:** the real assistant runs on **local-first Docker Compose**. Kubernetes is deliberately *not* the production runtime, because this is a single-user app — K8s's value (multi-node scheduling, autoscaling under real traffic, self-healing across machines, team rolling-deploys) solves problems you don't have here, and running it 24/7 would mean either a managed-cluster bill or the operational overhead of babysitting a cluster for zero benefit. **Being able to explain that trade-off is a stronger interview signal than "I run everything on K8s"** — it shows you know the tool *and* when not to reach for it.
 
 **The key insight:** learning K8s does not require K8s *uptime*. Every skill below is practiced on a **free local cluster (k3s or kind)** you spin up, deploy to, screenshot, and tear down — $0, and zero risk to your running app.
 
@@ -209,7 +209,7 @@ If you can point at every row of this table in a repo, you are a credible candid
 | **Ingress + config** | An ingress controller routing to your services + TLS; templated with **Helm or Kustomize** (dev/prod overlays) | Demonstrates routing and environment config the way real clusters do |
 | **CI/CD to K8s** | GitHub Actions builds images and `kubectl apply`s to the cluster, eval-gated | The *pipeline* is the artifact and doesn't need a permanent cluster |
 
-**Cost guardrail (important to you):** the entire Phase 7 baseline is **$0** — k3s/kind run on your own machine or even on the same VPS temporarily. **Do not** stand up a managed cluster as a permanent thing. The *only* optional spend is the capstone: deploy to GKE/EKS for a single afternoon to capture a real-cloud rolling-deploy screenshot, then **delete the cluster immediately** (set a calendar reminder; clusters left running are the classic surprise bill). Even that is a few dollars at most — and it's entirely skippable, since the local-cluster proof already backs the JD bullet.
+**Cost guardrail (important to you):** the entire Phase 7 baseline is **$0** — k3s/kind run on your own machine and are torn down after evidence capture. **Do not** stand up a managed cluster as a permanent thing. The *only* optional spend is the capstone: deploy to GKE/EKS for a single afternoon to capture a real-cloud rolling-deploy screenshot, then **delete the cluster immediately** (set a calendar reminder; clusters left running are the classic surprise bill). Even that is skippable, since the local-cluster proof already backs the JD bullet.
 
 ---
 
@@ -221,7 +221,7 @@ Every workflow from your toolkit still applies, now on an AI system: **ADRs** (l
 
 ## What to share, and where
 
-- **LinkedIn:** Phase 2 chat UI, Phase 3 MLflow A/B comparison, Phase 6 architecture diagram + Grafana, Phase 7 K8s autoscaling screenshot (with the "why Compose runs production" note — recruiters love the judgment). Pair each with a short "what I learned" line (RAG, eval, MLOps, MCP, K8s).
+- **LinkedIn:** Phase 2 chat UI, Phase 3 MLflow A/B comparison, Phase 6 architecture/metrics/query-tuning writeup, Phase 7 K8s autoscaling screenshot (with the "why the real app stays local-first" note — recruiters love the judgment). Pair each with a short "what I learned" line (RAG, eval, MLOps, MCP, K8s).
 - **Instagram/Facebook:** the polished chat UI and the morning-briefing screenshot — visual, relatable ("my AI reads my notes for me").
 - **Job boards / résumé:** link the repo; lead with the JD-coverage matrix as the README's headline so a recruiter sees the match instantly.
 

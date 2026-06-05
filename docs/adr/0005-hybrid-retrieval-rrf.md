@@ -5,6 +5,10 @@
 - **Deciders:** project owner
 - **Context phase:** Phase 1 (retrieval for `/chat`; reused by `/search` in Phase 2)
 
+> **Runtime update 2026-06-05:** ADR-0015 changed the default runtime to local-first Docker
+> Compose. The "no second model resident on the VPS" constraint below now means no always-on
+> extra model/service in the default local runtime.
+
 ## Context
 
 `/chat` must fetch the chunks that ground an answer. The Phase 0 schema carries two

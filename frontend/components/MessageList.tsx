@@ -108,6 +108,11 @@ export function MessageList({ messages, isLoading }: Props) {
                           {msg.response.citations.length} source{msg.response.citations.length > 1 ? "s" : ""}
                         </span>
                       )}
+                      {msg.response.retrieval.agentic && (
+                        <span className="text-[10px] text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 rounded-md px-1.5 py-0.5 font-medium">
+                          agentic: {msg.response.retrieval.agentic.subqueries.length} searches / {msg.response.retrieval.agentic.selected_chunks} chunks
+                        </span>
+                      )}
                       <div className="ml-auto">
                         <FeedbackButtons messageId={msg.response.message_id} />
                       </div>

@@ -4,10 +4,11 @@ from app.eval.configs import CONFIGS, settings_for
 
 
 def test_registry_has_ab_and_real_configs():
-    assert {"baseline", "variant", "gemini"} <= set(CONFIGS)
+    assert {"baseline", "variant", "agentic", "gemini", "gemini-agentic"} <= set(CONFIGS)
     assert CONFIGS["baseline"].prompt_version == "rag-v1"
     assert CONFIGS["baseline"].llm_provider == "fake"
     assert CONFIGS["variant"].prompt_version == "rag-v2"
+    assert CONFIGS["agentic"].agentic is True
     assert CONFIGS["gemini"].llm_provider == "gemini"
 
 
@@ -16,6 +17,13 @@ def test_settings_for_applies_overrides():
     assert s.llm_provider == "fake"
     assert s.prompt_version == "rag-v2"
     assert s.retrieval_top_k == 5
+    assert s.agentic_rag_enabled is False
+
+
+def test_agentic_config_enables_agentic_rag():
+    s = settings_for(CONFIGS["agentic"], base=Settings(_env_file=None))
+    assert s.llm_provider == "fake"
+    assert s.agentic_rag_enabled is True
 
 
 def test_default_ab_pair_is_single_variable():

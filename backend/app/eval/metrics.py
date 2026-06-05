@@ -6,10 +6,9 @@ Plus latency percentiles and an aggregate() that rolls per-case rows into MLflow
 """
 from __future__ import annotations
 
-import re
 from statistics import mean
 
-_MARKER = re.compile(r"\[(\d+)\]")
+from app.chat.prompt import all_citation_markers
 
 
 # --- retrieval metrics (retrieved/expected are document-title lists; retrieved is rank order) ---
@@ -38,7 +37,7 @@ def mrr(retrieved: list[str], expected: list[str]) -> float:
 # --- answer-quality metrics (over the generated answer text) ---
 
 def extract_markers(answer: str) -> list[int]:
-    return [int(m) for m in _MARKER.findall(answer)]
+    return all_citation_markers(answer)
 
 
 def citation_validity(answer: str, n_context: int) -> float:

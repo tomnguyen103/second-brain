@@ -1,7 +1,7 @@
 # Kubernetes Learning Track (local kind)
 
-> Kubernetes here is a learning track, not the production runtime. Production stays the single-VPS
-> Docker Compose stack. These manifests prove the core app runs on local Kubernetes, then the
+> Kubernetes here is a learning track, not the production runtime. The real app stays local-first
+> Docker Compose by default. These manifests prove the core app runs on local Kubernetes, then the
 > cluster is torn down so nothing keeps running or costs money.
 
 The default `kubectl apply -k deploy/k8s` path runs the core stack only: `db`, migrations, `redis`,

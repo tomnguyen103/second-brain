@@ -6,8 +6,7 @@ from sqlalchemy import select
 from app import deps
 from app.api import conversations
 from app.config import Settings
-from app.db.models import AuditLog
-from app.eval.dataset import load_dataset
+from app.db.models import AuditLog, EvalCaseRecord
 from app.main import app
 
 pytestmark = pytest.mark.skipif(
@@ -303,7 +302,7 @@ def test_promote_feedback_eval_candidate_requires_admin_token(client, monkeypatc
     assert dataset.read_text(encoding="utf-8") == "cases: []\n"
 
 
-def test_promote_feedback_eval_candidate_appends_reviewed_case(
+def test_promote_feedback_eval_candidate_persists_reviewed_case(
     client, db_session, monkeypatch, tmp_path
 ):
     _enable_admin()
@@ -333,29 +332,86 @@ def test_promote_feedback_eval_candidate_appends_reviewed_case(
 
     assert r.status_code == 201, r.text
     body = r.json()
-    assert body["dataset_path"] == "backend/eval/dataset.yaml"
+    assert body["dataset_path"] == "postgres:eval_cases"
     assert body["case"]["id"] == f"feedback-{fb['id']}-reviewed"
     assert body["case"]["metadata"]["needs_review"] is False
-    cases = load_dataset(dataset, corpus_dir=corpus)
-    assert cases[0].id == body["case"]["id"]
-    assert cases[0].expected_docs == ["Feedback analytics doc"]
-    assert cases[0].expected_keywords == ["sources"]
-    assert cases[0].review["source"] == "feedback"
-    assert cases[0].review["feedback_id"] == fb["id"]
-    assert cases[0].review["confirmations"] == {
+    assert body["case"]["metadata"]["storage"] == "postgres"
+    assert dataset.read_text(encoding="utf-8") == "cases: []\n"
+
+    stored = db_session.scalars(
+        select(EvalCaseRecord).where(EvalCaseRecord.case_id == body["case"]["id"])
+    ).one()
+    assert stored.question == "What should feedback review connect thumbs down answers to?"
+    assert stored.expected_docs == ["Feedback analytics doc"]
+    assert stored.expected_keywords == ["sources"]
+    assert stored.review["source"] == "feedback"
+    assert stored.review["feedback_id"] == fb["id"]
+    assert stored.review["confirmations"] == {
         "expect_refusal": True,
         "expected_docs": True,
         "expected_keywords": True,
     }
-    assert body["case"]["metadata"]["review"] == cases[0].review
+    assert body["case"]["metadata"]["eval_case_record_id"] == stored.id
+    assert body["case"]["metadata"]["review"] == stored.review
     audit_row = db_session.scalars(
         select(AuditLog).where(AuditLog.entity_type == "eval_case")
     ).one()
     assert audit_row.action == "create"
-    assert audit_row.entity_id == fb["id"]
+    assert audit_row.entity_id == stored.id
     assert audit_row.detail["op"] == "promote_eval_case"
+    assert audit_row.detail["storage"] == "postgres"
+    assert audit_row.detail["eval_case_record_id"] == stored.id
     assert audit_row.detail["case_id"] == body["case"]["id"]
-    assert audit_row.detail["review"] == cases[0].review
+    assert audit_row.detail["feedback_id"] == fb["id"]
+    assert audit_row.detail["review"] == stored.review
+
+
+def test_promote_feedback_eval_candidate_returns_conflict_on_duplicate_race(
+    client, db_session, monkeypatch, tmp_path
+):
+    _enable_admin()
+    chat = _seed_feedback_with_cited_answer(client)
+    fb = client.post(
+        "/feedback",
+        json={"message_id": chat["message_id"], "rating": -1, "comment": "needs eval"},
+    ).json()
+    dataset, _corpus = _patch_review_dataset(monkeypatch, tmp_path)
+    case_id = f"feedback-{fb['id']}-reviewed"
+
+    db_session.add(
+        EvalCaseRecord(
+            case_id=case_id,
+            feedback_id=fb["id"],
+            question="Existing race winner",
+            expected_docs=["Feedback analytics doc"],
+            expected_keywords=["sources"],
+            expect_refusal=False,
+            review={},
+        )
+    )
+    db_session.flush()
+    monkeypatch.setattr(conversations, "validate_new_eval_case", lambda case, **kwargs: case)
+
+    r = client.post(
+        f"/feedback/eval-candidates/{fb['id']}/promote",
+        json={
+            "id": case_id,
+            "question": "What should feedback review connect thumbs down answers to?",
+            "expected_docs": ["Feedback analytics doc"],
+            "expected_keywords": ["sources"],
+            "expect_refusal": False,
+            "confirmations": {
+                "expected_docs": True,
+                "expected_keywords": True,
+                "expect_refusal": True,
+            },
+        },
+        headers=ADMIN,
+    )
+
+    assert r.status_code == 409
+    assert "already exists" in r.text
+    assert dataset.read_text(encoding="utf-8") == "cases: []\n"
 
 
 def test_promote_feedback_eval_candidate_rejects_unknown_expected_doc(

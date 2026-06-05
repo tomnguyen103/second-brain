@@ -5,6 +5,9 @@
 - **Deciders:** project owner (accepted at recommended defaults under the `/goal` directive)
 - **Context phase:** Phase 3 (Evaluation + MLOps)
 
+> **Runtime update 2026-06-05:** ADR-0015 changes the cost guardrail to "no recurring
+> infrastructure bill by default." The local MLflow file-store decision still stands.
+
 ## Context
 
 Phase 3 makes answer quality *measurable and improvable* — the JD weights evaluation, A/B, and
