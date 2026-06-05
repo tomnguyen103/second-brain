@@ -11,7 +11,14 @@ from sqlalchemy.orm import Session, selectinload
 
 from app import deps
 from app.chat.prompt import parse_citations
+from app.dataops import audit
 from app.db.models import Conversation, Feedback, Message
+from app.eval.dataset import (
+    CORPUS_DIR as EVAL_CORPUS_DIR,
+    DEFAULT_DATASET as EVAL_DATASET_PATH,
+    EvalCase,
+    append_eval_case,
+)
 from app.retrieval.hybrid import load_display_chunks
 from app.schemas.chat import CitationOut
 from app.schemas.conversations import (
@@ -33,6 +40,8 @@ from app.schemas.feedback import (
     FeedbackTrendBucket,
     NegativeFeedbackItem,
     NegativeFeedbackListResponse,
+    PromoteEvalCandidateRequest,
+    PromoteEvalCandidateResponse,
 )
 
 router = APIRouter(dependencies=[Depends(deps.require_api_access)])
@@ -187,6 +196,14 @@ def _candidate_from_negative(item: NegativeFeedbackItem) -> EvalCandidate:
             ),
             "citations": [citation.model_dump(mode="json") for citation in item.citations],
         },
+    )
+
+
+def _review_confirmed(req: PromoteEvalCandidateRequest) -> bool:
+    return (
+        req.confirmations.expected_docs
+        and req.confirmations.expected_keywords
+        and req.confirmations.expect_refusal
     )
 
 
@@ -405,6 +422,101 @@ def feedback_eval_candidates(
         source="feedback",
         total=total,
         cases=[_candidate_from_negative(item) for item in items],
+    )
+
+
+@router.post(
+    "/feedback/eval-candidates/{feedback_id}/promote",
+    response_model=PromoteEvalCandidateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def promote_feedback_eval_candidate(
+    feedback_id: int,
+    req: PromoteEvalCandidateRequest,
+    db: Session = Depends(deps.get_db),
+    settings=Depends(deps.get_settings),
+    _: bool = Depends(deps.require_admin),
+):
+    feedback = db.get(Feedback, feedback_id)
+    if feedback is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feedback not found")
+    if feedback.rating != -1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Only negative feedback can be promoted into eval candidates",
+        )
+    if not _review_confirmed(req):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Reviewer must confirm expected_docs, expected_keywords, and expect_refusal",
+        )
+
+    promoted_at = datetime.now(timezone.utc)
+    review = {
+        "source": "feedback",
+        "feedback_id": feedback_id,
+        "reviewed_at": promoted_at.isoformat(),
+        "reviewed_by": "eval-reviewer",
+        "confirmations": {
+            "expected_docs": req.confirmations.expected_docs,
+            "expected_keywords": req.confirmations.expected_keywords,
+            "expect_refusal": req.confirmations.expect_refusal,
+        },
+    }
+
+    try:
+        reviewed = append_eval_case(
+            EvalCase(
+                id=req.id,
+                question=req.question,
+                expected_docs=req.expected_docs,
+                expected_keywords=req.expected_keywords,
+                expect_refusal=req.expect_refusal,
+                review=review,
+            ),
+            path=EVAL_DATASET_PATH,
+            corpus_dir=EVAL_CORPUS_DIR,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+    audit.record(
+        db,
+        actor="eval-reviewer",
+        action="create",
+        entity_type="eval_case",
+        entity_id=feedback_id,
+        detail={
+            "op": "promote_eval_case",
+            "feedback_id": feedback_id,
+            "case_id": reviewed.id,
+            "expected_docs": reviewed.expected_docs,
+            "expected_keywords": reviewed.expected_keywords,
+            "expect_refusal": reviewed.expect_refusal,
+            "review": reviewed.review,
+        },
+        enabled=settings.audit_enabled,
+    )
+    db.commit()
+
+    return PromoteEvalCandidateResponse(
+        promoted_at=promoted_at,
+        dataset_path="backend/eval/dataset.yaml",
+        case=EvalCandidate(
+            id=reviewed.id,
+            question=reviewed.question,
+            expected_docs=reviewed.expected_docs,
+            expected_keywords=reviewed.expected_keywords,
+            expect_refusal=reviewed.expect_refusal,
+            metadata={
+                "feedback_id": feedback_id,
+                "needs_review": False,
+                "promoted_from": "feedback",
+                "review": reviewed.review,
+            },
+        ),
     )
 
 

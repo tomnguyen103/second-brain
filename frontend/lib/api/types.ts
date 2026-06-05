@@ -241,6 +241,27 @@ export interface EvalCandidateExportResponse {
   cases: EvalCandidate[];
 }
 
+export interface EvalCaseReviewConfirmations {
+  expected_docs: boolean;
+  expected_keywords: boolean;
+  expect_refusal: boolean;
+}
+
+export interface PromoteEvalCandidateRequest {
+  id: string;
+  question: string;
+  expected_docs: string[];
+  expected_keywords: string[];
+  expect_refusal: boolean;
+  confirmations: EvalCaseReviewConfirmations;
+}
+
+export interface PromoteEvalCandidateResponse {
+  promoted_at: string;
+  dataset_path: string;
+  case: EvalCandidate;
+}
+
 export interface HealthResponse {
   status: string;
   db: string;

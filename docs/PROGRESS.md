@@ -23,6 +23,45 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-05 - Feedback promotion security findings fixed
+- **What:** fixed the security review findings on the reviewed feedback-to-eval promotion path.
+  Promotion now requires the normal API bearer plus `X-Second-Brain-Admin-Token`, writes an audit
+  row with the feedback id and reviewed eval labels, and no longer returns an absolute server
+  filesystem path for the dataset.
+- **Follow-up fix:** promoted eval cases now also store strict reviewer provenance directly in
+  `backend/eval/dataset.yaml`, so the fixed eval dataset remains self-describing even though the
+  filesystem append and Postgres audit row are separate durability systems.
+- **UI/docs/tests:** updated `/feedback` so the admin token is sent only for promotion, documented
+  the two-token promotion flow in `docs/USAGE.md`, and added regression coverage for missing admin
+  configuration, audit provenance, and the logical dataset path.
+- **Verified:** full DB-backed backend suite passed (`239 passed, 8 warnings`); auth/dataset unit
+  tests passed (`33 passed, 1 warning`); feedback/data-ops integration tests passed (`24 passed,
+  4 warnings`); `npm run lint`, `npm run build`, and `python -m app.eval.gate` passed;
+  `git diff --check` passed with only CRLF normalization warnings.
+- **Closeout:** not published this session; changes remain local for review/commit.
+
+### 2026-06-05 - Reviewed feedback-to-eval promotion workflow
+- **What:** turned thumbs-down feedback candidates into a manual reviewed promotion workflow.
+  `/feedback` now lets a reviewer edit candidate id, question, expected sources, expected
+  keywords, and refusal behavior, then requires explicit confirmations before calling the new
+  `POST /feedback/eval-candidates/{feedback_id}/promote` endpoint. Candidate export remains
+  review-only and never writes to the fixed eval dataset.
+- **Eval hardening:** made `backend/eval/dataset.yaml` explicitly declare `expected_docs`,
+  `expected_keywords`, and `expect_refusal` for every case. The eval loader now rejects missing or
+  unknown keys, bad types, duplicate labels, malformed refusal cases, duplicate ids, and expected
+  document titles that are not in the fixed corpus before a promoted case can be written.
+- **Docs/tests:** updated `docs/USAGE.md` and `docs/implementation-notes.md`; added unit coverage
+  for strict dataset validation and append behavior, auth coverage for the promotion route, and
+  DB-backed integration tests for no automatic promotion, confirmation enforcement, successful
+  promotion, and malformed expected-doc rejection.
+- **Verified:** focused backend unit tests passed (`31 passed, 1 warning`); feedback/search
+  integration tests passed against the local pgvector DSN (`16 passed, 4 warnings`); `npm run lint`
+  passed; `npm run build` passed with the existing Next.js multiple-lockfile workspace-root
+  warning; `python -m app.eval.gate` passed with the deterministic fake-driver baseline at `1.000`
+  for `hit_at_k`, `citation_validity`, and `refusal_accuracy`; `git diff --check` passed with only
+  existing CRLF normalization warnings; the running local frontend returned HTTP 200 for
+  `http://localhost:3000/feedback`.
+
 ### 2026-06-05 - CodeRabbit security follow-up applied
 - **What:** addressed PR #21 review feedback: streaming chat failures are now logged server-side
   while clients still receive a generic SSE error, Ollama malformed streaming JSON fails with a

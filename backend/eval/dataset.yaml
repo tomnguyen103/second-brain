@@ -7,70 +7,88 @@ cases:
     question: How do I improve recall when tuning the HNSW vector index?
     expected_docs: ["HNSW index tuning"]
     expected_keywords: ["ef_construction"]
+    expect_refusal: false
 
   - id: hnsw-latency
     question: Which HNSW setting trades query latency for recall at search time?
     expected_docs: ["HNSW index tuning"]
     expected_keywords: ["ef_search"]
+    expect_refusal: false
 
   - id: rrf-how
     question: How does reciprocal rank fusion combine vector and keyword results?
     expected_docs: ["Reciprocal rank fusion"]
     expected_keywords: ["rank"]
+    expect_refusal: false
 
   - id: rrf-k
     question: What smoothing constant does reciprocal rank fusion use?
     expected_docs: ["Reciprocal rank fusion"]
     expected_keywords: ["60"]
+    expect_refusal: false
 
   - id: fts-how
     question: How does Postgres do keyword search over the chunks?
     expected_docs: ["Postgres full-text search"]
     expected_keywords: ["tsvector"]
+    expect_refusal: false
 
   - id: fts-rank
     question: Which function ranks full-text search matches in Postgres?
     expected_docs: ["Postgres full-text search"]
     expected_keywords: ["ts_rank_cd"]
+    expect_refusal: false
 
   - id: runtime-stack
     question: What runs the production stack, and why not Kubernetes?
     expected_docs: ["Docker Compose runtime"]
     expected_keywords: ["Compose"]
+    expect_refusal: false
 
   - id: db-port
     question: What host port does the local database publish on?
     expected_docs: ["Docker Compose runtime"]
     expected_keywords: ["5433"]
+    expect_refusal: false
 
   - id: api-endpoints
     question: What are the main backend API endpoints?
     expected_docs: ["FastAPI backend"]
     expected_keywords: ["/chat"]
+    expect_refusal: false
 
   - id: api-llm-swap
     question: How can the language model be swapped to a private local mode?
     expected_docs: ["FastAPI backend"]
     expected_keywords: ["Ollama"]
+    expect_refusal: false
 
   - id: embed-model
     question: What embedding model is used and how many dimensions do the vectors have?
     expected_docs: ["MiniLM embeddings"]
     expected_keywords: ["384"]
+    expect_refusal: false
 
   - id: hybrid-combine
     question: How does hybrid search combine semantic and lexical retrieval?
     expected_docs: ["Reciprocal rank fusion", "Postgres full-text search"]
     expected_keywords: ["hybrid"]
+    expect_refusal: false
 
   - id: off-corpus-dentist
     question: When is my dentist appointment next week?
+    expected_docs: []
+    expected_keywords: []
     expect_refusal: true
 
   - id: off-corpus-flight
     question: What time is my flight to Hanoi tomorrow?
+    expected_docs: []
+    expected_keywords: []
     expect_refusal: true
 
   - id: weak-context-meeting
     question: What did I promise Alex in yesterday's meeting?
+    expected_docs: []
+    expected_keywords: []
     expect_refusal: true

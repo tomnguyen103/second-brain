@@ -97,10 +97,10 @@ class NegativeFeedbackListResponse(BaseModel):
 class EvalCandidate(BaseModel):
     id: str
     question: str
-    expected_docs: list[str] = []
-    expected_keywords: list[str] = []
+    expected_docs: list[str] = Field(default_factory=list)
+    expected_keywords: list[str] = Field(default_factory=list)
     expect_refusal: bool = False
-    metadata: dict[str, Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class EvalCandidateExportResponse(BaseModel):
@@ -108,3 +108,24 @@ class EvalCandidateExportResponse(BaseModel):
     source: str
     total: int
     cases: list[EvalCandidate]
+
+
+class EvalCaseReviewConfirmations(BaseModel):
+    expected_docs: bool
+    expected_keywords: bool
+    expect_refusal: bool
+
+
+class PromoteEvalCandidateRequest(BaseModel):
+    id: str
+    question: str
+    expected_docs: list[str] = Field(default_factory=list)
+    expected_keywords: list[str] = Field(default_factory=list)
+    expect_refusal: bool
+    confirmations: EvalCaseReviewConfirmations
+
+
+class PromoteEvalCandidateResponse(BaseModel):
+    promoted_at: datetime
+    dataset_path: str
+    case: EvalCandidate

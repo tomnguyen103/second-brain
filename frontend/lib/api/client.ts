@@ -19,6 +19,8 @@ import type {
   DocumentListResponse,
   IngestRequest,
   IngestResponse,
+  PromoteEvalCandidateRequest,
+  PromoteEvalCandidateResponse,
   PurgeRetentionResponse,
   ResearchJob,
   ResearchJobListResponse,
@@ -238,6 +240,18 @@ export const api = {
     if (params.days) sp.set("days", String(params.days));
     const suffix = sp.toString() ? `?${sp}` : "";
     return apiFetch(`/feedback/eval-candidates${suffix}`);
+  },
+
+  promoteFeedbackEvalCandidate(
+    feedbackId: number,
+    req: PromoteEvalCandidateRequest,
+    adminToken: string,
+  ): Promise<PromoteEvalCandidateResponse> {
+    return apiFetch(`/feedback/eval-candidates/${feedbackId}/promote`, {
+      method: "POST",
+      headers: { "X-Second-Brain-Admin-Token": adminToken },
+      body: JSON.stringify(req),
+    });
   },
 
   getLatestBriefing(): Promise<Briefing> {
