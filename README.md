@@ -273,6 +273,7 @@ Production secrets live in gitignored `deploy/.env.prod`. Required auth variable
 | `SECOND_BRAIN_ADMIN_TOKEN` | Enables export, source deletion, and retention purge when sent as `X-Second-Brain-Admin-Token` alongside the normal API bearer. |
 
 ```bash
+cp deploy/docker-compose.vps.yml.example deploy/docker-compose.vps.yml
 DC="docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod"
 $DC up -d --build
 $DC ps

@@ -3,7 +3,6 @@
 > **Runtime update (2026-06-05):** ADR-0015 supersedes the VPS default. Phase 6 remains complete
 > as operations hardening plus an optional cloud deploy recipe, but daily use is now local-first
 > Docker Compose so the project does not pay for idle VPS uptime.
-
 > Work TDD (red → green → commit), DRY, YAGNI. Pure logic is DB-free unit-tested; services are
 > integration-tested vs the real Postgres on 5433; deploy/observability artifacts are config,
 > verified to parse/lint. Commit after each green task.

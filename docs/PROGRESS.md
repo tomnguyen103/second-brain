@@ -23,6 +23,16 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-05 - PR review follow-up for Agentic RAG
+- **What:** addressed the actionable CodeRabbit review comments on PR #23. Disabled agentic
+  requests now fail before LLM provider initialization, worker search-cache invalidation only
+  happens after successful job finalization, demo seeding guards empty ingests, and the chat UI
+  ignores stale non-stream responses after route aborts.
+- **Docs/UI:** clarified optional VPS override setup and local-vs-proxy admin routes, fixed local
+  runtime wording, and added accessible state metadata to the Agentic RAG composer toggle.
+- **Verified:** full backend suite passed (`261 passed, 8 warnings`); frontend `npm run lint` and
+  `npm run build` passed; `git diff --check` passed with only expected Windows CRLF notices.
+
 ### 2026-06-05 - Agentic RAG v1 implemented
 - **What:** added opt-in, read-only Agentic RAG for `/chat` behind
   `SECOND_BRAIN_AGENTIC_RAG_ENABLED=true` plus request `options.agentic=true`. The LangGraph

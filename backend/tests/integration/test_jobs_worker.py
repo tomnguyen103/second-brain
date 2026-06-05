@@ -129,6 +129,43 @@ def test_run_once_invalidates_search_cache_after_searchable_job(db_session, fake
     assert redis.keys == ["cache:search:epoch"]
 
 
+def test_run_once_does_not_invalidate_search_cache_when_mark_done_fails(
+    db_session,
+    fake_embedder,
+    monkeypatch,
+):
+    class FakeRedis:
+        def __init__(self):
+            self.keys: list[str] = []
+
+        def incr(self, key):
+            self.keys.append(key)
+
+    def searchable_handler(db, payload, *, embedder, llm):
+        return {"searchable": True}
+
+    def failing_mark_done(db, job, result=None):
+        raise RuntimeError("mark_done failed")
+
+    redis = FakeRedis()
+    queue.enqueue(db_session, type="embed")
+    monkeypatch.setattr(queue, "mark_done", failing_mark_done)
+
+    job = worker.run_once(
+        db_session,
+        embedder=fake_embedder,
+        llm=FakeLLMClient(),
+        max_attempts=1,
+        handlers={"embed": searchable_handler},
+        redis_client=redis,
+        cache_settings=Settings(llm_provider="fake", redis_enabled=True),
+    )
+
+    assert job is not None and job.status == "failed"
+    assert "mark_done failed" in (job.last_error or "")
+    assert redis.keys == []
+
+
 def test_run_once_returns_none_when_no_job(db_session, fake_embedder):
     job = worker.run_once(
         db_session, embedder=fake_embedder, llm=FakeLLMClient(),

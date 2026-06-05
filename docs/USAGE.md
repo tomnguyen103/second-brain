@@ -504,11 +504,11 @@ no longer need.
 `SECOND_BRAIN_ADMIN_TOKEN` enables the governed endpoints. They first pass the normal
 `SECOND_BRAIN_API_TOKEN` gate, then require the admin token for the destructive/read-all action.
 Use the normal API bearer plus the separate admin header for these calls:
-- `GET /api/data/export?source_id=…` — export a source (GDPR access).
-- `DELETE /api/data/sources/{id}` — delete a source + its documents (GDPR erasure).
-- `POST /api/admin/retention/purge` — null `documents.raw_text` past the retention TTL while
+- Local direct route: `GET /data/export?source_id=…` (VPS proxy: `GET /api/data/export?source_id=…`) — export a source (GDPR access).
+- Local direct route: `DELETE /data/sources/{id}` (VPS proxy: `DELETE /api/data/sources/{id}`) — delete a source + its documents (GDPR erasure).
+- Local direct route: `POST /admin/retention/purge` (VPS proxy: `POST /api/admin/retention/purge`) — null `documents.raw_text` past the retention TTL while
   leaving searchable chunks intact.
-- `POST /api/feedback/eval-candidates/{feedback_id}/promote` — store a reviewed case in the
+- Local direct route: `POST /feedback/eval-candidates/{feedback_id}/promote` (VPS proxy: `POST /api/feedback/eval-candidates/{feedback_id}/promote`) — store a reviewed case in the
   durable `eval_cases` table.
 
 ```bash

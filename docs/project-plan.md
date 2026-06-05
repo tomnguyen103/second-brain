@@ -29,7 +29,7 @@ The role is an **AI Applications Developer**. The screening criteria are LLM int
 | **Frontend** | **React + Next.js + TypeScript** | $0 | named as preferred qual |
 | **Agent tooling** | **MCP server** exposing your tools | $0 | MCP + tool-use / agentic patterns |
 | **Primary datastore** | **self-hosted Postgres** (relational + pgvector + full-text + JSONB + analytics) in local Compose | $0 | PostgreSQL — used to its full depth, not as a blob store |
-| **Cache / hot path** | **Redis** for embedding cache, query cache, rate limiting | $0 (on the VM) | named: Redis |
+| **Cache / hot path** | **Redis** for embedding cache, query cache, rate limiting | local-first (included) - $0 | named: Redis |
 | **Preprocessing** | Chunking, dedupe, URL validation, and source metadata normalization | $0 | named: Pandas, NumPy |
 | **MLOps** | **MLflow** for eval runs + prompt/model versioning | $0 local file store | named: MLflow |
 | **Compute** | Local/on-demand Docker Compose; optional temporary VPS demo recipe | **$0 default** | operating the app without paying for idle uptime |

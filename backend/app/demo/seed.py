@@ -66,6 +66,8 @@ def seed_demo_flow(
         ),
         redis_client=redis_client,
     )
+    if not capture.ingest.documents:
+        raise RuntimeError("demo capture produced no documents to chat over")
     document = capture.ingest.documents[0]
 
     result = chat(

@@ -143,16 +143,21 @@ function ChatPage() {
 
     const controller = new AbortController();
     abortRef.current = controller;
+    const finishIfActive = (data: ChatResponse) => {
+      if (controller.signal.aborted || abortRef.current !== controller) return;
+      finishAssistant(data, req.conversation_id ?? null);
+    };
     try {
       if (req.options?.agentic) {
         const data = await api.chat(req);
-        finishAssistant(data, req.conversation_id ?? null);
+        finishIfActive(data);
         return;
       }
 
       await api.chatStream(req, {
         signal: controller.signal,
         onDelta: ({ text }) => {
+          if (controller.signal.aborted || abortRef.current !== controller) return;
           if (!text) return;
           setMessages((prev) => {
             const idx = prev.findLastIndex((m) => m.role === "assistant" && m.isStreaming);
@@ -164,23 +169,26 @@ function ChatPage() {
             return next;
           });
         },
-        onComplete: (data) => finishAssistant(data, req.conversation_id ?? null),
+        onComplete: finishIfActive,
       });
     } catch (err) {
       if (controller.signal.aborted) return;
       if (isChatStreamUnavailableError(err)) {
         try {
           const data = await api.chat(req);
-          finishAssistant(data, req.conversation_id ?? null);
+          finishIfActive(data);
         } catch (fallbackErr) {
+          if (controller.signal.aborted || abortRef.current !== controller) return;
           showAssistantError(fallbackErr);
         }
       } else {
         showAssistantError(err);
       }
     } finally {
-      if (abortRef.current === controller) abortRef.current = null;
-      setIsSending(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        if (!controller.signal.aborted) setIsSending(false);
+      }
     }
   };
 

@@ -80,6 +80,8 @@ export function ChatComposer({ onSend, disabled, agenticAvailable = false }: Pro
                   ? "bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-800 text-sky-600 dark:text-sky-400"
                   : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
+              aria-label="Toggle agentic RAG"
+              aria-pressed={agenticMode}
               title={agenticMode ? "Agentic RAG ON" : "Agentic RAG OFF"}
             >
               <Brain size={14} weight={agenticMode ? "bold" : "regular"} />

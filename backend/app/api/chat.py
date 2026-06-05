@@ -120,15 +120,17 @@ def chat_endpoint(
 ):
     _check_chat_rate_limit(request, redis_client, settings)
 
-    llm = deps.get_llm_client(settings, private_mode=req.options.private_mode)
     filters = _filters_from_request(req)
 
+    if req.options.agentic and not settings.agentic_rag_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="agentic RAG is disabled",
+        )
+
+    llm = deps.get_llm_client(settings, private_mode=req.options.private_mode)
+
     if req.options.agentic:
-        if not settings.agentic_rag_enabled:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="agentic RAG is disabled",
-            )
         result = agentic_chat(
             db, embedder, llm, settings,
             message=req.message,

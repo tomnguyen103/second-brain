@@ -58,10 +58,10 @@ def run_once(
         if handler is None:
             raise LookupError(f"no handler registered for job type {job.type!r}")
         result = handler(db, job.payload, embedder=embedder, llm=llm)
-        invalidate_search = isinstance(result, dict) and bool(result.get("searchable"))
+        queue.mark_done(db, job, result=result)
         if savepoint.is_active:
             savepoint.commit()
-        queue.mark_done(db, job, result=result)
+        invalidate_search = isinstance(result, dict) and bool(result.get("searchable"))
     except Exception as exc:  # noqa: BLE001 — any handler failure is recorded on the job row
         if savepoint.is_active:
             savepoint.rollback()

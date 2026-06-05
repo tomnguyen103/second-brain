@@ -40,7 +40,7 @@ short demo.
 - **Good:** default recurring infrastructure cost drops to $0.
 - **Good:** the app matches real usage: personal, intermittent, private, and easy to stop.
 - **Good:** the portfolio story becomes more honest: the project demonstrates production-grade
-  controls without pretending a single-user assistant needs paid 24/7 uptime.
+  controls without pretending a single-user assistant requires 24/7 paid uptime.
 - **Good:** user data stays local by default, except for configured hosted Gemini generation or
   hosted Gemini embeddings.
 - **Trade-off:** no always-on web URL, daily briefing, or remote API unless the local machine is
