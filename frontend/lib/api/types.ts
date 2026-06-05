@@ -57,6 +57,27 @@ export interface ChatResponse {
   };
 }
 
+export interface ChatStreamDelta {
+  text: string;
+}
+
+export type ChatStreamComplete = ChatResponse;
+
+export interface CaptureRequest {
+  url: string;
+  title?: string | null;
+  notes?: string | null;
+  selected_text?: string | null;
+  tags?: string[];
+}
+
+export interface CaptureResponse {
+  source_id: number;
+  capture_url: string;
+  document: IngestDocumentOut;
+  summary: IngestResponse["summary"];
+}
+
 export interface SearchHit {
   chunk_id: number;
   document_id: number;

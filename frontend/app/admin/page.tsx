@@ -68,7 +68,7 @@ export default function AdminPage() {
             </label>
             <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
               <Shield size={15} weight="bold" className="mt-0.5 shrink-0" />
-              <span>The token stays in this browser session and is sent only as an Authorization header.</span>
+              <span>The token stays in this browser session and is sent only as the additional admin header.</span>
             </div>
           </div>
         </Panel>

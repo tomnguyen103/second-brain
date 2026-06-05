@@ -14,8 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # CI uses the service-container default port 5432 (no native Postgres to clash with,
-  # unlike local dev which publishes the Docker DB on 5433).
+  # CI starts a throwaway local Docker database on 5432; local dev publishes the DB on 5433.
   PG_DSN: postgresql+psycopg://second_brain:second_brain@localhost:5432/second_brain
 
 jobs:
@@ -48,24 +47,27 @@ jobs:
     defaults:
       run:
         working-directory: backend
-    services:
-      db:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: second_brain
-          POSTGRES_PASSWORD: second_brain
-          POSTGRES_DB: second_brain
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U second_brain -d second_brain"
-          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       SECOND_BRAIN_DATABASE_URL: postgresql+psycopg://second_brain:second_brain@localhost:5432/second_brain
       SECOND_BRAIN_TEST_DATABASE_URL: postgresql+psycopg://second_brain:second_brain@localhost:5432/second_brain
       SECOND_BRAIN_LLM_PROVIDER: fake
     steps:
       - uses: actions/checkout@v4
+      - name: Start cleaned pgvector database
+        run: |
+          docker build -f ../deploy/Dockerfile.pgvector -t second-brain-pgvector:ci ..
+          docker run -d --name second-brain-ci-db \
+            -e POSTGRES_USER=second_brain \
+            -e POSTGRES_PASSWORD=second_brain \
+            -e POSTGRES_DB=second_brain \
+            -p 5432:5432 \
+            second-brain-pgvector:ci
+          for i in $(seq 1 30); do
+            docker exec second-brain-ci-db pg_isready -U second_brain -d second_brain && exit 0
+            sleep 2
+          done
+          docker logs second-brain-ci-db
+          exit 1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -81,6 +83,9 @@ jobs:
         run: alembic upgrade head
       - name: Run full test suite (unit + integration)
         run: pytest -q
+      - name: Stop cleaned pgvector database
+        if: always()
+        run: docker rm -f second-brain-ci-db || true
 
   eval-gate:
     name: Eval quality gate
@@ -89,23 +94,26 @@ jobs:
     defaults:
       run:
         working-directory: backend
-    services:
-      db:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: second_brain
-          POSTGRES_PASSWORD: second_brain
-          POSTGRES_DB: second_brain
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U second_brain -d second_brain"
-          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       SECOND_BRAIN_DATABASE_URL: postgresql+psycopg://second_brain:second_brain@localhost:5432/second_brain
       SECOND_BRAIN_LLM_PROVIDER: fake
     steps:
       - uses: actions/checkout@v4
+      - name: Start cleaned pgvector database
+        run: |
+          docker build -f ../deploy/Dockerfile.pgvector -t second-brain-pgvector:ci ..
+          docker run -d --name second-brain-ci-db \
+            -e POSTGRES_USER=second_brain \
+            -e POSTGRES_PASSWORD=second_brain \
+            -e POSTGRES_DB=second_brain \
+            -p 5432:5432 \
+            second-brain-pgvector:ci
+          for i in $(seq 1 30); do
+            docker exec second-brain-ci-db pg_isready -U second_brain -d second_brain && exit 0
+            sleep 2
+          done
+          docker logs second-brain-ci-db
+          exit 1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -121,3 +129,6 @@ jobs:
         run: alembic upgrade head
       - name: Run eval gate (fails the build on quality regression)
         run: python -m app.eval.gate
+      - name: Stop cleaned pgvector database
+        if: always()
+        run: docker rm -f second-brain-ci-db || true

@@ -9,7 +9,7 @@ from app.schemas.ingest import (
     DocumentOut, IngestRequest, IngestResponse, IngestSummary,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(deps.require_api_access)])
 
 
 @router.post("/ingest", response_model=IngestResponse)
@@ -25,7 +25,7 @@ def ingest(
         redis_client,
         settings,
         bucket="ingest",
-        identity=client_identity(request),
+        identity=client_identity(request, settings),
         limit=settings.ingest_rate_limit_requests,
         window_seconds=settings.ingest_rate_limit_window_seconds,
     )

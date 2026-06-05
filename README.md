@@ -2,11 +2,13 @@
 
 # Second Brain
 
-**A personal, always-on AI assistant for cited RAG, hybrid search, daily briefings, and MCP-powered actions.**
+**A personal, always-on AI assistant for streaming cited RAG, hybrid search, daily briefings, and MCP-powered actions.**
 
-Second Brain ingests personal knowledge, stores it in PostgreSQL with pgvector and full-text
-indexes, answers questions with citations, produces a morning briefing, and exposes agentic
-tools over MCP. The live deployment runs on one VPS behind Caddy HTTPS.
+Second Brain captures web passages and personal knowledge, stores them in PostgreSQL with pgvector
+and full-text indexes, serves citation-validated answers over SSE, produces a morning briefing, and exposes
+agentic tools over MCP. The live deployment runs on one VPS behind Caddy HTTPS with single-owner
+API-token authentication, a separate admin-token data-ops guard, and documented backup, restore,
+rollback, firewall, and secret-rotation operations.
 
 [![Status](https://img.shields.io/badge/status-live-brightgreen)](docs/USAGE.md)
 [![Roadmap](https://img.shields.io/badge/roadmap-7%2F7%20complete-success)](docs/PROGRESS.md)
@@ -27,20 +29,22 @@ tools over MCP. The live deployment runs on one VPS behind Caddy HTTPS.
 
 > **Live deployment:** verified on a 2 GB DigitalOcean droplet with Caddy, real Let's Encrypt
 > HTTPS via `sslip.io`, hosted Gemini embeddings, and the full 9-service stack running end to end.
-> See [docs/USAGE.md](docs/USAGE.md) for live URLs and operations.
+> See [docs/USAGE.md](docs/USAGE.md) for live URLs, health checks, backups, rollback, and
+> production operations.
 
 ## Current Status
 
-Last README synchronization: **2026-06-04**. Live deployment last verified:
+Last README synchronization: **2026-06-05**. Live deployment last verified:
 **2026-06-02**.
 
 | Area | Status | Notes |
 |---|---:|---|
 | Product roadmap | Complete | Phases 0-7 are implemented and documented in [docs/PROGRESS.md](docs/PROGRESS.md). |
-| Production deployment | Live | Docker Compose on one VPS, fronted by Caddy HTTPS. |
-| Web UI | Live | Chat, search, ingest, briefing, tasks, research, sources, feedback review, and admin data-ops pages. |
-| API | Live | Ingest, chat, search, conversations, feedback analytics, briefing, tasks, research jobs, sources, health, and governed data-ops endpoints. |
-| MCP server | Live | `search_notes`, `create_task`, `list_tasks`, `send_digest`, and `research_topic`. |
+| Production deployment | Live | Docker Compose on one VPS, fronted by Caddy HTTPS, with localhost-only direct service ports. |
+| Production operations | Documented | Bearer-token API access, `ufw` 22/80/443 allow-list, automated DB backup cron, restore drill, health checks, secret rotation, and rollback runbooks. |
+| Web UI | Live | Streaming chat, capture, search, ingest, briefing, tasks, research, sources, feedback review, and admin data-ops pages. |
+| API | Live | Capture, ingest, streaming and non-streaming chat, search, conversations, feedback analytics, briefing, tasks, research jobs, sources, health, and governed data-ops endpoints. |
+| MCP server | Live | `search_notes`, `list_tasks`, and `send_digest` are available by default; `create_task` and `research_topic` require explicit local mutation opt-in. |
 | Background jobs | Live | Durable Postgres job queue for daily briefing and async research. |
 | CI/CD | Active | Unit tests, integration tests against pgvector, and deterministic eval gate. |
 | Kubernetes | Complete as learning track | Manifests, ingress, HPA, monitoring, and CI smoke on local kind; not production runtime. |
@@ -52,41 +56,43 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 
 | Update | Summary | Reference |
 |---|---|:---:|
+| Frictionless capture | Added `/capture` API and UI for saving a URL, title, notes, tags, and selected text into the normal bookmark ingest path so captures are searchable and citeable. | [usage](docs/USAGE.md) |
+| Single-owner authentication | Personal-data routes require `SECOND_BRAIN_API_TOKEN` in production; destructive data-ops also require `SECOND_BRAIN_ADMIN_TOKEN`. Local dev remains keyless unless a token is set. | [usage](docs/USAGE.md) |
+| Production operations hardening | Added `ufw` firewall steps, automated backup cron template, restore drill, health checks, secret rotation, and rollback procedures. | [runbooks](docs/runbooks/) |
+| Streaming chat | Added SSE `/chat/stream`; the backend now buffers provider chunks until citation and support validation pass, then emits safe deltas plus the same final contract as `/chat`. | [usage](docs/USAGE.md) |
+| Local env hygiene | Clarified local Gemini key entry points and tightened `.env` ignore rules while keeping example templates committed. | [progress](docs/PROGRESS.md) |
 | App surfaces and Redis paths | Added first-class web pages for operating the app, feedback review workflows, source-backed research, weak-context refusal, and optional Redis-backed rate limits/caches. | [PR #20](https://github.com/tomnguyen103/second-brain/pull/20) |
-| README synchronization | Refreshed the repository overview so the docs match the live deployment, completed roadmap, production shape, and current follow-ups. | [PR #19](https://github.com/tomnguyen103/second-brain/pull/19) |
-| Repository hygiene | Local agent-tooling directories are ignored so workspace-specific files stay out of version control. | [PR #16](https://github.com/tomnguyen103/second-brain/pull/16) |
-| Agent tooling config | Local agent-skill docs and Codex hook configuration were added for the development environment. | [PR #15](https://github.com/tomnguyen103/second-brain/pull/15) |
 | Live VPS deployment | Caddy reverse proxy, real HTTPS through `sslip.io`, localhost-only direct service ports, and end-to-end production verification. | [PR #14](https://github.com/tomnguyen103/second-brain/pull/14) |
-| Hosted Gemini embeddings | Optional `gemini-embedding-001` provider emits 384-dimensional vectors compatible with the existing `vector(384)` schema. | [PR #13](https://github.com/tomnguyen103/second-brain/pull/13) |
-| Gemini model refresh | Default generation model moved from retired `gemini-1.5-flash` to pinned `gemini-2.5-flash`. | [PR #12](https://github.com/tomnguyen103/second-brain/pull/12) |
 | Kubernetes learning track | Local kind manifests, ingress, HPA, monitoring, and GitHub Actions smoke workflow were completed and torn down. | [PR #11](https://github.com/tomnguyen103/second-brain/pull/11) |
 
 ## Product Capabilities
 
 | Capability | What is implemented |
 |---|---|
-| Cited RAG chat | `/chat` retrieves relevant chunks, builds a grounded prompt, returns answers with `[n]` citation markers, and persists conversations. |
+| Streaming cited RAG chat | `/chat/stream` buffers provider chunks until citation/support validation passes, then sends safe deltas and a persisted completion with `[n]` citation markers. `/chat` remains available as the non-streaming fallback. |
+| Web capture | `/capture` saves a URL, title, selected text, notes, and tags as a `bookmark` source/document through the ingest pipeline; it performs no server-side scraping. |
 | Hybrid search | pgvector semantic search and PostgreSQL full-text search are fused with reciprocal rank fusion, with configurable weak-context refusal. |
 | Source ingestion | `/ingest` accepts text documents, dedupes by content hash, chunks semantically, embeds, tags, and stores them. |
 | Morning briefing | A scheduled job summarizes newly ingested documents since the previous briefing and stores the result. |
-| MCP tools | A stdio MCP server exposes search, task creation/listing, digest composition, and self-research. |
-| Self-research | `research_topic` can use pasted source text or safe public text/HTML URLs, stores provenance, and indexes the resulting `research_note`. |
+| MCP tools | A stdio MCP server exposes search, task listing, and digest composition by default; durable task/research mutations are opt-in for trusted local clients. |
+| Self-research | `research_topic` can use pasted source text or safe public text/HTML URLs on default HTTP(S) ports, stores provenance, and indexes the resulting `research_note`. |
 | Evaluation and MLOps | Fixed eval set, MLflow logging, prompt versioning, A/B configs, rollback by env var, and CI eval gate. |
 | Feedback quality review | Feedback analytics and negative-feedback review endpoints turn thumbs into reviewable eval candidates. |
-| Redis paths | Optional Redis-backed `/chat` and `/ingest` rate limits, `/search` response caching, and embedding caching are enabled in production and fail open. |
+| Redis paths | Optional Redis-backed `/chat` and `/ingest` rate limits, `/search` response caching, and embedding caching are enabled in production; rate limits fail closed by default. |
 | Data governance | RLS, audit logging, retention purge, source export, and source erasure endpoints. |
-| Observability | Prometheus request metrics, alert rules, and provisioned Grafana dashboard. |
-| Production operations | Docker Compose stack, PgBouncer, Caddy HTTPS, backup/restore runbook, incident response runbook. |
+| Single-owner auth | `SECOND_BRAIN_API_TOKEN` protects chat, conversations, capture, ingest, search, briefing, feedback, tasks, research, sources, and admin surfaces; destructive data-ops also require `X-Second-Brain-Admin-Token: <SECOND_BRAIN_ADMIN_TOKEN>`. |
+| Observability | Prometheus-format request, cache, and rate-limit metrics at `/metrics`; alert rules and Grafana dashboard configs are retained under `deploy/`, but production Compose does not start monitoring containers until a scanned-clean runtime is selected. |
+| Production operations | Docker Compose stack, Caddy HTTPS, bearer-token API access, `ufw` hardening, automated backup cron, restore drill, secret rotation, rollback, and incident response runbooks. |
 
 ## User Surfaces
 
 | Surface | Entry point | Notes |
 |---|---|---|
-| Web app | `/chat`, `/search`, `/ingest`, `/briefing`, `/tasks`, `/research`, `/sources`, `/feedback`, `/admin` | Main daily-use and operations UI. |
-| API | `/docs` or `/api/*` in production | Ingest, chat, search, briefing, conversations, feedback analytics, tasks, research jobs, sources, and admin data-ops. |
+| Web app | `/chat`, `/capture`, `/search`, `/ingest`, `/briefing`, `/tasks`, `/research`, `/sources`, `/feedback`, `/admin` | Main daily-use and operations UI. |
+| API | `/docs` or `/api/*` in production | Capture, ingest, chat, search, briefing, conversations, feedback analytics, tasks, research jobs, sources, and admin data-ops. Personal-data calls require the API bearer token in production. |
 | MCP | `python -m app.mcp_server` | Tool interface for MCP clients such as Claude Desktop. |
 | Worker | `python -m app.jobs.worker --loop` | Runs in production; drains briefing and research jobs. |
-| Runbooks | [docs/runbooks/](docs/runbooks/) | Deploy, backup/restore, and incident response procedures. |
+| Runbooks | [docs/runbooks/](docs/runbooks/) | Deploy, firewall, backup/restore, restore drills, secret rotation, rollback, and incident response procedures. |
 
 ## Tech Stack
 
@@ -98,11 +104,11 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 | Retrieval | Hybrid pgvector cosine search plus PostgreSQL full-text search, fused by RRF |
 | LLM generation | `gemini-2.5-flash` by default; local Ollama private mode and fake driver behind the same `LLMClient` interface |
 | Embeddings | Local MiniLM or hosted `gemini-embedding-001`, both normalized to 384 dimensions |
-| Agent tooling | MCP server over stdio with five tools |
+| Agent tooling | MCP server over stdio, with durable mutations disabled unless `SECOND_BRAIN_MCP_ENABLE_MUTATIONS=true` |
 | Background work | Durable Postgres `jobs` table with `FOR UPDATE SKIP LOCKED`; OS cron enqueues daily briefing |
-| Pooling/cache | PgBouncer for connection pooling; Redis powers optional rate limits plus search and embedding caches |
+| Pooling/cache | SQLAlchemy/Postgres connection pooling; Redis powers optional rate limits plus search and embedding caches |
 | MLOps | Local MLflow file store, eval harness, prompt registry, A/B configs, CI eval gate |
-| Observability | Prometheus metrics and alerts, Grafana dashboard |
+| Observability | Prometheus metrics endpoint plus retained Prometheus/Grafana config artifacts; monitoring containers are not part of the production Compose runtime |
 | Production runtime | Docker Compose on one VPS |
 | Kubernetes | Local kind learning track with manifests, ingress, HPA, and CI smoke test |
 
@@ -113,7 +119,7 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 | Planning | Project design, stack, cost model, and roadmap | Complete |
 | 0 | Data model, ER diagram, Alembic migrations, pgvector/full-text indexes | Complete |
 | 1 | RAG MVP with FastAPI `/ingest` and `/chat`, hybrid retrieval, `LLMClient` | Complete |
-| 2 | Next.js chat UI with citations, semantic search, conversation history, feedback | Complete |
+| 2 | Next.js chat UI with streaming answers, citations, semantic search, conversation history, feedback | Complete |
 | 3 | Evaluation and MLOps: eval set, MLflow, A/B configs, prompt versioning, rollback | Complete |
 | 4 | MCP server and agentic actions, including self-research | Complete |
 | 5 | Daily briefing and scheduled pipelines | Complete |
@@ -123,9 +129,11 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 
 ## Production Architecture
 
-The production system is one Docker Compose project named `second-brain`. The base production
-compose file defines eight app/ops services; the VPS override adds Caddy, making the live stack
-nine services.
+The production system is one Docker Compose project named `second-brain`. The VPS stack is
+`db`, `redis`, `api`, `worker`, `frontend`, and public `caddy`. The API exposes `/metrics`
+privately on the box, and the Prometheus/Grafana configs remain in `deploy/` for future
+self-hosted monitoring, but production Compose no longer ships vulnerable vendor monitoring
+containers as an opt-in profile.
 
 ```text
 Internet HTTPS
@@ -147,18 +155,17 @@ Internet HTTPS
                +-------------------------+------------------+
                |                         |                  |
                v                         v                  v
-        +-------------+           +-------------+     +-------------+
-        | PgBouncer   |           | Redis       |     | worker      |
-        | pooling     |           | limits/cache|     | jobs        |
-        +------+------+           +-------------+     +-------------+
+        +-------------+           +-------------+
+        | PostgreSQL  |           | Redis       |
+        | pgvector    |           | limits/cache|
+        +-------------+           +-------------+
+               ^
                |
-               v
         +-------------+
-        | PostgreSQL  |
-        | pgvector    |
+        | worker      |
+        | jobs        |
         +-------------+
 
-Private observability: Prometheus and Grafana are bound to localhost and reached by SSH tunnel.
 ```
 
 ## Repository Layout
@@ -173,14 +180,14 @@ second-brain/
 |   |-- migrations/                    # Alembic migrations 0001-0004
 |   `-- tests/                         # unit and integration tests
 |-- frontend/
-|   |-- app/                           # chat, search, ingest, briefing, tasks, research, sources, feedback, admin
+|   |-- app/                           # chat, capture, search, ingest, briefing, tasks, research, sources, feedback, admin
 |   |-- components/
 |   `-- lib/api/
 |-- deploy/
-|   |-- docker-compose.prod.yml        # base 8-service production stack
+|   |-- docker-compose.prod.yml        # base production stack
 |   |-- docker-compose.vps.yml.example # Caddy + production binding template
 |   |-- caddy/
-|   |-- pgbouncer/
+|   |-- cron/                          # installable VPS cron helper scripts
 |   |-- prometheus/
 |   |-- grafana/
 |   `-- k8s/                           # local Kubernetes learning track
@@ -238,6 +245,13 @@ The production deployment uses the base compose file plus a VPS-specific overrid
 the project name explicitly so Compose does not create a second project from the `deploy/`
 directory name.
 
+Production secrets live in gitignored `deploy/.env.prod`. Required auth variables:
+
+| Variable | Purpose |
+|---|---|
+| `SECOND_BRAIN_API_TOKEN` | Required by production Compose; bearer token for normal personal-data routes and the web UI sidebar token field. |
+| `SECOND_BRAIN_ADMIN_TOKEN` | Enables export, source deletion, and retention purge when sent as `X-Second-Brain-Admin-Token` alongside the normal API bearer. |
+
 ```bash
 DC="docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod"
 $DC up -d --build
@@ -250,7 +264,9 @@ The full, verified deployment procedure lives in [docs/USAGE.md](docs/USAGE.md),
 - required environment variables
 - the `-p second-brain` project-name gotcha
 - update procedure
-- backup and restore
+- `ufw` firewall hardening
+- automated backup, restore drill, and restore procedure
+- secret rotation and rollback
 - monitoring tunnels
 - admin and data-ops endpoints
 
@@ -300,7 +316,9 @@ Selected ADRs:
 Second Brain is designed to run on one small VPS. The current verified deployment uses a
 2 GB DigitalOcean droplet with hosted Gemini embeddings so the box does not need the local
 Torch embedding model in memory. Lower-cost VPS providers remain compatible with the same
-Compose architecture.
+Compose architecture. Recent operations hardening stays within the same footprint: host
+firewall rules, cron backups, restore drills, and rollback procedures add no recurring
+infrastructure cost.
 
 Generation uses the configured Gemini API model by default, and embeddings can be either local
 MiniLM or hosted Gemini embeddings. When hosted Gemini embeddings are enabled, document text is
@@ -310,11 +328,12 @@ more memory.
 
 ## Known Follow-Ups
 
-- Add app-level authentication or an equivalent access control layer for the public web surface.
+- Replace single-owner bearer tokens with account/session auth only if the app becomes multi-user.
 - Upgrade self-research beyond user-supplied URLs/text into broader external retrieval with
   source-backed citations.
 - Promote reviewed feedback candidates into the fixed eval set and dashboard quality trends.
-- Add streaming chat responses to the web UI.
+- Keep restore-drill evidence current and periodically copy backups off the VPS to a trusted
+  local machine.
 
 ---
 

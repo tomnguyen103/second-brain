@@ -4,6 +4,7 @@ from starlette.responses import Response
 
 from app.api import (
     briefing,
+    capture,
     chat,
     conversations,
     dataops,
@@ -21,9 +22,9 @@ app = FastAPI(title="Second Brain API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    allow_credentials=False,
 )
 if settings.metrics_enabled:
     app.add_middleware(PrometheusMiddleware)
@@ -35,6 +36,7 @@ if settings.metrics_enabled:
         return Response(content=body, media_type=content_type)
 
 app.include_router(health.router)
+app.include_router(capture.router)
 app.include_router(ingest.router)
 app.include_router(chat.router)
 app.include_router(search.router)

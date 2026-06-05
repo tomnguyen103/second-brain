@@ -64,7 +64,7 @@ def test_briefing_model_is_nullable_for_nothing_new(db_session):
 
 
 def test_build_briefing_summarizes_new_docs(db_session, fake_embedder):
-    start = datetime.now(timezone.utc)
+    start = datetime.now(timezone.utc) - timedelta(seconds=1)
     _ingest(db_session, fake_embedder, ["Doc A", "Doc B"])
 
     b = build_briefing(db_session, FakeLLMClient(), since=start)
@@ -78,7 +78,7 @@ def test_build_briefing_summarizes_new_docs(db_session, fake_embedder):
 
 
 def test_build_briefing_since_filter_excludes_old_docs(db_session, fake_embedder):
-    start = datetime.now(timezone.utc)
+    start = datetime.now(timezone.utc) - timedelta(seconds=1)
     res = _ingest(db_session, fake_embedder, ["Fresh Doc", "Stale Doc"])
     stale_id = next(r.document_id for r in res.documents if r.title == "Stale Doc")
     stale = db_session.get(Document, stale_id)

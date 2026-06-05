@@ -1,8 +1,9 @@
 """Admin / data-subject endpoints (Phase 6, ADR-0012).
 
 GDPR "right to access" (export) and "right to erasure" (delete-my-data) at source
-granularity, plus a retention-purge trigger. All are guarded by `require_admin` (Bearer
-token) since they read/destroy user data. Each commits so its audit row persists.
+granularity, plus a retention-purge trigger. These routes require normal single-owner
+API access and an additional admin header because they read or destroy user data.
+Each commits so its audit row persists.
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from app import deps
 from app.dataops import erasure, retention
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(deps.require_api_access)])
 
 
 @router.get("/data/export")

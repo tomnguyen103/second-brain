@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Logical Postgres backup for the single-VPS Docker Compose deployment.
+# Install with:
+#   sudo install -m 0750 deploy/cron/second-brain-backup /usr/local/sbin/second-brain-backup
+#   echo '17 2 * * * root /usr/local/sbin/second-brain-backup >> /var/log/second-brain-backup.log 2>&1' | sudo tee /etc/cron.d/second-brain-backup
+
+APP_DIR="${SECOND_BRAIN_APP_DIR:-/root/second-brain}"
+BACKUP_DIR="${SECOND_BRAIN_BACKUP_DIR:-/var/backups/second-brain}"
+RETENTION_DAYS="${SECOND_BRAIN_BACKUP_RETENTION_DAYS:-14}"
+
+mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
+
+cd "$APP_DIR"
+
+timestamp="$(date -u +%Y%m%d-%H%M%SZ)"
+tmp_file="$BACKUP_DIR/sb-$timestamp.dump.tmp"
+backup_file="$BACKUP_DIR/sb-$timestamp.dump"
+
+cleanup() {
+  rm -f "$tmp_file"
+}
+trap cleanup EXIT
+
+docker compose -p second-brain \
+  -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml \
+  --env-file deploy/.env.prod \
+  exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' \
+  > "$tmp_file"
+
+test -s "$tmp_file"
+mv "$tmp_file" "$backup_file"
+sha256sum "$backup_file" > "$backup_file.sha256"
+
+find "$BACKUP_DIR" -type f -name 'sb-*.dump' -mtime +"$RETENTION_DAYS" -delete
+find "$BACKUP_DIR" -type f -name 'sb-*.dump.sha256' -mtime +"$RETENTION_DAYS" -delete

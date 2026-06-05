@@ -15,7 +15,7 @@ from app.schemas.sources import (
     SourceSummary,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(deps.require_api_access)])
 
 
 @router.get("/sources", response_model=SourceListResponse)

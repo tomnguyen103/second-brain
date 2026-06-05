@@ -1,8 +1,30 @@
+import json
 import os
 import pytest
 
+from app.chat.service import CITATION_FAILURE_TEXT
+from app.llm.base import LLMMessage, LLMResponse, LLMStreamChunk
+
 pytestmark = pytest.mark.skipif(
     not os.getenv("SECOND_BRAIN_TEST_DATABASE_URL"), reason="no test DB")
+
+
+class _LeakyStreamingLLM:
+    model = "leaky-stream-fake"
+
+    def generate(self, messages: list[LLMMessage]) -> LLMResponse:
+        return LLMResponse(text="SECRET_STREAM_LEAK with no citation marker.", model=self.model)
+
+    def generate_stream(self, messages: list[LLMMessage]):
+        yield LLMStreamChunk(text="SECRET_STREAM_LEAK ", model=self.model)
+        yield LLMStreamChunk(text="with no citation marker.", model=self.model)
+        yield LLMStreamChunk(
+            model=self.model,
+            prompt_tokens=1,
+            completion_tokens=2,
+            total_tokens=3,
+            done=True,
+        )
 
 
 def test_health(client):
@@ -34,6 +56,71 @@ def test_chat_empty_corpus(client):
     body = r.json()
     assert body["citations"] == []
     assert body["model"] is None
+
+
+def test_chat_stream_sends_sse_deltas_and_completion(client):
+    ing = client.post("/ingest", json={
+        "source": {"type": "manual", "name": "Streaming Notes"},
+        "documents": [{"title": "SSE", "content": "SSE streaming keeps citations. " * 20}],
+    })
+    assert ing.status_code == 200, ing.text
+
+    with client.stream("POST", "/chat/stream", json={"message": "What does SSE keep?"}) as r:
+        body = "".join(r.iter_text())
+
+    assert r.status_code == 200, body
+    assert r.headers["content-type"].startswith("text/event-stream")
+    blocks = [b for b in body.strip().split("\n\n") if b]
+    assert any(b.startswith("event: delta") for b in blocks)
+    complete_block = next(b for b in blocks if b.startswith("event: complete"))
+    complete_data = json.loads(next(
+        line.removeprefix("data:").strip()
+        for line in complete_block.splitlines()
+        if line.startswith("data:")
+    ))
+    delta_text = "".join(
+        json.loads(next(
+            line.removeprefix("data:").strip()
+            for line in block.splitlines()
+            if line.startswith("data:")
+        ))["text"]
+        for block in blocks
+        if block.startswith("event: delta")
+    )
+    assert complete_data["answer"] == delta_text
+    assert complete_data["citations"]
+
+
+def test_chat_stream_never_sends_uncited_model_text(client, monkeypatch):
+    from app.api import chat as chat_api
+
+    monkeypatch.setattr(
+        chat_api.deps,
+        "get_llm_client",
+        lambda settings, private_mode=False: _LeakyStreamingLLM(),
+    )
+    ing = client.post("/ingest", json={
+        "source": {"type": "manual", "name": "Streaming Security Notes"},
+        "documents": [{"title": "Private", "content": "Private SSE security context. " * 20}],
+    })
+    assert ing.status_code == 200, ing.text
+
+    with client.stream("POST", "/chat/stream", json={"message": "What is private?"}) as r:
+        body = "".join(r.iter_text())
+
+    assert r.status_code == 200, body
+    assert "SECRET_STREAM_LEAK" not in body
+    blocks = [b for b in body.strip().split("\n\n") if b]
+    assert not any(b.startswith("event: delta") for b in blocks)
+    complete_block = next(b for b in blocks if b.startswith("event: complete"))
+    complete_data = json.loads(next(
+        line.removeprefix("data:").strip()
+        for line in complete_block.splitlines()
+        if line.startswith("data:")
+    ))
+    assert complete_data["answer"] == CITATION_FAILURE_TEXT
+    assert complete_data["citations"] == []
+    assert complete_data["retrieval"]["citation_validation_failed"] is True
 
 
 def test_ingest_duplicate(client):

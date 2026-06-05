@@ -180,7 +180,9 @@ uvicorn app.main:app --reload    # then: curl http://localhost:8000/metrics
 
 # 2) Admin / data-subject endpoints (set a token to enable them; blank => 503)
 $env:SECOND_BRAIN_ADMIN_TOKEN = "a-long-random-token"
-#   GET    /data/export?source_id=<id>        (GDPR access)   -> Authorization: Bearer <token>
+#   GET    /data/export?source_id=<id>        (GDPR access)
+#          Authorization: Bearer <api-token>
+#          X-Second-Brain-Admin-Token: <admin-token>
 #   DELETE /data/sources/<id>                 (GDPR erasure)
 #   POST   /admin/retention/purge?older_than_days=180   (null old raw_text)
 

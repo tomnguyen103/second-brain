@@ -10,7 +10,7 @@ from app.config import Settings
 from app.retrieval.hybrid import hybrid_search, load_display_chunks
 from app.schemas.search import SearchHit, SearchResponse
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(deps.require_api_access)])
 
 
 @router.get("/search", response_model=SearchResponse)

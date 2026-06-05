@@ -11,6 +11,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   response?: ChatResponse;
+  isStreaming?: boolean;
 }
 
 function MessageSkeleton() {
@@ -89,6 +90,9 @@ export function MessageList({ messages, isLoading }: Props) {
                 </div>
                 <div className="bg-white dark:bg-zinc-900 border border-zinc-200/70 dark:border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm shadow-zinc-900/4 dark:shadow-none">
                   <AnswerWithCitations answer={msg.content} citations={msg.response?.citations ?? []} />
+                  {msg.isStreaming && (
+                    <span className="mt-2 inline-flex h-1.5 w-1.5 rounded-full bg-amber-400 align-middle animate-pulse" />
+                  )}
                   {msg.response && (
                     <div className="flex flex-wrap items-center gap-2 mt-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800">
                       {msg.response.model && (

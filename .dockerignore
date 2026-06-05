@@ -12,6 +12,8 @@
 **/mlruns/
 mlflow.db
 **/.env
+**/.env.*
+!**/.env.example
 .claude/
 .claude-flow/
 docs/k8s-evidence/

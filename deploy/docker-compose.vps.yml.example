@@ -10,8 +10,9 @@
 #     inlined by `next build`; a runtime env var is ignored by the browser). The browser calls
 #     the API through Caddy at https://<host>/api, same-origin.
 #   - allows that origin in the API's CORS list (belt-and-suspenders; same-origin needs none).
-#   - keeps Prometheus/Grafana bound to localhost only (reach them via SSH tunnel).
-#   - adds Caddy as the public entrypoint on 80/443 with auto-HTTPS.
+#   - builds Caddy from source and adds it as the public entrypoint on 80/443 with auto-HTTPS.
+# Host firewall expectation: allow only 22/tcp, 80/tcp, and 443/tcp publicly. The direct app,
+# monitoring, database, and Redis ports must not be opened to the internet.
 # Using <ip>.sslip.io gives Caddy a real Let's Encrypt cert without owning a domain
 # (sslip.io resolves <ip>.sslip.io -> <ip>). Swap in a real domain by changing these values.
 services:
@@ -30,22 +31,18 @@ services:
 
   # !override REPLACES the base file's port list (compose concatenates by default, which would
   # bind 0.0.0.0:PORT and 127.0.0.1:PORT both -> "address already in use"). Localhost-only here.
-  prometheus:
-    ports: !override
-      - "127.0.0.1:9090:9090"
-
-  grafana:
-    ports: !override
-      - "127.0.0.1:3001:3000"
-
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.caddy
     depends_on:
       - api
       - frontend
     ports:
       - "80:80"
       - "443:443"
+    cap_add:
+      - NET_BIND_SERVICE
     environment:
       CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:-YOUR_VPS_IP.sslip.io}
     volumes:

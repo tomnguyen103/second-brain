@@ -11,6 +11,9 @@ import {
   Database,
   FilePlus,
   Flask,
+  BookmarkSimple,
+  Check,
+  Key,
   ListChecks,
   MagnifyingGlass,
   Moon,
@@ -18,8 +21,10 @@ import {
   Plus,
   ShieldCheck,
   Sun,
+  X,
 } from "@phosphor-icons/react";
-import { api } from "@/lib/api/client";
+import { api, getStoredApiToken, setStoredApiToken } from "@/lib/api/client";
+import { queryClient } from "@/lib/query-client";
 import { Suspense, useState, useEffect } from "react";
 
 function SidebarContent() {
@@ -28,9 +33,21 @@ function SidebarContent() {
   const activeCid = searchParams.get("cid");
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [apiTokenInput, setApiTokenInput] = useState("");
+  const [hasApiToken, setHasApiToken] = useState(false);
   useEffect(() => {
     const frame = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(frame);
+  }, []);
+  useEffect(() => {
+    const syncToken = () => {
+      const token = getStoredApiToken();
+      setApiTokenInput(token);
+      setHasApiToken(Boolean(token));
+    };
+    syncToken();
+    window.addEventListener("second-brain-api-token-changed", syncToken);
+    return () => window.removeEventListener("second-brain-api-token-changed", syncToken);
   }, []);
 
   const { data } = useQuery({
@@ -43,6 +60,17 @@ function SidebarContent() {
   // produces an icon/aria-label that differs between server and client and
   // triggers a hydration mismatch that de-opts this subtree. Gate on `mounted`.
   const isDark = mounted && resolvedTheme === "dark";
+  const saveApiToken = () => {
+    setStoredApiToken(apiTokenInput);
+    setHasApiToken(Boolean(apiTokenInput.trim()));
+    queryClient.invalidateQueries();
+  };
+  const clearApiToken = () => {
+    setApiTokenInput("");
+    setStoredApiToken("");
+    setHasApiToken(false);
+    queryClient.invalidateQueries();
+  };
 
   return (
     <aside className="w-56 shrink-0 flex flex-col h-full overflow-hidden bg-card border-r border-border">
@@ -68,6 +96,7 @@ function SidebarContent() {
         {[
           { href: "/chat", label: "New Chat", icon: <Plus size={13} weight="bold" />, exact: true },
           { href: "/search", label: "Search", icon: <MagnifyingGlass size={13} weight="bold" />, exact: false },
+          { href: "/capture", label: "Capture", icon: <BookmarkSimple size={13} weight="bold" />, exact: false },
           { href: "/ingest", label: "Ingest", icon: <FilePlus size={13} weight="bold" />, exact: false },
           { href: "/briefing", label: "Briefing", icon: <NewspaperClipping size={13} weight="bold" />, exact: false },
           { href: "/feedback", label: "Feedback", icon: <ChartBar size={13} weight="bold" />, exact: false },
@@ -90,6 +119,41 @@ function SidebarContent() {
       </nav>
 
       <div className="mx-3 border-t border-border my-1" />
+
+      <form
+        className="px-3 py-2 flex items-center gap-1.5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          saveApiToken();
+        }}
+      >
+        <Key size={13} weight="bold" className={hasApiToken ? "text-primary" : "text-muted-foreground"} />
+        <input
+          type="password"
+          value={apiTokenInput}
+          onChange={(event) => setApiTokenInput(event.target.value)}
+          placeholder="API token"
+          autoComplete="off"
+          className="min-w-0 flex-1 h-7 rounded-md border border-border bg-background px-2 text-[11px] outline-none focus:border-primary"
+        />
+        <button
+          type="submit"
+          className="h-7 w-7 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all flex items-center justify-center"
+          aria-label="Save API token"
+          title="Save API token"
+        >
+          <Check size={12} weight="bold" />
+        </button>
+        <button
+          type="button"
+          onClick={clearApiToken}
+          className="h-7 w-7 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all flex items-center justify-center"
+          aria-label="Clear API token"
+          title="Clear API token"
+        >
+          <X size={12} weight="bold" />
+        </button>
+      </form>
 
       {/* History */}
       <div className="flex-1 overflow-y-auto px-2 pb-3 min-h-0">

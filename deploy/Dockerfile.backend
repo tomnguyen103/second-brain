@@ -1,6 +1,6 @@
 # Backend image — FastAPI + embedder. Build context is the REPO ROOT:
 #   docker build -f deploy/Dockerfile.backend -t second-brain-api .
-FROM python:3.12-slim
+FROM python:3.12-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -8,14 +8,32 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Build tooling for any wheels that need compiling, then install deps first for layer caching.
-COPY backend/requirements.txt ./requirements.txt
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Install production deps first for layer caching. Eval/MCP/test deps stay out of this image.
+# Debian marks perl-base essential, but this FastAPI image does not use Perl.
+COPY backend/requirements.prod.txt ./requirements.txt
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && pip install --upgrade pip \
+    && pip install -r requirements.txt \
+    && apt-get purge -y --auto-remove perl \
+    && dpkg --purge --force-depends --force-remove-essential perl-base \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY backend/ ./
 
 # Run as non-root.
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+
+FROM scratch
+
+COPY --from=runtime / /
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+
+WORKDIR /app
 USER appuser
 
 EXPOSE 8000

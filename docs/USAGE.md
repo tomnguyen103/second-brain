@@ -1,7 +1,7 @@
 # Second Brain — Usage Guide
 
 How to use and operate the live deployment. Last verified **2026-06-02** against the
-production droplet. Web UI/API surface last updated **2026-06-04**.
+production droplet. Web UI/API surface last updated **2026-06-05**.
 
 ---
 
@@ -11,12 +11,11 @@ production droplet. Web UI/API surface last updated **2026-06-04**.
 
 | What | URL | Notes |
 |---|---|---|
-| **Web UI** | **https://YOUR_VPS_IP.sslip.io** | Chat, search, ingest, briefing, feedback, tasks, research, sources, admin. Redirects to `/chat`. |
+| **Web UI** | **https://YOUR_VPS_IP.sslip.io** | Chat, capture, search, ingest, briefing, feedback, tasks, research, sources, admin. Redirects to `/chat`. |
 | **API (app path)** | https://YOUR_VPS_IP.sslip.io/api | Behind Caddy, same TLS cert. e.g. `/api/health`, `/api/chat`. |
 | **API (direct)** | http://localhost:8000 *(on the box or via SSH tunnel)* | Plain HTTP, bound to localhost only. Handy for quick `curl`. |
 | **Swagger UI** | http://localhost:8000/docs *(on the box or via SSH tunnel)* | Interactive "try it" docs for every endpoint. |
-| Grafana | http://localhost:3001 *(via SSH tunnel)* | admin / `GRAFANA_ADMIN_PASSWORD`. Not public. |
-| Prometheus | http://localhost:9090 *(via SSH tunnel)* | Not public. |
+| Metrics | http://localhost:8000/metrics *(on the box or via SSH tunnel)* | Prometheus-format app metrics. Monitoring containers are not started by production Compose. |
 
 > **TLS:** `YOUR_VPS_IP.sslip.io` is a wildcard-DNS hostname that resolves to the droplet's
 > IP (`sslip.io` maps `<ip>.sslip.io → <ip>`), which lets Caddy obtain a real, auto-renewing
@@ -29,16 +28,18 @@ production droplet. Web UI/API surface last updated **2026-06-04**.
 
 ## What it is
 
-Second Brain is a personal RAG assistant: you **ingest** notes/text, it embeds and stores them
-in Postgres + pgvector, and you **chat** or **search** over them with **cited** answers. It also
+Second Brain is a personal RAG assistant: you **capture** web passages or **ingest** notes/text,
+it embeds and stores them in Postgres + pgvector, and you **chat** or **search** over them with
+**cited** answers. It also
 produces a **daily briefing** and exposes **agentic tools** over MCP. The LLM
 (`gemini-2.5-flash`) and embeddings (`gemini-embedding-001`) are hosted Gemini API calls, so the
 box needs no GPU and fits in 2 GB RAM.
 
-**Architecture:** one Docker Compose project (`second-brain`) on one DigitalOcean droplet, 9
-services: `caddy` (HTTPS reverse proxy) → `frontend` (Next.js) + `api` (FastAPI); `worker`
-(daily briefing + async research); `db` (pgvector), `pgbouncer`, `redis`; `prometheus` +
-`grafana`.
+**Architecture:** one Docker Compose project (`second-brain`) on one DigitalOcean droplet:
+`caddy` (HTTPS reverse proxy) → `frontend` (Next.js) + `api` (FastAPI); `worker` (daily briefing
+and async research); `db` (pgvector) and `redis`. The API exposes Prometheus-format metrics at
+`/metrics`; Prometheus/Grafana configs are retained under `deploy/`, but production Compose does not
+start monitoring containers until a scanned-clean runtime is selected.
 
 ---
 
@@ -46,15 +47,21 @@ services: `caddy` (HTTPS reverse proxy) → `frontend` (Next.js) + `api` (FastAP
 
 Open **https://YOUR_VPS_IP.sslip.io**. You get:
 
-- **/chat** — ask a question; the answer comes back with inline `[1]`,`[2]` citation markers.
+- **/chat** — ask a question; the backend buffers generated chunks until citation/support validation
+  passes, then sends the answer over SSE and finalizes with inline `[1]`,`[2]` citation markers.
   Click a marker to see the source card (title, snippet, score). A conversation sidebar lists
   past threads (auto-refresh). Thumbs up/down records feedback. A "private mode" toggle routes
-  that turn through the local LLM path instead of Gemini (if configured).
+  that turn through the local LLM path instead of Gemini (if configured). If the selected LLM
+  cannot stream, the UI falls back to the non-streaming `/chat` response.
 - **/search** — raw hybrid (vector + full-text) search results with source/tag filters, no LLM.
 
-The browser talks to the API at `…/api` through Caddy (same origin, so no CORS issues).
+The browser talks to the API at `…/api` through Caddy (same origin, so no CORS issues). In
+production, paste `SECOND_BRAIN_API_TOKEN` into the sidebar key field so chat, conversations,
+capture, ingest, search, briefing, feedback, tasks, research, sources, and admin pages include
+`Authorization: Bearer ...`.
 
 Additional web pages:
+- **/capture** - save a URL, title, selected text, notes, and tags as a searchable bookmark.
 - **/ingest** - add manual notes or text documents, with source metadata and tags.
 - **/briefing** - read the latest stored briefing and recent briefing history.
 - **/feedback** - review thumbs feedback trends, negative examples, cited source context, and
@@ -72,12 +79,45 @@ Additional web pages:
 Base URL `https://YOUR_VPS_IP.sslip.io/api`. Examples use `curl` (works on Windows 11 and
 the box).
 
+Production personal-data APIs require the single-owner API bearer token:
+
+```bash
+API_AUTH="Authorization: Bearer <SECOND_BRAIN_API_TOKEN>"
+```
+
+This protects `/chat`, `/chat/stream`, `/capture`, `/conversations`, `/ingest`, `/search`, `/briefing`,
+`/feedback`, `/tasks`, `/research/jobs`, `/sources`, `/data/*`, and `/admin/*`. `/health`
+stays public for uptime checks. Local development remains keyless unless you set
+`SECOND_BRAIN_API_TOKEN`; once set, local calls need the same header.
+
+### Capture a web note - `POST /capture`
+`/capture` stores browser-provided selected text and notes; it does not fetch or scrape the page
+server-side.
+
+```bash
+curl -X POST https://YOUR_VPS_IP.sslip.io/api/capture \
+  -H "$API_AUTH" \
+  -H "Content-Type: application/json" -d '{
+    "url": "https://example.com/article",
+    "title": "Article title",
+    "selected_text": "Quoted passage worth keeping.",
+    "notes": "Why this matters.",
+    "tags": ["inbox", "reading"]
+  }'
+```
+
+The response returns the created `bookmark` source id, normalized `capture_url`, document status,
+content hash, and chunk/embed counts. Re-capturing the same URL with the same selected text and
+notes returns `status: "duplicate"`. The web page also accepts query-prefill parameters:
+`/capture?url=...&title=...&text=...&notes=...&tags=...`.
+
 ### Add notes — `POST /ingest`
 `source.type` must be one of: **`manual`**, `notes_folder`, `github`, `rss`, `pdf_upload`,
 `bookmark`, `research_note`. Use `manual` for ad-hoc text.
 
 ```bash
 curl -X POST https://YOUR_VPS_IP.sslip.io/api/ingest \
+  -H "$API_AUTH" \
   -H "Content-Type: application/json" -d '{
     "source": {"type": "manual", "name": "My Notes"},
     "documents": [
@@ -91,6 +131,7 @@ Re-ingesting identical content is deduped by content hash (`status: "duplicate"`
 ### Ask — `POST /chat`
 ```bash
 curl -X POST https://YOUR_VPS_IP.sslip.io/api/chat \
+  -H "$API_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"message": "How should I tune the HNSW index?"}'
 ```
@@ -99,15 +140,35 @@ Returns `answer` (with `[n]` markers), `citations[]`, token `usage`, `model`, `l
 `{"message":"…","top_k":8,"filters":{"tags":["postgres"]},"options":{"private_mode":false}}`.
 If nothing relevant is found it refuses rather than inventing an answer.
 
+### Stream an answer - `POST /chat/stream`
+```bash
+curl -N -X POST https://YOUR_VPS_IP.sslip.io/api/chat/stream \
+  -H "$API_AUTH" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How should I tune the HNSW index?"}'
+```
+Uses the same request body as `/chat`, but returns Server-Sent Events:
+
+- `event: delta` with `{"text":"..."}` chunks only after the assembled answer has passed citation
+  and support validation. Uncited, invalidly cited, or weakly supported model text is withheld and replaced by the final
+  citation-failure response.
+- `event: complete` with the same JSON shape as `/chat`, including final `citations[]`,
+  `usage`, `model`, `latency_ms`, and `conversation_id`.
+- `event: error` if streaming fails after the response has started.
+
+If the selected LLM provider cannot stream, the endpoint returns `409` before starting SSE; clients
+should call `/chat` as a fallback. Gemini, Ollama, and the test fake driver currently implement the
+streaming interface.
+
 ### Search — `GET /search`
 ```bash
-curl "https://YOUR_VPS_IP.sslip.io/api/search?q=hnsw+tuning&top_k=5"
+curl -H "$API_AUTH" "https://YOUR_VPS_IP.sslip.io/api/search?q=hnsw+tuning&top_k=5"
 ```
 
 ### Redis-backed safeguards and caches
 Production Compose enables Redis for three conservative hot paths:
 
-- `POST /chat` and `POST /ingest` use fixed-window API rate limits keyed by client IP.
+- `POST /chat`, `POST /chat/stream`, `POST /capture`, and `POST /ingest` use fixed-window API rate limits keyed by client IP.
 - `GET /search` can cache hot search responses briefly; successful ingest bumps a cache epoch so
   newly embedded content is not hidden behind an old result.
 - Query/content embeddings can be reused from Redis by hashed text keys. Raw note/query text is not
@@ -128,13 +189,15 @@ Useful knobs:
 | `SECOND_BRAIN_RATE_LIMIT_ENABLED` | `true` |
 | `SECOND_BRAIN_CHAT_RATE_LIMIT_REQUESTS` | `30` per `60s` |
 | `SECOND_BRAIN_INGEST_RATE_LIMIT_REQUESTS` | `10` per `60s` |
+| `SECOND_BRAIN_RATE_LIMIT_FAIL_CLOSED` | `true` |
 | `SECOND_BRAIN_SEARCH_CACHE_ENABLED` | `true` |
 | `SECOND_BRAIN_SEARCH_CACHE_TTL_SECONDS` | `120` |
 | `SECOND_BRAIN_EMBEDDING_CACHE_ENABLED` | `true` |
 | `SECOND_BRAIN_EMBEDDING_CACHE_TTL_SECONDS` | `604800` |
 
-Redis failures fail open: the app logs cache/rate-limit errors and continues through Postgres/LLM
-rather than making Redis a hard dependency. Prometheus exposes `cache_events_total` and
+Redis cache failures are best-effort and fall back to Postgres/LLM. Rate-limit failures fail closed
+by default when Redis is enabled; set `SECOND_BRAIN_RATE_LIMIT_FAIL_CLOSED=false` only as an
+explicit availability trade-off. `/metrics` exposes `cache_events_total` and
 `rate_limit_events_total` alongside request metrics.
 
 ### Other endpoints
@@ -162,9 +225,9 @@ Additional API endpoints:
 Use feedback analytics to turn thumbs into reviewable quality data:
 
 ```bash
-curl "https://YOUR_VPS_IP.sslip.io/api/feedback/analytics?days=30"
-curl "https://YOUR_VPS_IP.sslip.io/api/feedback/negative?limit=25&days=30"
-curl "https://YOUR_VPS_IP.sslip.io/api/feedback/eval-candidates?limit=25&days=30"
+curl -H "$API_AUTH" "https://YOUR_VPS_IP.sslip.io/api/feedback/analytics?days=30"
+curl -H "$API_AUTH" "https://YOUR_VPS_IP.sslip.io/api/feedback/negative?limit=25&days=30"
+curl -H "$API_AUTH" "https://YOUR_VPS_IP.sslip.io/api/feedback/eval-candidates?limit=25&days=30"
 ```
 
 Eval candidate responses mirror the fixed eval dataset shape:
@@ -189,12 +252,13 @@ Eval candidate responses mirror the fixed eval dataset shape:
 
 ### Source-backed research - `POST /research/jobs`
 Research does not use a paid search API. Provide your own evidence as public URLs or source text;
-the worker fetches/parses safe public text/HTML URLs, asks the configured LLM to ground the note
+the worker fetches/parses safe public text/HTML URLs on default HTTP(S) ports only, asks the configured LLM to ground the note
 in those excerpts, stores a `research_note`, and writes provenance into the stored document
 metadata.
 
 ```bash
 curl -X POST https://YOUR_VPS_IP.sslip.io/api/research/jobs \
+  -H "$API_AUTH" \
   -H "Content-Type: application/json" -d '{
     "topic": "reciprocal rank fusion",
     "source_urls": ["https://example.com/rrf-notes"],
@@ -234,12 +298,16 @@ docker compose -p second-brain \
 ## Agentic tools (MCP)
 
 The MCP server (`backend/app/mcp_server.py`, stdio) exposes five tools: `search_notes`,
-`create_task`, `list_tasks`, `send_digest`, and `research_topic`. `research_topic(topic,
-source_urls?, source_texts?)` accepts optional public URLs or pasted snippets, stores the grounded
-note as a `research_note`, auto-indexes it, and returns `evidence_count` plus `sources[]`
-provenance. Wire it into a local MCP client (e.g. Claude Desktop) - run it on the box or locally
-with the DB DSN + Gemini key in its `env`. Set `SECOND_BRAIN_LLM_PROVIDER=fake` for a keyless
-smoke test.
+`create_task`, `list_tasks`, `send_digest`, and `research_topic`. MCP clients run as trusted local
+processes with direct DB/service access, so durable mutations are disabled by default. Set
+`SECOND_BRAIN_MCP_ENABLE_MUTATIONS=true` only for a trusted local client before using `create_task`
+or `research_topic`.
+
+`research_topic(topic, source_urls?, source_texts?)` accepts optional public URLs or pasted snippets,
+stores the grounded note as a `research_note`, auto-indexes it, and returns `evidence_count` plus
+`sources[]` provenance. Wire it into a local MCP client (e.g. Claude Desktop) - run it on the box or
+locally with the DB DSN + Gemini key in its `env`. Set `SECOND_BRAIN_LLM_PROVIDER=fake` for a
+keyless smoke test.
 
 ---
 
@@ -252,7 +320,7 @@ cd /root/second-brain
 # the stack is ONE project; always pass -p second-brain + BOTH compose files + the env file:
 DC="docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod"
 
-$DC ps                       # status of all 9 services
+$DC ps                       # status of the stack services
 $DC logs -f api worker       # follow logs
 $DC restart api              # restart one service
 $DC up -d                    # reconcile / start everything
@@ -273,29 +341,71 @@ curl -s localhost:8000/health
 Changing the frontend's API URL or the Caddy host requires `--build frontend` (the API base URL
 is baked into the bundle at build time).
 
+**Production environment variables:**
+
+| Variable | Required | Purpose |
+|---|---:|---|
+| `POSTGRES_PASSWORD` | Yes | Database password for the self-hosted Postgres service. |
+| `SECOND_BRAIN_API_TOKEN` | Yes | Single-owner bearer token for personal-data routes and normal web/API use. |
+| `SECOND_BRAIN_ADMIN_TOKEN` | Recommended for data-ops | Enables export, source deletion, and retention purge when sent as `X-Second-Brain-Admin-Token` alongside the normal API bearer. Leave blank to return 503 from destructive endpoints. |
+| `SECOND_BRAIN_GEMINI_API_KEY` | For real Gemini mode | Required when `SECOND_BRAIN_LLM_PROVIDER=gemini`; omit only for `fake` or local Ollama mode. |
+| `SECOND_BRAIN_MCP_ENABLE_MUTATIONS` | Optional local MCP | Defaults to `false`; set `true` only for trusted local MCP clients that may create tasks or research notes. |
+| `NEXT_PUBLIC_API_BASE_URL` | Yes | Browser-visible API base, usually `https://YOUR_VPS_IP.sslip.io/api` in production. |
+
+**Health checks:**
+```bash
+curl -fsS localhost:8000/health
+curl -fsS https://YOUR_VPS_IP.sslip.io/api/health
+$DC ps
+$DC exec -T db sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+$DC exec -T redis redis-cli ping
+sudo ufw status verbose
+```
+
 **Backup before any migration:**
 ```bash
 $DC exec -T db pg_dump -U second_brain second_brain | gzip > backup-$(date +%F).sql.gz
 ```
 
-**Monitoring (kept private — reach via SSH tunnel from your laptop):**
+Automated nightly backups are installed through `/etc/cron.d/second-brain-backup` and run
+`/usr/local/sbin/second-brain-backup`, which is sourced from `deploy/cron/second-brain-backup`.
+See `docs/runbooks/backup-restore.md` for restore and monthly restore-drill commands.
+
+**Rollback:**
 ```bash
-ssh -L 3001:localhost:3001 -L 9090:localhost:9090 root@YOUR_VPS_IP
-# then open http://localhost:3001 (Grafana) and http://localhost:9090 (Prometheus)
+git checkout <previous-green-sha>
+$DC up -d --build
+curl -fsS localhost:8000/health
 ```
+
+For migrations, restore the pre-migration dump unless the Alembic downgrade was tested. For prompt
+regressions, set `SECOND_BRAIN_PROMPT_VERSION=rag-v1` in `deploy/.env.prod` and recreate `api`.
+
+**Monitoring:**
+The production stack exposes app metrics on the private API port. Use this directly for quick checks:
+```bash
+DC="docker compose -p second-brain -f deploy/docker-compose.prod.yml -f deploy/docker-compose.vps.yml --env-file deploy/.env.prod"
+curl -fsS localhost:8000/metrics | head
+```
+Prometheus/Grafana configs remain in `deploy/prometheus/` and `deploy/grafana/`, but production
+Compose no longer includes monitoring containers because the current upstream vendor images scanned
+with critical/high CVE findings. Reintroduce monitoring only with scanned-clean images or custom
+builds.
 
 ---
 
 ## Admin / data-ops
 
-`SECOND_BRAIN_ADMIN_TOKEN` is set, so the governed endpoints are **enabled** and require a
-bearer token:
+`SECOND_BRAIN_ADMIN_TOKEN` enables the governed endpoints. They first pass the normal
+`SECOND_BRAIN_API_TOKEN` gate, then require the admin token for the destructive/read-all action.
+Use the normal API bearer plus the separate admin header for these calls:
 - `GET /api/data/export?source_id=…` — export a source (GDPR access).
 - `DELETE /api/data/sources/{id}` — delete a source + its documents (GDPR erasure).
 - `POST /api/admin/retention/purge` — null `raw_text` past the retention TTL.
 
 ```bash
-curl -H "Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>" \
+curl -H "Authorization: Bearer <SECOND_BRAIN_API_TOKEN>" \
+  -H "X-Second-Brain-Admin-Token: <SECOND_BRAIN_ADMIN_TOKEN>" \
   "https://YOUR_VPS_IP.sslip.io/api/data/export?source_id=3"
 ```
 
@@ -304,12 +414,39 @@ curl -H "Authorization: Bearer <SECOND_BRAIN_ADMIN_TOKEN>" \
 The same actions are available in the web UI at `/admin`; paste the admin token into the page
 when you need to run one of these guarded operations.
 
-## Security notes / hardening backlog
+## Security notes / hardening
 
-The deployment is functional and uses real HTTPS, but a few things are worth tightening:
+The deployment is functional, uses real HTTPS, and should run with a host firewall:
 
-1. **Enable a host firewall.** `ufw` is currently inactive; allow only 22/80/443.
-2. **Privacy:** with `SECOND_BRAIN_EMBEDDING_PROVIDER=gemini`, note text is sent to Google at
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw --force enable
+sudo ufw status verbose
+```
+
+Only SSH and Caddy should be public. Do not expose 3000, 8000, Postgres, or Redis to the internet;
+the base Compose file and VPS override bind those direct ports to `127.0.0.1`. If monitoring
+containers are reintroduced later, keep their ports private as well.
+
+Secret rotation lives in `docs/runbooks/incident-response.md`: rotate Gemini/API/admin/Grafana
+secrets by updating `deploy/.env.prod` plus the password manager and recreating the affected
+services; rotate `POSTGRES_PASSWORD` directly in Postgres and recreate `api`/`worker`.
+
+1. **Auth:** this is intentionally single-owner bearer-token auth, not multi-user accounts. The
+   frontend stores the normal API token in browser local storage so local/dev use stays simple and
+   no paid provider or cookie/session service is required. Treat the browser profile as holding a
+   bearer secret; rotate `SECOND_BRAIN_API_TOKEN` if the machine or browser profile is compromised.
+
+1. **Capture URL handling:** `/capture` validates URLs but does not fetch them server-side. It
+   rejects non-HTTP(S), credentialed, localhost, and literal private/internal IP URLs before saving
+   the capture. If server-side fetching is added later, use the DNS-pinned public URL fetch pattern
+   from source-backed research rather than turning capture into a scraper.
+
+1. **Privacy:** with `SECOND_BRAIN_EMBEDDING_PROVIDER=gemini`, note text is sent to Google at
    **ingest** (not just chat). Switch to `local` embeddings for a fully private path (needs a
    ≥4 GB box for the torch model).
 
@@ -323,3 +460,5 @@ cd backend && alembic upgrade head && uvicorn app.main:app --reload   # :8000
 cd frontend && npm run dev                    # :3000
 ```
 Set `SECOND_BRAIN_GEMINI_API_KEY` (or `SECOND_BRAIN_LLM_PROVIDER=fake` to run without a key).
+Do not set `SECOND_BRAIN_API_TOKEN` locally unless you want to test the production auth path; when
+you do set it, paste the same token into the web sidebar or send `Authorization: Bearer ...`.

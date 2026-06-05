@@ -1,0 +1,29 @@
+# Caddy reverse proxy built from source with patched Go transitive dependencies.
+# This preserves Caddy auto-HTTPS while avoiding stale vendor binary dependencies.
+FROM golang:1.26.4-alpine AS builder
+
+ARG CADDY_VERSION=v2.11.3
+
+RUN apk add --no-cache ca-certificates git
+RUN git clone --depth 1 --branch ${CADDY_VERSION} https://github.com/caddyserver/caddy /src/caddy
+
+WORKDIR /src/caddy/cmd/caddy
+RUN go get \
+      golang.org/x/crypto@v0.52.0 \
+      golang.org/x/net@v0.55.0 \
+      github.com/go-jose/go-jose/v3@v3.0.5 \
+    && go mod tidy \
+    && go build -trimpath -ldflags="-s -w" -o /out/caddy
+
+FROM alpine:3.23.4
+
+RUN apk add --no-cache ca-certificates mailcap \
+    && addgroup -S caddy \
+    && adduser -S -D -H -u 10001 -G caddy caddy \
+    && mkdir -p /data /config \
+    && chown -R caddy:caddy /data /config
+COPY --from=builder /out/caddy /usr/bin/caddy
+
+EXPOSE 80 443
+USER caddy
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

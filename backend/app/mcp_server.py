@@ -36,6 +36,15 @@ def _session():
         db.close()
 
 
+def _require_mcp_mutations_enabled() -> None:
+    """Require an explicit opt-in before MCP tools can mutate durable personal data."""
+    if not settings.mcp_enable_mutations:
+        raise PermissionError(
+            "MCP mutation tools are disabled. Set SECOND_BRAIN_MCP_ENABLE_MUTATIONS=true "
+            "only for trusted local MCP clients."
+        )
+
+
 @mcp.tool()
 def search_notes(query: str, top_k: int = 5) -> list[dict]:
     """Search the second brain (hybrid vector + full-text) and return the top matching chunks."""
@@ -61,6 +70,7 @@ def search_notes(query: str, top_k: int = 5) -> list[dict]:
 @mcp.tool()
 def create_task(title: str, detail: str = "") -> dict:
     """Add a task to the user's task list. Returns the created task."""
+    _require_mcp_mutations_enabled()
     with _session() as db:
         t = _create_task(db, title, detail or None)
         return {"id": t.id, "title": t.title, "detail": t.detail,
@@ -93,6 +103,7 @@ def research_topic(
 ) -> dict:
     """Research a topic from optional public URLs or provided source text, store it as a
     source-backed research note, and auto-index it so it becomes permanently searchable."""
+    _require_mcp_mutations_enabled()
     with _session() as db:
         res = _research_topic(
             db,
