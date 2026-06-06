@@ -78,7 +78,7 @@ _KEYWORD_FALLBACK_SQL = text(f"""
             OR lower(d.title) LIKE ('%' || terms.term || '%')
             OR lower(s.name) LIKE ('%' || terms.term || '%')
         )
-        WHERE 1=1 {_FILTER}
+        WHERE s.type IN ('pdf_upload', 'file_upload') {_FILTER}
         GROUP BY c.id
     )
     SELECT chunk_id,

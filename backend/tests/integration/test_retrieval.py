@@ -98,6 +98,35 @@ def test_keyword_fallback_finds_uploaded_file_title_when_strict_fts_misses(
     assert empty_meta["keyword_fallback_used"] is False
 
 
+def test_keyword_fallback_does_not_rescue_manual_sources(
+    db_session,
+    fake_embedder,
+):
+    spec = SourceSpec(type="manual", name="manual-fallback-scope-test")
+    result = ingest_documents(db_session, fake_embedder, source=spec, documents=[
+        DocumentInput(
+            title="General runtime note",
+            content="The stack can change over time during local development. " * 15,
+        ),
+    ])
+
+    settings = Settings(retrieval_min_vector_score=1.1)
+    hits, meta = hybrid_search(
+        db_session,
+        fake_embedder,
+        settings,
+        "What time is my flight tomorrow?",
+        source_ids=[result.source_id],
+    )
+
+    assert hits == []
+    assert meta["candidates_vector"] == 0
+    assert meta["candidates_fulltext_strict"] == 0
+    assert meta["candidates_keyword_fallback"] == 0
+    assert meta["keyword_fallback_used"] is False
+    assert meta["weak_context"] is True
+
+
 def test_vector_threshold_filters_weak_vector_only_context(db_session, fake_embedder):
     spec = SourceSpec(type="manual", name="weak-vector-test")
     result = ingest_documents(db_session, fake_embedder, source=spec, documents=[
