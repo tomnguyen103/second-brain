@@ -47,6 +47,9 @@ Add a dated entry per working session. Most recent on top.
 - **Screenshots:** refreshed `docs/screenshots/ui-home.png`, `ui-chat.png`, `ui-chat-answer.png`,
   and `ui-status.png` from the production Next server. The committed screenshots use a width below
   the right-rail breakpoint so local conversation history is not exposed.
+- **Follow-up chat reset fix:** changed the sidebar `+ New chat` control to force a fresh `/chat`
+  navigation and clear chat page state, so it resets correctly from both `/chat?cid=...` and an
+  already-open `/chat` page.
 - **Verified:** frontend `npm run lint` passed; frontend `npm run build` passed with the existing
   Next.js multiple-lockfile workspace-root warning. Full backend suite passed on an isolated test
   database (`282 passed, 8 warnings`) with fake LLM and Agentic RAG explicitly disabled. Eval gate

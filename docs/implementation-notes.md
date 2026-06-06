@@ -9,6 +9,19 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## New Chat uses full navigation to guarantee reset (2026-06-06)
+
+- **What:** changed the sidebar `+ New chat` control to dispatch a chat-reset event and then perform
+  a document navigation to `/chat`.
+- **Why:** same-page App Router navigation could clear in-memory messages while preserving the old
+  `?cid=...` URL, so refreshing reopened the previous conversation.
+- **Trade-off / what I gave up:** this button now does a real page navigation instead of a purely
+  client-side route transition. It is slightly less SPA-like, but it guarantees a fresh chat state
+  and correct URL from any current chat route.
+- **Affects:** `frontend/components/ConversationSidebar.tsx`, `frontend/app/chat/page.tsx`.
+
+---
+
 ## Local status panel reports queue-derived worker state (2026-06-06)
 
 - **What:** added an authenticated `/status` endpoint and `/status` web page for local runtime

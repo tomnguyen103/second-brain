@@ -98,6 +98,11 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
   const navigate = () => {
     onNavigate?.();
   };
+  const startNewChat = () => {
+    window.dispatchEvent(new Event("second-brain-new-chat"));
+    onNavigate?.();
+    window.location.assign("/chat");
+  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-card/95">
@@ -141,14 +146,14 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
             )}
           </div>
         </div>
-        <Link
-          href="/chat"
-          onClick={navigate}
+        <button
+          type="button"
+          onClick={startNewChat}
           className="mt-3 flex h-9 items-center justify-center gap-1.5 rounded-lg bg-foreground text-sm font-semibold text-background transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
         >
           <Plus size={14} weight="bold" />
           New chat
-        </Link>
+        </button>
       </div>
 
       <nav className="flex flex-col gap-3 px-3 py-3" aria-label="Primary navigation">
