@@ -1,10 +1,10 @@
 import os
 import pytest
 from app.ingest.service import DocumentInput, SourceSpec, ingest_documents
+from tests.helpers import sample_pdf_bytes
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("SECOND_BRAIN_TEST_DATABASE_URL"), reason="no test DB")
-
 
 def test_ingest_creates_rows_and_dedupes(db_session, fake_embedder):
     spec = SourceSpec(type="manual", name="T")
@@ -45,3 +45,78 @@ def test_partial_failure_isolates_bad_doc(db_session, fake_embedder):
     statuses = {d.title: d.status for d in result.documents}
     assert statuses["Good"] == "embedded"
     assert statuses["Bad"] == "failed"
+
+
+def test_ingest_upload_text_files(client):
+    response = client.post(
+        "/ingest/upload",
+        data={
+            "source_name": "Uploaded Notes",
+            "source_type": "file_upload",
+            "tags": "uploads, rag",
+        },
+        files=[
+            ("files", ("notes.md", b"# Upload\n\nFile upload content " * 20, "text/markdown")),
+            ("files", ("plain.txt", b"Plain upload content " * 20, "text/plain")),
+        ],
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["summary"]["embedded"] == 2
+    assert [doc["status"] for doc in body["documents"]] == ["embedded", "embedded"]
+
+    docs = client.get(f"/sources/{body['source_id']}/documents")
+    assert docs.status_code == 200, docs.text
+    listed = docs.json()
+    assert listed["source"]["type"] == "file_upload"
+    assert listed["total"] == 2
+    assert {doc["content_type"] for doc in listed["documents"]} == {
+        "text/markdown",
+        "text/plain",
+    }
+    assert {tag for doc in listed["documents"] for tag in doc["tags"]} == {"uploads", "rag"}
+
+
+def test_ingest_upload_pdf_uses_pdf_source_type(client):
+    response = client.post(
+        "/ingest/upload",
+        data={"source_name": "Uploaded PDF", "source_type": "pdf_upload"},
+        files=[("files", ("paper.pdf", sample_pdf_bytes(), "application/pdf"))],
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["summary"]["embedded"] == 1
+    assert body["documents"][0]["title"] == "paper"
+
+    docs = client.get(f"/sources/{body['source_id']}/documents")
+    assert docs.status_code == 200, docs.text
+    listed = docs.json()
+    assert listed["source"]["type"] == "pdf_upload"
+    assert listed["documents"][0]["content_type"] == "application/pdf"
+
+
+def test_ingest_upload_rejects_unsupported_file_type(client):
+    response = client.post(
+        "/ingest/upload",
+        data={"source_name": "Bad Uploads", "source_type": "file_upload"},
+        files=[("files", ("payload.exe", b"MZ fake executable", "application/octet-stream"))],
+    )
+
+    assert response.status_code == 400
+    assert "unsupported file type" in response.json()["detail"]
+
+
+def test_ingest_upload_rejects_pdf_source_type_for_mixed_files(client):
+    response = client.post(
+        "/ingest/upload",
+        data={"source_name": "Mixed Uploads", "source_type": "pdf_upload"},
+        files=[
+            ("files", ("paper.pdf", sample_pdf_bytes(), "application/pdf")),
+            ("files", ("notes.txt", b"Not a PDF", "text/plain")),
+        ],
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "source_type pdf_upload only accepts PDF files"

@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     chat_rate_limit_window_seconds: int = 60
     ingest_rate_limit_requests: int = 10
     ingest_rate_limit_window_seconds: int = 60
+    upload_max_files: int = 10
+    upload_max_bytes: int = 10_000_000
+    upload_allowed_extensions: list[str] = [".pdf", ".txt", ".md"]
     search_cache_enabled: bool = True
     search_cache_ttl_seconds: int = 120
     embedding_cache_enabled: bool = True

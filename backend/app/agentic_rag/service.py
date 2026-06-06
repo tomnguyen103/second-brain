@@ -141,7 +141,11 @@ def parse_query_plan(text: str, *, question: str, max_queries: int, max_chars: i
         ]
         failed = True
 
-    queries = _dedupe_queries(raw_queries, max_queries=max_queries, max_chars=max_chars)
+    # Always search the user's original wording. Planner paraphrases can be useful, but they can
+    # also drift away from exact uploaded-file titles or typo-adjacent terms that retrieval can
+    # still recover.
+    queries = _dedupe_queries([question, *raw_queries], max_queries=max_queries,
+                              max_chars=max_chars)
     if len(queries) < 2:
         queries = _dedupe_queries([*queries, question], max_queries=max_queries,
                                   max_chars=max_chars)

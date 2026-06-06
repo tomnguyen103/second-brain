@@ -9,6 +9,48 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## PDF upload questions use keyword fallback plus block-aware citation repair (2026-06-05)
+
+- **What:** hybrid retrieval now runs a bounded keyword/title/source fallback only when strict
+  Postgres full-text search returns no candidates. Citation validation also treats citations within
+  the same paragraph/list block as available to each sentence fragment, skips short structural
+  headings, bypasses English lexical-overlap rejection for cited non-ASCII source chunks, and passes
+  exact failed segments into the repair prompt. Agentic RAG planning also keeps the user's original
+  wording as the first search query before planner paraphrases.
+- **Why:** uploaded PDFs can be found by title/source terms even when a natural-language question is
+  slightly misspelled or contains extra words that make `websearch_to_tsquery` too narrow. The PDF
+  answer path also needs to tolerate markdown steps, long quoted prompts, and English answers over
+  non-English source text without returning the generic citation-failure message. Agentic planner
+  paraphrases can otherwise drift away from exact uploaded-file titles or typo-adjacent terms that
+  retrieval can still recover from the original user wording.
+- **Trade-off / what I gave up:** the fallback is intentionally less precise than strict full-text,
+  so it runs only after strict full-text returns nothing and still respects source/tag filters. The
+  citation validator remains lexical rather than a full semantic verifier; it is more tolerant of
+  list formatting and translated claims from non-English chunks, but still rejects uncited text,
+  invalid markers, and unrelated cited claims in English context.
+- **Affects:** `backend/app/retrieval/hybrid.py`, `backend/app/chat/service.py`,
+  `backend/app/agentic_rag/service.py`, `backend/tests/integration/test_retrieval.py`,
+  `backend/tests/unit/test_agentic_rag.py`, `backend/tests/unit/test_chat_citation_support.py`.
+
+---
+
+## Multipart upload ingests extracted text only (2026-06-05)
+
+- **What:** added `POST /ingest/upload` for local multipart uploads. The first allow-list is `.pdf`,
+  `.txt`, and `.md`; PDFs use `pypdf`, text files must be UTF-8, and mixed/text batches use the new
+  `file_upload` source type while PDF-only batches can use `pdf_upload`. PDFs encrypted only for
+  permissions are opened with empty-password decryption; PDFs that require a password are rejected.
+- **Why:** `pdf_upload` already existed as source metadata, but users had no upload control and the
+  API only accepted JSON documents whose text was already extracted.
+- **Trade-off / what I gave up:** uploaded binaries are not retained by default. The app stores
+  extracted text plus parser/original-filename metadata, which keeps retention/export/delete scope
+  aligned with existing text documents. OCR, user-supplied PDF passwords, and original-file archival
+  are deferred until explicitly needed.
+- **Affects:** `backend/app/api/ingest.py`, `backend/app/ingest/parsers.py`,
+  `backend/migrations/versions/0006_file_upload_source_type.py`, `frontend/app/ingest/page.tsx`.
+
+---
+
 ## Agentic RAG v1 is opt-in, read-only, and request-scoped (2026-06-05)
 
 - **What:** added a LangGraph-backed `agentic_rag` service for `/chat` requests with
@@ -445,9 +487,10 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
   hiding real rollout failures because the later rollout/status/smoke steps still fail normally.
 
 ### `sources.type` is constrained
-- The `sources_type_check` constraint allows only `notes_folder | github | rss | pdf_upload |
+- The source type constraint allows only `notes_folder | github | rss | pdf_upload | file_upload |
   bookmark | research_note | manual`. Ad-hoc ingest must use **`manual`** (the value all tests use);
-  `note` 500s with a CheckViolation. Reflected in the USAGE.md examples.
+  generic uploads should use **`file_upload`**, and `note` 500s with a CheckViolation. Reflected in
+  the USAGE.md examples.
 
 ---
 

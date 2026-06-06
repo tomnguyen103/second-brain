@@ -53,6 +53,7 @@ def test_require_admin_rejects_api_token_and_accepts_admin_token():
         ("post", "/capture", {"json": {}}),
         ("get", "/conversations", {}),
         ("post", "/ingest", {"json": {}}),
+        ("post", "/ingest/upload", {"data": {"source_name": "Upload"}}),
         ("get", "/search", {"params": {"q": "notes"}}),
         ("get", "/briefing", {}),
         ("post", "/feedback", {"json": {}}),

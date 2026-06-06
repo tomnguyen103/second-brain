@@ -23,6 +23,60 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-05 - Multipart PDF/file upload ingest
+- **What:** added `POST /ingest/upload` for multipart uploads and wired `/ingest` with a file
+  picker mode. Uploads accept `.pdf`, `.txt`, and `.md`; PDFs are parsed locally with `pypdf`, text
+  files must be UTF-8, and the existing ingest service still owns dedupe, chunking, embedding, and
+  source/document persistence.
+- **Data/security:** added `file_upload` as the generic upload source type while preserving
+  `pdf_upload` for PDF-only batches. Original uploaded binaries are not retained by default; the app
+  stores extracted text plus parser/original-filename metadata. Uploads reuse the API bearer guard,
+  ingest rate limit, extension allow-list, per-file size limit, and sanitized filenames.
+- **Encrypted PDF fix:** PDFs that are encrypted only for permissions now attempt empty-password
+  decryption and ingest normally; PDFs that truly require a password still return a clear
+  `password-protected PDFs are not supported` validation error.
+- **Frontend/docs:** added upload/text mode controls, FormData submission without overriding the
+  multipart boundary, selected-file removal, updated source type docs, curl multipart examples, and
+  implementation notes for the no-binary-retention trade-off.
+- **Verified:** focused backend unit tests passed (`30 passed, 1 warning`); DB-backed ingest upload
+  tests passed (`6 passed, 1 warning`); full backend suite passed (`271 passed, 8 warnings`) with
+  `SECOND_BRAIN_LLM_PROVIDER=fake`; `alembic upgrade head` applied `0006_file_upload_source_type`;
+  frontend `npm run lint` and `npm run build` passed; `pip check`, `npm audit --audit-level=high`,
+  and `docker compose config` passed. `GET /ingest` returned `200` and `/health` returned OK.
+- **Note:** the in-app browser tool could not start because its helper runtime reported
+  `command not found: npx`, even though PowerShell can resolve `npx`; no project change was made for
+  that tool-environment issue.
+- **Follow-up fix:** the upload picker now snapshots the selected `File[]` before clearing the file
+  input, so browsers do not empty the live `FileList` before React applies state. Re-verified
+  frontend `npm run lint` and `npm run build`.
+- **PDF chat fix:** uploaded PDF chunks were stored correctly, but a question like
+  "what is workflow pipline and how to setup" missed the PDF on strict full-text search and then
+  failed citation validation on list/prompt fragments. Hybrid retrieval now falls back to bounded
+  keyword/title/source matching only when strict full-text returns no candidates, and citation
+  validation now inherits citations within the same paragraph/list block while still rejecting
+  unrelated claims. Citation repair also receives the exact failed segments so translated
+  non-English-source claims can be removed or grounded instead of repeated.
+- **Follow-up chat fix:** the chat UI still reproduced failures after the first pass because Gemini
+  sometimes answered in English from Vietnamese PDF chunks, which the lexical citation-support guard
+  could not verify. Citation support now bypasses lexical-overlap rejection for cited non-ASCII
+  source chunks while still requiring valid markers and still blocking unsupported English-context
+  claims. Agentic RAG is enabled in the local backend/frontend env for this run, and agentic planning
+  now always searches the user's original wording before planner paraphrases.
+- **Verified PDF chat:** `/search` returns the uploaded PDF as the top result with
+  `keyword_fallback_used=true`; `/chat` returns a cited answer from source `2215` both when scoped to
+  the PDF source and when searching across all notes. Focused retrieval/chat/citation tests passed
+  (`25 passed` after the follow-up); the full backend suite passed (`277 passed, 8 warnings`);
+  frontend `npm run lint` and `npm run build` passed; `python -m pip check`,
+  `npm audit --audit-level=high`,
+  `docker compose config --quiet`, and `git diff --check` passed. The local API was restarted and
+  `/health` returns `ok`. Live probes over `http://localhost:8000/chat` passed twice for normal RAG
+  and twice for Agentic RAG.
+- **Verified encrypted PDFs:** parser/upload tests passed (`13 passed, 1 warning`) for normal PDFs,
+  permission-encrypted PDFs, password-protected rejection, and multipart upload behavior. A live
+  `/ingest/upload` smoke accepted an empty-password encrypted PDF (`embedded=1`) and the smoke
+  source was deleted afterward. The full backend suite passed after the parser fix (`279 passed,
+  8 warnings`).
+
 ### 2026-06-05 - PR review follow-up for Agentic RAG
 - **What:** addressed the actionable CodeRabbit review comments on PR #23. Disabled agentic
   requests now fail before LLM provider initialization, worker search-cache invalidation only
