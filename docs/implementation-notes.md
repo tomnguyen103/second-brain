@@ -9,6 +9,40 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Local status panel reports queue-derived worker state (2026-06-06)
+
+- **What:** added an authenticated `/status` endpoint and `/status` web page for local runtime
+  visibility. It reports API/DB reachability, Alembic current/head migration state, source,
+  document, chunk, and embedding counts, worker queue counts, LLM/embedding mode, Agentic RAG
+  enablement, and MCP mutation enablement. `/health` remains the unauthenticated reachability
+  probe.
+- **Why:** the local-first runtime needs a quick way to confirm "is my brain actually running?"
+  without visiting several ops pages or scraping logs.
+- **Trade-off / what I gave up:** worker status is derived from `jobs` rows (`queued`, `running`,
+  `done`, `failed`) rather than a separate heartbeat process. This keeps the system simple and
+  cost-free, but it reports queue health, not proof that a long-running worker process is currently
+  alive.
+- **Affects:** `backend/app/api/status.py`, `backend/app/schemas/status.py`,
+  `frontend/app/status/page.tsx`, `frontend/lib/api/{client,types}.ts`,
+  `frontend/components/ConversationSidebar.tsx`.
+
+---
+
+## Expanded fixed eval set before Agentic RAG defaulting (2026-06-06)
+
+- **What:** expanded the fixed eval corpus to 14 notes and 31 cases covering capture, feedback
+  promotion, Agentic RAG gating, data governance, briefing/worker behavior, MCP tools, multipart
+  upload ingest, the local status panel, and refusal probes.
+- **Why:** the previous eval set was good for smoke coverage but too small to support broad claims
+  about retrieval or agentic quality.
+- **Trade-off / what I gave up:** the deterministic CI gate still uses LLM-independent metrics
+  only (`hit_at_k`, citation validity, refusal accuracy). Real answer text quality and keyword
+  coverage still require a manual Gemini run before promoting Agentic RAG from opt-in to default.
+- **Affects:** `backend/eval/corpus/*.md`, `backend/eval/dataset.yaml`,
+  `backend/tests/unit/test_eval_dataset.py`.
+
+---
+
 ## PDF upload questions use keyword fallback plus block-aware citation repair (2026-06-05)
 
 - **What:** hybrid retrieval now runs a bounded keyword/title/source fallback only when strict

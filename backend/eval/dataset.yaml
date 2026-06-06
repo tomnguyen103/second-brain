@@ -75,6 +75,102 @@ cases:
     expected_keywords: ["hybrid"]
     expect_refusal: false
 
+  - id: capture-no-scrape
+    question: Does the capture endpoint scrape pages on the server?
+    expected_docs: ["Web capture flow"]
+    expected_keywords: ["server-side scraping"]
+    expect_refusal: false
+
+  - id: capture-tags-search
+    question: What happens to tags saved through the web capture flow?
+    expected_docs: ["Web capture flow"]
+    expected_keywords: ["filtered in search"]
+    expect_refusal: false
+
+  - id: feedback-review-confirmations
+    question: What must a reviewer confirm before promoting feedback into an eval case?
+    expected_docs: ["Feedback eval loop"]
+    expected_keywords: ["expected documents"]
+    expect_refusal: false
+
+  - id: feedback-export-command
+    question: How are reviewed eval cases exported after promotion?
+    expected_docs: ["Feedback eval loop"]
+    expected_keywords: ["app.eval.export_cases"]
+    expect_refusal: false
+
+  - id: agentic-default-off
+    question: Is Agentic RAG enabled by default?
+    expected_docs: ["Agentic RAG opt-in"]
+    expected_keywords: ["disabled by default"]
+    expect_refusal: false
+
+  - id: agentic-streaming
+    question: Why is streaming unavailable for agentic RAG requests?
+    expected_docs: ["Agentic RAG opt-in"]
+    expected_keywords: ["citation validation"]
+    expect_refusal: false
+
+  - id: governance-admin-token
+    question: Which token is required for destructive data operations?
+    expected_docs: ["Data governance controls"]
+    expected_keywords: ["X-Second-Brain-Admin-Token"]
+    expect_refusal: false
+
+  - id: governance-retention-erasure
+    question: Does retention purge delete searchable chunks?
+    expected_docs: ["Data governance controls"]
+    expected_keywords: ["source level"]
+    expect_refusal: false
+
+  - id: briefing-worker-command
+    question: Which worker command drains queued briefing jobs?
+    expected_docs: ["Briefing worker queue"]
+    expected_keywords: ["app.jobs.worker"]
+    expect_refusal: false
+
+  - id: briefing-empty-window
+    question: What happens when the briefing window has no new documents?
+    expected_docs: ["Briefing worker queue"]
+    expected_keywords: ["nothing new"]
+    expect_refusal: false
+
+  - id: mcp-default-tools
+    question: Which MCP tools are available by default?
+    expected_docs: ["MCP local tools"]
+    expected_keywords: ["search_notes"]
+    expect_refusal: false
+
+  - id: mcp-mutation-opt-in
+    question: Which flag enables MCP tools that write tasks or research notes?
+    expected_docs: ["MCP local tools"]
+    expected_keywords: ["SECOND_BRAIN_MCP_ENABLE_MUTATIONS"]
+    expect_refusal: false
+
+  - id: upload-file-types
+    question: Which file types can the multipart upload endpoint ingest?
+    expected_docs: ["Multipart upload ingest"]
+    expected_keywords: [".pdf"]
+    expect_refusal: false
+
+  - id: upload-binary-retention
+    question: Are uploaded PDF binaries retained by default?
+    expected_docs: ["Multipart upload ingest"]
+    expected_keywords: ["not retained"]
+    expect_refusal: false
+
+  - id: status-authenticated-details
+    question: What does the authenticated local status endpoint report?
+    expected_docs: ["Local status panel"]
+    expected_keywords: ["migration"]
+    expect_refusal: false
+
+  - id: status-worker-heartbeat
+    question: Is the status panel using a separate worker heartbeat process?
+    expected_docs: ["Local status panel"]
+    expected_keywords: ["not a separate"]
+    expect_refusal: false
+
   - id: off-corpus-dentist
     question: When is my dentist appointment next week?
     expected_docs: []

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Circle, ListChecks, Plus, X } from "@phosphor-icons/react";
 
-import { AppPage, EmptyState, InlineError, LoadingRows, Panel, PanelHeader, StatusPill } from "@/components/AppPage";
+import { AppButton, AppPage, EmptyState, Field, InlineError, LoadingRows, Panel, PanelHeader, StatusPill, TextArea, TextInput } from "@/components/AppPage";
 import { api } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/format";
 import { queryClient } from "@/lib/query-client";
@@ -60,32 +60,29 @@ export default function TasksPage() {
             {createTask.error && (
               <InlineError message={createTask.error instanceof Error ? createTask.error.message : "Task creation failed"} />
             )}
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Title
-              <input
+            <Field label="Title">
+              <TextInput
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
                 placeholder="Task title"
               />
-            </label>
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Detail
-              <textarea
+            </Field>
+            <Field label="Detail">
+              <TextArea
                 value={detail}
                 onChange={(event) => setDetail(event.target.value)}
-                className="min-h-24 resize-y rounded-lg border border-input bg-background px-2.5 py-2 text-sm leading-6 text-foreground outline-none transition-colors focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
+                className="min-h-24"
                 placeholder="Optional notes"
               />
-            </label>
-            <button
+            </Field>
+            <AppButton
               type="button"
               onClick={() => createTask.mutate()}
               disabled={!title.trim() || createTask.isPending}
-              className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full"
             >
               <Plus size={14} weight="bold" /> {createTask.isPending ? "Creating" : "Create"}
-            </button>
+            </AppButton>
           </div>
         </Panel>
 
@@ -97,15 +94,17 @@ export default function TasksPage() {
                 {FILTERS.map((item) => {
                   const active = filter === item.value;
                   return (
-                    <button
+                    <AppButton
                       key={item.label}
                       onClick={() => setFilter(item.value)}
-                      className={`h-7 rounded-lg px-2.5 text-xs font-semibold transition-colors ${
+                      variant="quiet"
+                      size="sm"
+                      className={`${
                         active ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       }`}
                     >
                       {item.label}
-                    </button>
+                    </AppButton>
                   );
                 })}
               </div>
@@ -139,33 +138,37 @@ export default function TasksPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button
+                    <AppButton
                       type="button"
                       onClick={() => updateTask.mutate({ id: task.id, status: "open" })}
                       disabled={task.status === "open" || updateTask.isPending}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
+                      variant="quiet"
+                      size="icon"
                       aria-label="Mark open"
                     >
                       <Circle size={15} />
-                    </button>
-                    <button
+                    </AppButton>
+                    <AppButton
                       type="button"
                       onClick={() => updateTask.mutate({ id: task.id, status: "done" })}
                       disabled={task.status === "done" || updateTask.isPending}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-30 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
+                      variant="quiet"
+                      size="icon"
+                      className="hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
                       aria-label="Mark done"
                     >
                       <Check size={15} weight="bold" />
-                    </button>
-                    <button
+                    </AppButton>
+                    <AppButton
                       type="button"
                       onClick={() => updateTask.mutate({ id: task.id, status: "cancelled" })}
                       disabled={task.status === "cancelled" || updateTask.isPending}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
+                      variant="dangerSoft"
+                      size="icon"
                       aria-label="Cancel task"
                     >
                       <X size={15} weight="bold" />
-                    </button>
+                    </AppButton>
                   </div>
                 </div>
               ))}

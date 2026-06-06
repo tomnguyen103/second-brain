@@ -4,7 +4,19 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowRight, FilePlus, Plus, Trash } from "@phosphor-icons/react";
 
-import { AppPage, InlineError, Panel, PanelHeader, StatusPill } from "@/components/AppPage";
+import {
+  AppButton,
+  AppPage,
+  Field,
+  InlineError,
+  Panel,
+  PanelHeader,
+  SegmentedControl,
+  SelectControl,
+  StatusPill,
+  TextArea,
+  TextInput,
+} from "@/components/AppPage";
 import { api } from "@/lib/api/client";
 import { queryClient } from "@/lib/query-client";
 import type { IngestResponse, SourceType } from "@/lib/api/types";
@@ -133,55 +145,39 @@ export default function IngestPage() {
             description="Choose the source bucket these documents belong to."
           />
           <div className="grid gap-3 p-4 sm:grid-cols-3">
-            <div className="flex rounded-lg border border-border bg-muted/30 p-1 sm:col-span-3">
-              {([
-                ["text", "Text"],
-                ["upload", "Upload"],
-              ] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => chooseMode(value)}
-                  className={`h-8 flex-1 rounded-md text-xs font-semibold transition-colors ${
-                    mode === value
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Type
-              <select
+            <SegmentedControl
+              value={mode}
+              options={[
+                { value: "text", label: "Text" },
+                { value: "upload", label: "Upload" },
+              ]}
+              onChange={chooseMode}
+              className="sm:col-span-3"
+            />
+            <Field label="Type">
+              <SelectControl
                 value={sourceType}
                 onChange={(event) => setSourceType(event.target.value as SourceType)}
-                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
               >
                 {sourceTypeOptions.map((type) => (
                   <option key={type} value={type}>{type}</option>
                 ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground sm:col-span-2">
-              Name
-              <input
+              </SelectControl>
+            </Field>
+            <Field label="Name" className="sm:col-span-2">
+              <TextInput
                 value={sourceName}
                 onChange={(event) => setSourceName(event.target.value)}
-                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
                 placeholder="Source name"
               />
-            </label>
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground sm:col-span-3">
-              URI
-              <input
+            </Field>
+            <Field label="URI" className="sm:col-span-3">
+              <TextInput
                 value={sourceUri}
                 onChange={(event) => setSourceUri(event.target.value)}
-                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
                 placeholder="Optional file path, URL, or folder"
               />
-            </label>
+            </Field>
           </div>
         </Panel>
 
@@ -239,13 +235,14 @@ export default function IngestPage() {
           <PanelHeader
             title="Documents"
             actions={
-              <button
+              <AppButton
                 type="button"
                 onClick={() => setDocuments((prev) => [...prev, newDraftDocument(`doc-${Date.now()}`)])}
-                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                variant="secondary"
+                size="sm"
               >
                 <Plus size={13} weight="bold" /> Add
-              </button>
+              </AppButton>
             }
           />
           <div className="divide-y divide-border">
@@ -256,55 +253,60 @@ export default function IngestPage() {
                     Document {index + 1}
                   </p>
                   {documents.length > 1 && (
-                    <button
+                    <AppButton
                       type="button"
                       onClick={() => setDocuments((prev) => prev.filter((item) => item.id !== doc.id))}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      variant="dangerSoft"
+                      size="icon"
                       aria-label="Remove document"
                     >
                       <Trash size={14} />
-                    </button>
+                    </AppButton>
                   )}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
-                  <input
-                    value={doc.title}
-                    onChange={(event) => updateDoc(doc.id, { title: event.target.value })}
-                    className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
-                    placeholder="Title"
-                  />
-                  <input
-                    value={doc.contentType}
-                    onChange={(event) => updateDoc(doc.id, { contentType: event.target.value })}
-                    className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
-                    placeholder="text/plain"
-                  />
+                  <Field label="Title">
+                    <TextInput
+                      value={doc.title}
+                      onChange={(event) => updateDoc(doc.id, { title: event.target.value })}
+                      placeholder="Document title"
+                    />
+                  </Field>
+                  <Field label="Content type">
+                    <TextInput
+                      value={doc.contentType}
+                      onChange={(event) => updateDoc(doc.id, { contentType: event.target.value })}
+                      placeholder="text/plain"
+                    />
+                  </Field>
                 </div>
-                <textarea
-                  value={doc.content}
-                  onChange={(event) => updateDoc(doc.id, { content: event.target.value })}
-                  className="min-h-44 resize-y rounded-lg border border-input bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
-                  placeholder="Paste note or document text"
-                />
-                <input
-                  value={doc.tags}
-                  onChange={(event) => updateDoc(doc.id, { tags: event.target.value })}
-                  className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
-                  placeholder="Tags, comma separated"
-                />
+                <Field label="Content">
+                  <TextArea
+                    value={doc.content}
+                    onChange={(event) => updateDoc(doc.id, { content: event.target.value })}
+                    className="min-h-44"
+                    placeholder="Paste note or document text"
+                  />
+                </Field>
+                <Field label="Tags">
+                  <TextInput
+                    value={doc.tags}
+                    onChange={(event) => updateDoc(doc.id, { tags: event.target.value })}
+                    placeholder="Tags, comma separated"
+                  />
+                </Field>
               </div>
             ))}
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
             <p className="text-xs text-muted-foreground">{validDocs} ready document{validDocs === 1 ? "" : "s"}</p>
-            <button
+            <AppButton
               type="button"
               onClick={() => mutation.mutate()}
               disabled={!canSubmit}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-semibold text-white shadow-sm shadow-amber-200/60 transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-40 dark:shadow-none"
             >
               {mutation.isPending ? "Ingesting" : "Ingest"} <ArrowRight size={14} weight="bold" />
-            </button>
+            </AppButton>
           </div>
         </Panel>
         ) : (
@@ -336,35 +338,36 @@ export default function IngestPage() {
                         {(file.size / 1024).toFixed(file.size >= 1024 * 1024 ? 0 : 1)} KB
                       </p>
                     </div>
-                    <button
+                    <AppButton
                       type="button"
                       onClick={() => setUploadFiles((prev) => prev.filter((_, i) => i !== index))}
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      variant="dangerSoft"
+                      size="icon"
                       aria-label="Remove file"
                     >
                       <Trash size={14} />
-                    </button>
+                    </AppButton>
                   </div>
                 ))}
               </div>
             )}
-            <input
-              value={uploadTags}
-              onChange={(event) => setUploadTags(event.target.value)}
-              className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
-              placeholder="Tags, comma separated"
-            />
+            <Field label="Tags">
+              <TextInput
+                value={uploadTags}
+                onChange={(event) => setUploadTags(event.target.value)}
+                placeholder="Tags, comma separated"
+              />
+            </Field>
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
             <p className="text-xs text-muted-foreground">{validFiles} ready file{validFiles === 1 ? "" : "s"}</p>
-            <button
+            <AppButton
               type="button"
               onClick={() => mutation.mutate()}
               disabled={!canSubmit}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-semibold text-white shadow-sm shadow-amber-200/60 transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-40 dark:shadow-none"
             >
               {mutation.isPending ? "Ingesting" : "Ingest"} <ArrowRight size={14} weight="bold" />
-            </button>
+            </AppButton>
           </div>
         </Panel>
         )}

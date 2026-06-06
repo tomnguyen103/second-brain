@@ -13,13 +13,12 @@ export function CitationCard({ citation, onClose }: Props) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 4, scale: 0.97 }}
       transition={{ type: "spring", stiffness: 420, damping: 26 }}
-      className="absolute z-50 bg-card border border-border rounded-xl shadow-xl shadow-zinc-900/10 dark:shadow-zinc-950/50 overflow-hidden"
-      style={{ width: 300 }}
+      className="absolute z-50 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-card shadow-xl shadow-zinc-900/10 dark:shadow-zinc-950/50"
     >
-      <div className="h-[2px] w-full bg-gradient-to-r from-amber-400 to-amber-300 dark:from-amber-500 dark:to-amber-400" />
+      <div className="h-[2px] w-full bg-primary" />
       <div className="p-4">
         <div className="flex items-start gap-3 mb-3">
-          <div className="mt-0.5 shrink-0 flex h-6 w-6 items-center justify-center rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
             <BookOpenText size={13} weight="bold" />
           </div>
           <div className="flex-1 min-w-0">
@@ -27,19 +26,19 @@ export function CitationCard({ citation, onClose }: Props) {
             <p className="text-[10px] text-muted-foreground mt-0.5">{citation.source_name}</p>
           </div>
           <button onClick={onClose}
-            className="shrink-0 p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             aria-label="Close"
           >
             <X size={12} />
           </button>
         </div>
         {citation.snippet && (
-          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-5 mb-3 pl-9">
+          <p className="mb-3 line-clamp-5 pl-10 text-[11px] leading-relaxed text-muted-foreground">
             &ldquo;{citation.snippet}&rdquo;
           </p>
         )}
-        <div className="flex items-center gap-2 pl-9">
-          <span className="inline-flex items-center rounded-md bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400 ring-1 ring-amber-200/60 dark:ring-amber-800/60">
+        <div className="flex flex-wrap items-center gap-2 pl-10">
+          <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary ring-1 ring-primary/20">
             [{citation.marker}]
           </span>
           <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">

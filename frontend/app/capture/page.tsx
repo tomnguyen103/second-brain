@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, BookmarkSimple, CheckCircle } from "@phosphor-icons/react";
 
-import { AppPage, InlineError, Panel, PanelHeader, StatusPill } from "@/components/AppPage";
+import { AppButton, AppPage, Field, InlineError, Panel, PanelHeader, StatusPill, TextArea, TextInput } from "@/components/AppPage";
 import { api } from "@/lib/api/client";
 import { queryClient } from "@/lib/query-client";
 import type { CaptureResponse } from "@/lib/api/types";
@@ -66,59 +66,50 @@ function CapturePageContent() {
             {capture.error && (
               <InlineError message={capture.error instanceof Error ? capture.error.message : "Capture failed"} />
             )}
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              URL
-              <input
+            <Field label="URL">
+              <TextInput
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
-                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
                 placeholder="https://example.com/article"
               />
-            </label>
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Title
-              <input
+            </Field>
+            <Field label="Title">
+              <TextInput
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
                 placeholder="Page title"
               />
-            </label>
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Selected text
-              <textarea
+            </Field>
+            <Field label="Selected text">
+              <TextArea
                 value={selectedText}
                 onChange={(event) => setSelectedText(event.target.value)}
-                className="min-h-44 resize-y rounded-lg border border-input bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
+                className="min-h-44"
                 placeholder="Quoted passage"
               />
-            </label>
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Notes
-              <textarea
+            </Field>
+            <Field label="Notes">
+              <TextArea
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                className="min-h-28 resize-y rounded-lg border border-input bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
+                className="min-h-28"
                 placeholder="Why this matters"
               />
-            </label>
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Tags
-              <input
+            </Field>
+            <Field label="Tags">
+              <TextInput
                 value={tags}
                 onChange={(event) => setTags(event.target.value)}
-                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
                 placeholder="inbox, reading, project"
               />
-            </label>
+            </Field>
             <div className="flex justify-end border-t border-border pt-3">
-              <button
+              <AppButton
                 type="submit"
                 disabled={!canSubmit}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-semibold text-white shadow-sm shadow-amber-200/60 transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-40 dark:shadow-none"
               >
                 {capture.isPending ? "Capturing" : "Capture"} <ArrowRight size={14} weight="bold" />
-              </button>
+              </AppButton>
             </div>
           </form>
         </Panel>

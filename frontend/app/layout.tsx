@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Providers } from "@/components/Providers";
-import { ConversationSidebar } from "@/components/ConversationSidebar";
+import { ConversationHistoryRail, ConversationSidebar } from "@/components/ConversationSidebar";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Second Brain",
-  description: "Your personal AI knowledge assistant",
+  description: "A local-first personal AI workspace for cited chat, search, capture, and operations.",
 };
 
 export default function RootLayout({
@@ -31,11 +31,23 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="h-full flex bg-background text-foreground transition-colors duration-200">
+      <body className="flex h-full overflow-hidden bg-background text-foreground transition-colors duration-200">
         <ThemeProvider>
           <Providers>
+            <a
+              href="#main-content"
+              className="sr-only fixed left-3 top-3 z-[100] rounded-lg bg-background px-3 py-2 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border focus:not-sr-only"
+            >
+              Skip to content
+            </a>
             <ConversationSidebar />
-            <main className="flex-1 flex flex-col overflow-hidden min-w-0">{children}</main>
+            <main
+              id="main-content"
+              className="flex h-full min-w-0 flex-1 flex-col overflow-hidden pt-14 md:pt-0"
+            >
+              {children}
+            </main>
+            <ConversationHistoryRail />
           </Providers>
         </ThemeProvider>
       </body>
