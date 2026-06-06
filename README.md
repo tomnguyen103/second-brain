@@ -64,6 +64,18 @@ Then open:
 - `http://localhost:3000/feedback` - review the seeded negative feedback candidate.
 - `http://localhost:3000/status` - confirm DB migration, source counts, worker queue, token state, and model mode.
 
+### Token Setup Note
+
+Local development can be keyless when `SECOND_BRAIN_API_TOKEN` is unset. If you set
+`SECOND_BRAIN_API_TOKEN` in the backend environment, paste that same value into the web UI's
+lower-left **API access** field. The frontend saves it in browser local storage and sends it as
+`Authorization: Bearer <SECOND_BRAIN_API_TOKEN>` for protected app routes such as sources, status,
+chat, search, feedback, tasks, research, and admin data reads.
+
+`SECOND_BRAIN_ADMIN_TOKEN` is separate. Enter it only in the guarded Admin/Feedback action that
+needs it, such as source export, source deletion, retention purge, or eval promotion. The Admin
+token is intentionally not saved after leaving the page.
+
 When a reviewed candidate should become source-controlled eval data, export staged cases from
 `backend/`:
 
@@ -306,7 +318,7 @@ Production secrets live in gitignored `deploy/.env.prod`. Required auth variable
 
 | Variable | Purpose |
 |---|---|
-| `SECOND_BRAIN_API_TOKEN` | Required by production Compose; bearer token for normal personal-data routes and the web UI sidebar token field. |
+| `SECOND_BRAIN_API_TOKEN` | Required by production Compose; bearer token for normal personal-data routes. Paste this same value into the web UI **API access** field. |
 | `SECOND_BRAIN_ADMIN_TOKEN` | Enables export, source deletion, and retention purge when sent as `X-Second-Brain-Admin-Token` alongside the normal API bearer. |
 
 ```bash

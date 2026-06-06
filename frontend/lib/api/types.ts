@@ -445,13 +445,16 @@ export interface ResearchJobListResponse {
   total: number;
 }
 
-export interface SourceSummary {
+export interface SourceRecord {
   id: number;
   type: SourceType | string;
   name: string;
   uri: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SourceSummary extends SourceRecord {
   document_count: number;
   chunk_count: number;
   latest_document_at: string | null;
@@ -479,21 +482,28 @@ export interface DocumentSummary {
 }
 
 export interface DocumentListResponse {
-  source: {
-    id: number;
-    type: SourceType | string;
-    name: string;
-    uri: string | null;
-    created_at: string;
-    updated_at: string;
-  };
+  source: SourceRecord;
   documents: DocumentSummary[];
   total: number;
+}
+
+export interface DocumentContentResponse {
+  source: SourceRecord;
+  document: DocumentSummary;
+  content: string | null;
+  content_source: "raw_text" | "chunks" | "unavailable" | string;
+  truncated: boolean;
 }
 
 export interface DeleteSourceResponse {
   source_id: number;
   documents_deleted: number;
+}
+
+export interface DeleteDocumentResponse {
+  document_id: number;
+  source_id: number;
+  chunks_deleted: number;
 }
 
 export interface PurgeRetentionResponse {

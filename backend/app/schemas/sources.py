@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SourceOut(BaseModel):
@@ -28,6 +28,12 @@ class SourceListResponse(BaseModel):
     total: int
 
 
+class SourceUpdateRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=240)
+
+
 class DocumentSummary(BaseModel):
     id: int
     source_id: int
@@ -48,3 +54,34 @@ class DocumentListResponse(BaseModel):
     source: SourceOut
     documents: list[DocumentSummary]
     total: int
+
+
+class DocumentUpdateRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str = Field(min_length=1, max_length=400)
+
+
+class DocumentContentUpdateRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=2_000_000)
+
+    @field_validator("content")
+    @classmethod
+    def content_must_not_be_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("content must not be blank")
+        return value
+
+
+class DocumentContentResponse(BaseModel):
+    source: SourceOut
+    document: DocumentSummary
+    content: str | None
+    content_source: str
+    truncated: bool
+
+
+class DeleteDocumentResponse(BaseModel):
+    document_id: int
+    source_id: int
+    chunks_deleted: int

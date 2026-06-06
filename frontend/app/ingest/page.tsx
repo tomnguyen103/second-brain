@@ -134,9 +134,9 @@ export default function IngestPage() {
 
   return (
     <AppPage
-      eyebrow="Ingest"
-      title="Add notes and documents"
-      description="Store text, tags, and source metadata so chat and search can cite them later."
+      eyebrow="Sources"
+      title="Add New Sources"
+      description="Store text, files, tags, and source metadata so chat and search can cite them later."
     >
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Panel>
@@ -185,12 +185,14 @@ export default function IngestPage() {
           <PanelHeader title="Result" />
           <div className="p-4">
             {mutation.error && (
-              <InlineError message={mutation.error instanceof Error ? mutation.error.message : "Ingest failed"} />
+              <InlineError
+                message={mutation.error instanceof Error ? mutation.error.message : "Add source failed"}
+              />
             )}
             {!mutation.error && !lastResult && (
               <div className="rounded-lg bg-muted/50 px-3 py-8 text-center">
                 <FilePlus size={22} className="mx-auto text-muted-foreground" />
-                <p className="mt-2 text-sm font-semibold text-foreground">Ready to ingest</p>
+                <p className="mt-2 text-sm font-semibold text-foreground">Ready to add</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   Results appear here after the API stores and embeds the batch.
                 </p>
@@ -305,7 +307,7 @@ export default function IngestPage() {
               onClick={() => mutation.mutate()}
               disabled={!canSubmit}
             >
-              {mutation.isPending ? "Ingesting" : "Ingest"} <ArrowRight size={14} weight="bold" />
+              {mutation.isPending ? "Adding" : "Add source"} <ArrowRight size={14} weight="bold" />
             </AppButton>
           </div>
         </Panel>
@@ -366,7 +368,7 @@ export default function IngestPage() {
               onClick={() => mutation.mutate()}
               disabled={!canSubmit}
             >
-              {mutation.isPending ? "Ingesting" : "Ingest"} <ArrowRight size={14} weight="bold" />
+              {mutation.isPending ? "Adding" : "Add source"} <ArrowRight size={14} weight="bold" />
             </AppButton>
           </div>
         </Panel>

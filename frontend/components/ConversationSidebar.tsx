@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -12,7 +13,6 @@ import {
   ChatCircle,
   Check,
   Database,
-  FilePlus,
   Flask,
   Gauge,
   Key,
@@ -31,7 +31,14 @@ import { api, getStoredApiToken, setStoredApiToken } from "@/lib/api/client";
 import { queryClient } from "@/lib/query-client";
 import { cn } from "@/lib/utils";
 
-const navSections = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: ReactNode;
+  activePrefixes?: string[];
+};
+
+const navSections: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "Workspace",
     items: [
@@ -43,8 +50,12 @@ const navSections = [
   {
     label: "Operations",
     items: [
-      { href: "/ingest", label: "Ingest", icon: <FilePlus size={15} weight="bold" /> },
-      { href: "/sources", label: "Sources", icon: <Database size={15} weight="bold" /> },
+      {
+        href: "/sources",
+        label: "Sources",
+        icon: <Database size={15} weight="bold" />,
+        activePrefixes: ["/sources", "/ingest"],
+      },
       { href: "/status", label: "Status", icon: <Gauge size={15} weight="bold" /> },
       { href: "/feedback", label: "Feedback", icon: <ChartBar size={15} weight="bold" /> },
       { href: "/admin", label: "Admin", icon: <ShieldCheck size={15} weight="bold" /> },
@@ -165,7 +176,9 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
               {section.items.map((item) => {
                 const active = item.href === "/chat"
                   ? pathname === "/chat"
-                  : pathname.startsWith(item.href);
+                  : (item.activePrefixes ?? [item.href]).some((prefix) =>
+                      pathname.startsWith(prefix),
+                    );
                 return (
                   <Link
                     key={item.href}

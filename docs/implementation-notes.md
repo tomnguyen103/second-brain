@@ -9,6 +9,56 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Admin console reuses existing ops contracts (2026-06-06)
+
+- **What:** upgraded `/admin` into a governance/data-safety console using existing `/status` and
+  `/sources` read models plus the existing export, source deletion, and retention purge mutations.
+  The page now shows API/admin token state, database/corpus guardrails, a source picker with impact
+  preview, stricter retention-day validation, and clearer copy around `X-Second-Brain-Admin-Token`.
+- **Why:** the Admin page needed to explain itself and reduce operator mistakes without adding
+  another backend surface during a UI-focused pass.
+- **Trade-off / what I gave up:** recent audit-log display and exact retention dry-run counts are
+  still deferred because the frontend does not currently have a dedicated read endpoint for either.
+  The page previews source export/delete impact from source summaries and reports the exact purge
+  count after the guarded action completes.
+- **Affects:** `frontend/app/admin/page.tsx`.
+
+---
+
+## Sources file content edits rebuild the index (2026-06-06)
+
+- **What:** added an admin-guarded document content edit path from the Sources page. The UI labels
+  the right-side workspace as "File content"; saving replaces `documents.raw_text`, updates the
+  content hash, deletes old chunks, creates fresh chunks and embeddings, invalidates the search
+  cache, and writes an audit row without storing raw content in the audit detail.
+- **Why:** editing only the displayed text would make the Sources page lie: search, chat citations,
+  and retention/export behavior all depend on the indexed chunks and document hash.
+- **Trade-off / what I gave up:** there is still no document versioning layer. Replacing content
+  replaces the old chunks, so historical retrieval rows tied to those chunks can be removed by the
+  existing database cascades. The editor disables saves when the loaded content is truncated to
+  avoid overwriting a document with a partial slice.
+- **Affects:** `backend/app/api/sources.py`, `backend/app/schemas/sources.py`,
+  `frontend/app/sources/page.tsx`, `frontend/lib/api/{client,types}.ts`.
+
+---
+
+## Sources page mutations stay admin-guarded (2026-06-06)
+
+- **What:** added source rename, document rename, document content read, and document delete endpoints.
+  Rename and delete actions require the existing admin token in addition to normal API access;
+  document content reads remain a read-only API-token route.
+- **Why:** source deletion was already treated as a governed data operation, and the new
+  source/document write actions should not create a weaker mutation path from the Sources page.
+  Content reads are read-only and follow the same personal-data API guard as search/source listing.
+- **Trade-off / what I gave up:** renaming is a little less convenient because the Sources page asks
+  for the admin token before saving changes. In return, all source/file edits and deletions share a
+  consistent operator gate and write audit rows. File content uses retained `raw_text` when
+  available and falls back to indexed chunks when raw text has already been purged.
+- **Affects:** `backend/app/api/sources.py`, `backend/app/schemas/sources.py`,
+  `frontend/app/sources/page.tsx`, `frontend/lib/api/{client,types}.ts`.
+
+---
+
 ## New Chat uses full navigation to guarantee reset (2026-06-06)
 
 - **What:** changed the sidebar `+ New chat` control to dispatch a chat-reset event and then perform
