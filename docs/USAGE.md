@@ -135,7 +135,7 @@ notes returns `status: "duplicate"`. The web page also accepts query-prefill par
 
 ### Add notes — `POST /ingest`
 `source.type` must be one of: **`manual`**, `notes_folder`, `github`, `rss`, `pdf_upload`,
-`bookmark`, `research_note`. Use `manual` for ad-hoc text.
+`file_upload`, `bookmark`, `research_note`. Use `manual` for ad-hoc text.
 
 ```bash
 curl -X POST http://localhost:8000/ingest \
@@ -149,6 +149,35 @@ curl -X POST http://localhost:8000/ingest \
   }'
 ```
 Re-ingesting identical content is deduped by content hash (`status: "duplicate"`).
+
+### Upload files — `POST /ingest/upload`
+Multipart uploads currently accept `.pdf`, `.txt`, and `.md` files. PDFs are parsed with local
+text extraction; scanned/image-only PDFs return a clean validation error unless OCR is added later.
+PDFs that are encrypted only for permissions are accepted when they open without a password;
+password-required PDFs are rejected.
+Original uploaded binaries are not retained by default; the app stores extracted text plus metadata.
+
+Use `file_upload` for mixed or text-file batches:
+
+```bash
+curl -X POST http://localhost:8000/ingest/upload \
+  -H "$API_AUTH" \
+  -F "source_name=Uploaded notes" \
+  -F "source_type=file_upload" \
+  -F "tags=reading,inbox" \
+  -F "files=@notes.md" \
+  -F "files=@summary.txt"
+```
+
+Use `pdf_upload` for PDF-only batches:
+
+```bash
+curl -X POST http://localhost:8000/ingest/upload \
+  -H "$API_AUTH" \
+  -F "source_name=Uploaded PDFs" \
+  -F "source_type=pdf_upload" \
+  -F "files=@paper.pdf"
+```
 
 ### Ask — `POST /chat`
 ```bash

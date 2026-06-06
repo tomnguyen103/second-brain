@@ -17,7 +17,10 @@ def test_defaults(monkeypatch):
                 "SECOND_BRAIN_AGENTIC_RAG_ENABLED",
                 "SECOND_BRAIN_AGENTIC_RAG_MAX_SUBQUERIES",
                 "SECOND_BRAIN_AGENTIC_RAG_VERIFIER_ENABLED",
-                "SECOND_BRAIN_AGENTIC_RAG_RECURSION_LIMIT"]:
+                "SECOND_BRAIN_AGENTIC_RAG_RECURSION_LIMIT",
+                "SECOND_BRAIN_UPLOAD_MAX_FILES",
+                "SECOND_BRAIN_UPLOAD_MAX_BYTES",
+                "SECOND_BRAIN_UPLOAD_ALLOWED_EXTENSIONS"]:
         monkeypatch.delenv(key, raising=False)
     s = Settings(_env_file=None)
     assert s.llm_provider == "gemini"
@@ -36,6 +39,9 @@ def test_defaults(monkeypatch):
     assert s.agentic_rag_max_subqueries == 4
     assert s.agentic_rag_verifier_enabled is True
     assert s.agentic_rag_recursion_limit == 8
+    assert s.upload_max_files == 10
+    assert s.upload_max_bytes == 10_000_000
+    assert s.upload_allowed_extensions == [".pdf", ".txt", ".md"]
 
 
 def test_env_override(monkeypatch):
@@ -51,6 +57,9 @@ def test_env_override(monkeypatch):
     monkeypatch.setenv("SECOND_BRAIN_AGENTIC_RAG_MAX_SUBQUERIES", "3")
     monkeypatch.setenv("SECOND_BRAIN_AGENTIC_RAG_VERIFIER_ENABLED", "false")
     monkeypatch.setenv("SECOND_BRAIN_AGENTIC_RAG_RECURSION_LIMIT", "6")
+    monkeypatch.setenv("SECOND_BRAIN_UPLOAD_MAX_FILES", "2")
+    monkeypatch.setenv("SECOND_BRAIN_UPLOAD_MAX_BYTES", "1234")
+    monkeypatch.setenv("SECOND_BRAIN_UPLOAD_ALLOWED_EXTENSIONS", '[".pdf"]')
     s = Settings()
     assert s.llm_provider == "fake"
     assert s.retrieval_top_k == 3
@@ -64,3 +73,6 @@ def test_env_override(monkeypatch):
     assert s.agentic_rag_max_subqueries == 3
     assert s.agentic_rag_verifier_enabled is False
     assert s.agentic_rag_recursion_limit == 6
+    assert s.upload_max_files == 2
+    assert s.upload_max_bytes == 1234
+    assert s.upload_allowed_extensions == [".pdf"]

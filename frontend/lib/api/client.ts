@@ -69,7 +69,7 @@ export interface ChatStreamHandlers {
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = buildHeaders(init?.headers);
+  const headers = buildHeaders(init?.headers, init?.body);
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers,
@@ -88,9 +88,15 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function buildHeaders(initHeaders?: HeadersInit): Headers {
+function isFormDataBody(body?: BodyInit | null): boolean {
+  return typeof FormData !== "undefined" && body instanceof FormData;
+}
+
+function buildHeaders(initHeaders?: HeadersInit, body?: BodyInit | null): Headers {
   const headers = new Headers(initHeaders);
-  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (!headers.has("Content-Type") && !isFormDataBody(body)) {
+    headers.set("Content-Type", "application/json");
+  }
   if (!headers.has("Authorization")) {
     const token = getStoredApiToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -192,6 +198,10 @@ export const api = {
 
   ingest(req: IngestRequest): Promise<IngestResponse> {
     return apiFetch("/ingest", { method: "POST", body: JSON.stringify(req) });
+  },
+
+  ingestUpload(formData: FormData): Promise<IngestResponse> {
+    return apiFetch("/ingest/upload", { method: "POST", body: formData });
   },
 
   chat(req: ChatRequest): Promise<ChatResponse> {

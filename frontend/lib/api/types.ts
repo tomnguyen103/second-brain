@@ -297,6 +297,7 @@ export type SourceType =
   | "github"
   | "rss"
   | "pdf_upload"
+  | "file_upload"
   | "bookmark"
   | "research_note";
 

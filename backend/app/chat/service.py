@@ -70,6 +70,8 @@ CITATION_FAILURE_TEXT = (
 )
 
 _SEGMENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
+_BLOCK_SPLIT_RE = re.compile(r"\n\s*\n+")
+_STRUCTURAL_PREFIX_RE = re.compile(r"^\s*(?:[-*]\s+|\d+[.)]\s*)?")
 _SUPPORT_TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_'-]{1,}")
 _SUPPORT_STOPWORDS = {
     "about", "above", "after", "again", "also", "because", "been", "before", "being",
@@ -77,7 +79,7 @@ _SUPPORT_STOPWORDS = {
     "like", "more", "most", "need", "needs", "only", "over", "same", "should",
     "that", "their", "them", "then", "there", "these", "they", "this", "those",
     "through", "using", "very", "what", "when", "where", "which", "while", "with",
-    "would", "your",
+    "would", "your", "to",
 }
 
 
@@ -130,10 +132,36 @@ def _claim_segments(answer: str) -> list[str]:
     return segments
 
 
+def _claim_blocks(answer: str) -> list[str]:
+    return [block.strip() for block in _BLOCK_SPLIT_RE.split(answer or "") if block.strip()]
+
+
+def _is_structural_segment(segment: str) -> bool:
+    text = strip_citation_markers(segment)
+    text = _STRUCTURAL_PREFIX_RE.sub("", text).strip(" \t-*`_")
+    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text).strip()
+    if not text or not text.endswith(":"):
+        return False
+    return len(_support_tokens(text)) <= 12
+
+
 def _context_tokens(prepared: _PreparedChat, marker: int) -> set[str]:
     hit = prepared.hits[marker - 1]
     dc = prepared.display[hit.chunk_id]
     return _support_tokens(f"{dc.source_name} {dc.document_title} {dc.content}")
+
+
+def _has_non_ascii_letters(text: str) -> bool:
+    return any(ch.isalpha() and not ch.isascii() for ch in text or "")
+
+
+def _cited_context_is_cross_lingual(prepared: _PreparedChat, markers: list[int]) -> bool:
+    for marker in markers:
+        hit = prepared.hits[marker - 1]
+        dc = prepared.display[hit.chunk_id]
+        if _has_non_ascii_letters(dc.content):
+            return True
+    return False
 
 
 def _citation_support_failures(answer: str, prepared: _PreparedChat) -> list[dict]:
@@ -143,31 +171,44 @@ def _citation_support_failures(answer: str, prepared: _PreparedChat) -> list[dic
     injection/hallucination where a valid marker is pasted onto unrelated text.
     """
     failures: list[dict] = []
-    for segment in _claim_segments(answer):
-        markers = [
-            marker for marker in citation_markers_in_text(segment)
+    for block in _claim_blocks(answer):
+        block_markers = [
+            marker for marker in citation_markers_in_text(block)
             if 1 <= marker <= prepared.item_count
         ]
-        claim_text = strip_citation_markers(segment)
-        claim_tokens = _support_tokens(claim_text)
-        if not claim_tokens:
-            continue
-        if not markers:
-            failures.append({"reason": "missing_segment_citation", "segment": segment[:160]})
-            continue
+        for segment in _claim_segments(block):
+            direct_markers = [
+                marker for marker in citation_markers_in_text(segment)
+                if 1 <= marker <= prepared.item_count
+            ]
+            markers = direct_markers or block_markers
+            claim_text = strip_citation_markers(segment)
+            claim_tokens = _support_tokens(claim_text)
+            if not claim_tokens:
+                continue
+            if _is_structural_segment(segment):
+                continue
+            if not markers:
+                failures.append({"reason": "missing_segment_citation", "segment": segment[:160]})
+                continue
 
-        cited_tokens: set[str] = set()
-        for marker in markers:
-            cited_tokens.update(_context_tokens(prepared, marker))
-        overlap = claim_tokens & cited_tokens
-        min_overlap = 1 if len(claim_tokens) <= 4 else 2
-        if len(overlap) < min_overlap:
-            failures.append({
-                "reason": "unsupported_segment",
-                "segment": segment[:160],
-                "markers": markers,
-                "overlap": sorted(overlap)[:10],
-            })
+            cited_tokens: set[str] = set()
+            for marker in markers:
+                cited_tokens.update(_context_tokens(prepared, marker))
+            overlap = claim_tokens & cited_tokens
+            min_overlap = 1 if len(claim_tokens) <= 4 else 2
+            if len(overlap) < min_overlap and _cited_context_is_cross_lingual(
+                prepared,
+                markers,
+            ):
+                continue
+            if len(overlap) < min_overlap:
+                failures.append({
+                    "reason": "unsupported_segment",
+                    "segment": segment[:160],
+                    "markers": markers,
+                    "overlap": sorted(overlap)[:10],
+                })
     return failures
 
 
@@ -181,7 +222,29 @@ def _validate_citations(answer: str, prepared: _PreparedChat) -> _CitationValida
     return _CitationValidation(cited, invalid_markers, support_failures)
 
 
-def _repair_citation_messages(prepared: _PreparedChat, draft: str) -> list[LLMMessage]:
+def _repair_citation_messages(
+    prepared: _PreparedChat,
+    draft: str,
+    validation: _CitationValidation,
+) -> list[LLMMessage]:
+    failed_segments = [
+        item.get("segment", "")
+        for item in validation.support_failures[:8]
+        if item.get("segment")
+    ]
+    failed_block = ""
+    if validation.invalid_markers:
+        failed_block += (
+            "Invalid citation markers: "
+            f"{', '.join(str(i) for i in validation.invalid_markers)}\n"
+        )
+    if failed_segments:
+        failed_block += "Segments that failed validation:\n" + "\n".join(
+            f"- {segment}" for segment in failed_segments
+        )
+    if not failed_block:
+        failed_block = "The draft did not include valid citations."
+
     return [
         *prepared.messages,
         LLMMessage(
@@ -192,7 +255,10 @@ def _repair_citation_messages(prepared: _PreparedChat, draft: str) -> list[LLMMe
             "- Every factual sentence must include bracket citations in that same sentence.\n"
             "- Do not write uncited headings, preambles, markdown labels, or transitions.\n"
             "- Remove claims that are not directly supported by the numbered context.\n"
+            "- If the context is not in English, either keep source-language terms in the "
+            "same cited sentence or remove translated claims that cannot be grounded.\n"
             "- Return only the rewritten answer.\n\n"
+            f"{failed_block}\n\n"
             f"Draft to repair:\n{draft}",
         ),
     ]
@@ -230,7 +296,7 @@ def _repair_citations_if_needed(
     }
     try:
         started = time.perf_counter()
-        repaired = llm.generate(_repair_citation_messages(prepared, answer))
+        repaired = llm.generate(_repair_citation_messages(prepared, answer, validation))
         repair_latency_ms = int((time.perf_counter() - started) * 1000)
     except Exception:  # pragma: no cover - provider/network specific
         prepared.meta = {

@@ -45,7 +45,57 @@ def test_hybrid_search_fulltext_finds_exact_term(db_session, fake_embedder):
     hits, meta = hybrid_search(db_session, fake_embedder, settings, "xyzquux",
                                source_ids=[result.source_id])
     assert meta["candidates_fulltext"] >= 1
+    assert meta["keyword_fallback_used"] is False
     assert any(h.method in ("fulltext", "hybrid") for h in hits)
+
+
+def test_keyword_fallback_finds_uploaded_file_title_when_strict_fts_misses(
+    db_session,
+    fake_embedder,
+):
+    spec = SourceSpec(type="file_upload", name="upload-workflow-test")
+    result = ingest_documents(db_session, fake_embedder, source=spec, documents=[
+        DocumentInput(
+            title="claude-code-notebooklm-obsidian-research-workflow",
+            content=(
+                "A research workflow moves captured source material into reviewed notes, "
+                "then uses those notes as cited context for later questions. "
+            ) * 20,
+            content_type="application/pdf",
+        ),
+    ])
+
+    settings = Settings(retrieval_min_vector_score=1.1)
+    hits, meta = hybrid_search(
+        db_session,
+        fake_embedder,
+        settings,
+        "what is workflow pipline and how to setup",
+        source_ids=[result.source_id],
+    )
+
+    assert hits
+    assert meta["candidates_vector"] == 0
+    assert meta["candidates_fulltext_strict"] == 0
+    assert meta["keyword_fallback_used"] is True
+    assert meta["candidates_keyword_fallback"] >= 1
+
+    display = load_display_chunks(db_session, [h.chunk_id for h in hits])
+    assert any(
+        chunk.document_title == "claude-code-notebooklm-obsidian-research-workflow"
+        for chunk in display.values()
+    )
+
+    empty_hits, empty_meta = hybrid_search(
+        db_session,
+        fake_embedder,
+        settings,
+        "anything about nothing?",
+        source_ids=[result.source_id],
+    )
+    assert empty_hits == []
+    assert empty_meta["candidates_keyword_fallback"] == 0
+    assert empty_meta["keyword_fallback_used"] is False
 
 
 def test_vector_threshold_filters_weak_vector_only_context(db_session, fake_embedder):

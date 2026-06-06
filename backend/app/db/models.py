@@ -44,7 +44,8 @@ class Source(Base):
     __tablename__ = "sources"
     __table_args__ = (
         CheckConstraint(
-            "type IN ('notes_folder','github','rss','pdf_upload','bookmark','research_note','manual')",
+            "type IN ('notes_folder','github','rss','pdf_upload','file_upload',"
+            "'bookmark','research_note','manual')",
             name="ck_sources_type",
         ),
     )
