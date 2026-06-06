@@ -26,7 +26,7 @@ erDiagram
 
     sources {
         bigint      id PK
-        text        type          "enum: notes_folder|github|rss|pdf_upload|file_upload|bookmark|research_note|manual"
+        text        type          "enum: bookmark|file_upload|github|manual|notes_folder|pdf_upload|research_note|rss"
         text        name
         text        uri           "nullable — path/url of origin"
         jsonb       config         "source-specific settings"

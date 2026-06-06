@@ -72,6 +72,7 @@ CITATION_FAILURE_TEXT = (
 _SEGMENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 _BLOCK_SPLIT_RE = re.compile(r"\n\s*\n+")
 _STRUCTURAL_PREFIX_RE = re.compile(r"^\s*(?:[-*]\s+|\d+[.)]\s*)?")
+_STRUCTURAL_HEADING_MAX_TOKENS = 12
 _SUPPORT_TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_'-]{1,}")
 _SUPPORT_STOPWORDS = {
     "about", "above", "after", "again", "also", "because", "been", "before", "being",
@@ -142,7 +143,7 @@ def _is_structural_segment(segment: str) -> bool:
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text).strip()
     if not text or not text.endswith(":"):
         return False
-    return len(_support_tokens(text)) <= 12
+    return len(_support_tokens(text)) <= _STRUCTURAL_HEADING_MAX_TOKENS
 
 
 def _context_tokens(prepared: _PreparedChat, marker: int) -> set[str]:

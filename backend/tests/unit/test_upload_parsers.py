@@ -3,39 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app.ingest.parsers import UploadParseError, parse_upload_bytes, safe_upload_filename
-
-
-def _sample_pdf_bytes() -> bytes:
-    content = b"BT /F1 24 Tf 72 720 Td (Hello PDF upload) Tj ET\n"
-    objects = [
-        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-        (
-            b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-            b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
-        ),
-        b"4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-        (
-            f"5 0 obj\n<< /Length {len(content)} >>\nstream\n".encode("ascii")
-            + content
-            + b"endstream\nendobj\n"
-        ),
-    ]
-    pdf = bytearray(b"%PDF-1.4\n")
-    offsets = [0]
-    for obj in objects:
-        offsets.append(len(pdf))
-        pdf.extend(obj)
-    xref_offset = len(pdf)
-    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
-    pdf.extend(b"0000000000 65535 f \n")
-    for offset in offsets[1:]:
-        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
-    pdf.extend(
-        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
-        f"startxref\n{xref_offset}\n%%EOF\n".encode("ascii")
-    )
-    return bytes(pdf)
+from tests.helpers import sample_pdf_bytes
 
 
 def _encrypted_pdf_bytes(password: str) -> bytes:
@@ -43,7 +11,7 @@ def _encrypted_pdf_bytes(password: str) -> bytes:
 
     from pypdf import PdfReader, PdfWriter
 
-    reader = PdfReader(BytesIO(_sample_pdf_bytes()))
+    reader = PdfReader(BytesIO(sample_pdf_bytes()))
     writer = PdfWriter()
     for page in reader.pages:
         writer.add_page(page)
@@ -57,7 +25,7 @@ def test_parse_pdf_extracts_text_and_metadata():
     parsed = parse_upload_bytes(
         filename="reports/hello.pdf",
         content_type="application/pdf",
-        data=_sample_pdf_bytes(),
+        data=sample_pdf_bytes(),
         allowed_extensions=[".pdf", ".txt", ".md"],
     )
 
