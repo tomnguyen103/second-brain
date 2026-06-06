@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChartBar, CheckCircle, Flask, ThumbsDown, TrendDown } from "@phosphor-icons/react";
 
-import { AppPage, EmptyState, InlineError, LoadingRows, Panel, PanelHeader, StatusPill } from "@/components/AppPage";
+import { AppButton, AppPage, EmptyState, Field, InlineError, LoadingRows, Panel, PanelHeader, StatusPill, TextArea, TextInput } from "@/components/AppPage";
 import { api } from "@/lib/api/client";
 import { formatDate, formatDateTime } from "@/lib/format";
 import type { EvalCandidate, FeedbackAnalyticsResponse, NegativeFeedbackItem } from "@/lib/api/types";
@@ -99,7 +99,7 @@ function NegativeFeedbackCard({ item }: { item: NegativeFeedbackItem }) {
         <StatusPill tone="danger">negative</StatusPill>
         <Link
           href={`/chat?cid=${item.conversation_id}`}
-          className="text-xs font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+          className="text-xs font-semibold text-primary hover:text-primary/80"
         >
           Conversation #{item.conversation_id}
         </Link>
@@ -156,14 +156,6 @@ function NegativeFeedbackCard({ item }: { item: NegativeFeedbackItem }) {
   );
 }
 
-function FieldLabel({ children }: { children: ReactNode }) {
-  return (
-    <label className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-      {children}
-    </label>
-  );
-}
-
 function ReviewCheckbox({
   checked,
   onChange,
@@ -179,7 +171,7 @@ function ReviewCheckbox({
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-3.5 w-3.5 accent-amber-500"
+        className="h-3.5 w-3.5 accent-primary"
       />
       <span>{children}</span>
     </label>
@@ -242,43 +234,39 @@ function EvalCandidateReviewCard({ candidate, adminToken }: { candidate: EvalCan
       </div>
 
       <div className="mt-3 grid gap-3">
-        <div>
-          <FieldLabel>Case id</FieldLabel>
-          <input
+        <Field label="Case id">
+          <TextInput
             value={caseId}
             onChange={(event) => setCaseId(event.target.value)}
-            className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 font-mono text-xs text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+            className="font-mono text-xs"
           />
-        </div>
-        <div>
-          <FieldLabel>Question</FieldLabel>
-          <textarea
+        </Field>
+        <Field label="Question">
+          <TextArea
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             rows={2}
-            className="mt-1 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-xs leading-5 text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+            className="text-xs leading-5"
           />
-        </div>
-        <div>
-          <FieldLabel>Expected sources</FieldLabel>
-          <textarea
+        </Field>
+        <Field label="Expected sources">
+          <TextArea
             value={expectedDocs}
             onChange={(event) => setExpectedDocs(event.target.value)}
             rows={3}
             placeholder="One fixed eval corpus document title per line"
-            className="mt-1 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-xs leading-5 text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+            className="text-xs leading-5"
           />
-        </div>
-        <div>
-          <FieldLabel>Expected keywords</FieldLabel>
-          <textarea
+        </Field>
+        <Field label="Expected keywords">
+          <TextArea
             value={expectedKeywords}
             onChange={(event) => setExpectedKeywords(event.target.value)}
             rows={2}
             placeholder="One answer keyword per line"
-            className="mt-1 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-xs leading-5 text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+            className="text-xs leading-5"
           />
-        </div>
+        </Field>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -308,15 +296,15 @@ function EvalCandidateReviewCard({ candidate, adminToken }: { candidate: EvalCan
         </div>
       )}
 
-      <button
+      <AppButton
         type="button"
         disabled={!canPromote}
         onClick={() => promote.mutate()}
-        className="mt-3 inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-3"
       >
         <Flask size={14} weight="bold" />
         {promote.isPending ? "Promoting" : "Promote"}
-      </button>
+      </AppButton>
     </div>
   );
 }
@@ -359,16 +347,18 @@ export default function FeedbackPage() {
       actions={
         <div className="flex gap-1 rounded-lg bg-muted p-1">
           {WINDOWS.map((windowDays) => (
-            <button
+            <AppButton
               key={windowDays}
               type="button"
               onClick={() => setDays(windowDays)}
-              className={`h-7 rounded-md px-2.5 text-xs font-semibold transition-colors ${
+              variant="quiet"
+              size="sm"
+              className={`${
                 days === windowDays ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {windowDays}d
-            </button>
+            </AppButton>
           ))}
         </div>
       }
@@ -461,19 +451,17 @@ export default function FeedbackPage() {
           <PanelHeader
             title="Eval case review"
             description={`${candidates.data?.cases.length ?? 0} unpromoted candidates`}
-            actions={<Flask size={16} className="text-amber-500" />}
+            actions={<Flask size={16} className="text-primary" />}
           />
           <div className="border-b border-border px-4 py-3">
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Admin token
-              <input
+            <Field label="Admin token">
+              <TextInput
                 type="password"
                 value={adminToken}
                 onChange={(event) => setAdminToken(event.target.value)}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30"
                 placeholder="Required to promote"
               />
-            </label>
+            </Field>
           </div>
           {candidates.isLoading && <LoadingRows rows={4} />}
           {candidates.error && !candidates.isLoading && (

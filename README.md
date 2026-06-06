@@ -31,9 +31,49 @@ an optional cloud demo path.
 > idle cloud uptime. A 2 GB DigitalOcean + Caddy deployment was previously verified and remains as
 > an optional recipe, but it is no longer the recommended default.
 
+## Fast Local Demo
+
+Use the deterministic fake LLM for a keyless portfolio/demo loop:
+
+```powershell
+# 1. Start the local database.
+docker compose up -d db
+
+# 2. Start the API at http://localhost:8000.
+cd backend
+.\.venv\Scripts\Activate.ps1
+$env:SECOND_BRAIN_LLM_PROVIDER = "fake"
+alembic upgrade head
+uvicorn app.main:app --reload
+
+# 3. In another terminal, seed the capture -> chat -> feedback loop.
+cd backend
+.\.venv\Scripts\Activate.ps1
+$env:SECOND_BRAIN_LLM_PROVIDER = "fake"
+python -m app.demo.seed
+
+# 4. Start the web UI at http://localhost:3000.
+cd ..\frontend
+npm install
+npm run dev
+```
+
+Then open:
+
+- `http://localhost:3000/chat` - ask over the seeded source and inspect citations.
+- `http://localhost:3000/feedback` - review the seeded negative feedback candidate.
+- `http://localhost:3000/status` - confirm DB migration, source counts, worker queue, token state, and model mode.
+
+When a reviewed candidate should become source-controlled eval data, export staged cases from
+`backend/`:
+
+```powershell
+python -m app.eval.export_cases --output eval/promoted-cases.yaml
+```
+
 ## Current Status
 
-Last README synchronization: **2026-06-05**. Runtime default changed to local-first on
+Last README synchronization: **2026-06-06**. Runtime default changed to local-first on
 **2026-06-05**.
 
 | Area | Status | Notes |
@@ -41,7 +81,7 @@ Last README synchronization: **2026-06-05**. Runtime default changed to local-fi
 | Product roadmap | Complete | Phases 0-7 are implemented and documented in [docs/PROGRESS.md](docs/PROGRESS.md). |
 | Runtime | Local-first | Run the Compose-backed app on demand locally; optional cloud deploy recipe remains for demos. |
 | Operations | Documented | Bearer-token API access, backup/restore, health checks, secret rotation, rollback, and optional VPS hardening runbooks. |
-| Web UI | Implemented | Streaming chat, capture, search, ingest, briefing, tasks, research, sources, feedback review, and admin data-ops pages. |
+| Web UI | Implemented | Streaming chat, capture, search, ingest, briefing, tasks, research, sources, feedback review, status, and admin data-ops pages. |
 | API | Implemented | Capture, ingest, streaming and non-streaming chat, search, conversations, feedback analytics, briefing, tasks, research jobs, sources, health, and governed data-ops endpoints. |
 | MCP server | Implemented | `search_notes`, `list_tasks`, and `send_digest` are available by default; `create_task` and `research_topic` require explicit local mutation opt-in. |
 | Background jobs | Implemented | Durable Postgres job queue for briefing and async research; schedule locally when desired. |
@@ -55,6 +95,8 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 
 | Update | Summary | Reference |
 |---|---|:---:|
+| UI modernization + status | Modernized the local web workspace and added `/status` for API health, migration state, worker queue, indexed corpus counts, token state, and model mode. | [progress](docs/PROGRESS.md) |
+| Expanded eval set | Expanded the fixed eval corpus to 14 notes and 31 cases across capture, feedback, agentic RAG, governance, jobs, MCP, uploads, status, and refusal probes. | [eval dataset](backend/eval/dataset.yaml) |
 | Agentic RAG v1 | Added an opt-in read-only LangGraph retrieval graph that plans subqueries, searches existing notes, returns compact trace metadata, and is eval-comparable against regular RAG. | [ADR-0016](docs/adr/0016-agentic-rag-v1.md) |
 | Demo loop tooling | Added a seed command for the capture -> chat -> feedback flow and an exporter that turns durable `eval_cases` rows into reviewable YAML fragments for CI dataset patches. | [case study](docs/case-study.md) |
 | Runtime strategy update | Changed the default runtime from always-on VPS to local-first/on-demand Docker Compose to avoid recurring idle cloud cost. VPS docs remain only as an optional demo/deploy recipe. | [ADR-0015](docs/adr/0015-local-first-runtime.md) |
@@ -72,18 +114,19 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 | Capability | What is implemented |
 |---|---|
 | Streaming cited RAG chat | `/chat/stream` buffers provider chunks until citation/support validation passes, then sends safe deltas and a persisted completion with `[n]` citation markers. `/chat` remains available as the non-streaming fallback. |
-| Agentic RAG | Opt-in `/chat` mode uses LangGraph to plan 2-4 note searches, merge evidence, optionally retry weak evidence, and answer through the same citation validator. It is read-only and disabled by default until eval beats baseline. |
+| Agentic RAG | Opt-in `/chat` mode uses LangGraph to plan 2-4 note searches, merge evidence, optionally retry weak evidence, and answer through the same citation validator. It is read-only and remains disabled by default until eval beats baseline on the expanded eval set. |
 | Web capture | `/capture` saves a URL, title, selected text, notes, and tags as a `bookmark` source/document through the ingest pipeline; it performs no server-side scraping. |
 | Hybrid search | pgvector semantic search and PostgreSQL full-text search are fused with reciprocal rank fusion, with configurable weak-context refusal. |
 | Source ingestion | `/ingest` accepts text documents, dedupes by content hash, chunks semantically, embeds, tags, and stores them. |
 | Morning briefing | A scheduled job summarizes newly ingested documents since the previous briefing and stores the result. |
 | MCP tools | A stdio MCP server exposes search, task listing, and digest composition by default; durable task/research mutations are opt-in for trusted local clients. |
 | Self-research | `research_topic` can use pasted source text or safe public text/HTML URLs on default HTTP(S) ports, stores provenance, and indexes the resulting `research_note`. |
-| Evaluation and MLOps | Fixed eval set, MLflow logging, prompt versioning, A/B configs, rollback by env var, and CI eval gate. |
+| Evaluation and MLOps | Fixed 31-case eval set, MLflow logging, prompt versioning, A/B configs, rollback by env var, and CI eval gate. |
 | Feedback quality review | Feedback analytics and negative-feedback review endpoints turn thumbs into reviewable eval candidates; reviewed promotions are stored durably in Postgres and exportable as YAML patch fragments. |
 | Redis paths | Optional Redis-backed `/chat` and `/ingest` rate limits, `/search` response caching, and embedding caching are enabled in production; rate limits fail closed by default. |
 | Data governance | RLS, audit logging, raw-text retention purge, source export, source erasure, and durable reviewed eval cases. |
 | Single-owner auth | `SECOND_BRAIN_API_TOKEN` protects chat, conversations, capture, ingest, search, briefing, feedback, tasks, research, sources, and admin surfaces; destructive data-ops also require `X-Second-Brain-Admin-Token: <SECOND_BRAIN_ADMIN_TOKEN>`. |
+| Local status | `/health` stays open for reachability; authenticated `/status` reports migration state, worker queue state, indexed corpus counts, LLM/embedding mode, and feature flags. |
 | Observability | Prometheus-format request, cache, and rate-limit metrics at `/metrics`; alert rules and Grafana dashboard configs are retained under `deploy/`, but production Compose does not start monitoring containers until a scanned-clean runtime is selected. |
 | Operations artifacts | Local/on-demand runtime guidance plus optional Docker Compose/Caddy deploy recipe, bearer-token API access, backup/restore, secret rotation, rollback, and incident response runbooks. |
 
@@ -91,7 +134,7 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 
 | Surface | Entry point | Notes |
 |---|---|---|
-| Web app | `/chat`, `/capture`, `/search`, `/ingest`, `/briefing`, `/tasks`, `/research`, `/sources`, `/feedback`, `/admin` | Main daily-use and operations UI. |
+| Web app | `/chat`, `/capture`, `/search`, `/ingest`, `/briefing`, `/tasks`, `/research`, `/sources`, `/status`, `/feedback`, `/admin` | Main daily-use and operations UI. |
 | API | `/docs` or `/api/*` in production | Capture, ingest, chat, search, briefing, conversations, feedback analytics, tasks, research jobs, sources, and admin data-ops. Personal-data calls require the API bearer token in production. |
 | MCP | `python -m app.mcp_server` | Tool interface for MCP clients such as Claude Desktop. |
 | Worker | `python -m app.jobs.worker --loop` | Runs in production; drains briefing and research jobs. |
@@ -100,21 +143,15 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 
 ## Portfolio Demo Loop
 
-From `backend/`, seed the tight case-study flow:
+The shortest demo story is:
 
-```bash
-python -m app.demo.seed
-```
+1. `docker compose up -d db`
+2. `python -m app.demo.seed`
+3. Open `/chat` and ask a cited question over the seeded source.
+4. Open `/feedback` and review the seeded negative feedback candidate.
+5. Export staged eval rows with `python -m app.eval.export_cases --output eval/promoted-cases.yaml`.
 
-Then open `/feedback`, promote the seeded negative example after reviewing labels, and export the
-staged eval rows:
-
-```bash
-python -m app.eval.export_cases --output eval/promoted-cases.yaml
-```
-
-That gives you a reviewable patch fragment to copy into `eval/dataset.yaml` when a promoted case
-should become part of the CI eval gate.
+That gives you one visible loop: capture -> cited chat/search -> feedback review -> eval export/gate.
 
 ## Tech Stack
 
@@ -130,7 +167,7 @@ should become part of the CI eval gate.
 | Agent tooling | MCP server over stdio, with durable mutations disabled unless `SECOND_BRAIN_MCP_ENABLE_MUTATIONS=true` |
 | Background work | Durable Postgres `jobs` table with `FOR UPDATE SKIP LOCKED`; OS cron enqueues daily briefing |
 | Pooling/cache | SQLAlchemy/Postgres connection pooling; Redis powers optional rate limits plus search and embedding caches |
-| MLOps | Local MLflow file store, eval harness, prompt registry, A/B configs, CI eval gate |
+| MLOps | Local MLflow file store, 31-case eval harness, prompt registry, A/B configs, CI eval gate |
 | Observability | Prometheus metrics endpoint plus retained Prometheus/Grafana config artifacts; monitoring containers are not part of the production Compose runtime |
 | Runtime | Local-first Docker Compose; optional single-box VPS recipe for demos |
 | Kubernetes | Local kind learning track with manifests, ingress, HPA, and CI smoke test |
@@ -194,10 +231,10 @@ second-brain/
 |-- docker-compose.yml                 # local Postgres + pgvector on host port 5433
 |-- backend/
 |   |-- app/                           # api, chat, retrieval, ingest, llm, embeddings, mcp, jobs, eval
-|   |-- migrations/                    # Alembic migrations 0001-0005
+|   |-- migrations/                    # Alembic migrations 0001-0006
 |   `-- tests/                         # unit and integration tests
 |-- frontend/
-|   |-- app/                           # chat, capture, search, ingest, briefing, tasks, research, sources, feedback, admin
+|   |-- app/                           # chat, capture, search, ingest, briefing, tasks, research, sources, status, feedback, admin
 |   |-- components/
 |   `-- lib/api/
 |-- deploy/
@@ -355,6 +392,7 @@ source erasure.
   source-backed citations.
 - Replace VPS-specific runbook examples with local-first commands where that improves clarity.
 - Keep the seeded demo data and case-study screenshots current as the UI changes.
+- Keep expanding real-world eval cases before making agentic RAG the default.
 - Keep restore-drill evidence current and keep local database backups somewhere you trust.
 
 ---

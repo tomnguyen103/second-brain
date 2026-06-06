@@ -62,6 +62,7 @@ def test_require_admin_rejects_api_token_and_accepts_admin_token():
         ("get", "/tasks", {}),
         ("get", "/research/jobs", {}),
         ("get", "/sources", {}),
+        ("get", "/status", {}),
         ("get", "/data/export", {"params": {"source_id": 1}}),
         ("post", "/admin/retention/purge", {}),
     ],

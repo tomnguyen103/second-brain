@@ -291,6 +291,42 @@ export interface HealthResponse {
   embedder: string;
 }
 
+export interface AppStatusResponse {
+  status: "ok" | "attention" | string;
+  database: {
+    reachable: boolean;
+    migration_current: string | null;
+    migration_head: string | null;
+    migrated: boolean;
+    error: string | null;
+  };
+  worker: {
+    status: "idle" | "active" | "pending" | "attention" | "unknown" | string;
+    queued: number;
+    running: number;
+    done: number;
+    failed: number;
+    latest_finished_at: string | null;
+    latest_error: string | null;
+  };
+  knowledge: {
+    source_count: number;
+    document_count: number;
+    embedded_document_count: number;
+    chunk_count: number;
+    embedding_count: number;
+    latest_document_at: string | null;
+  };
+  runtime: {
+    llm_provider: string;
+    llm_model: string;
+    embedding_provider: string;
+    embedding_model: string;
+    agentic_rag_enabled: boolean;
+    mcp_mutations_enabled: boolean;
+  };
+}
+
 export type SourceType =
   | "manual"
   | "notes_folder"

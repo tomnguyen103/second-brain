@@ -23,6 +23,40 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-06 - Web UI modernization
+- **What:** modernized the Second Brain web UI into a quieter local-first command center without
+  changing backend API contracts, auth headers, routes, streaming behavior, citation behavior, or
+  admin-token requirements.
+- **Shell/primitives:** upgraded the shared app shell with a responsive mobile top bar/drawer,
+  clearer product identity, grouped navigation, active states, recent-conversation treatment, and a
+  compact API-token area. Refined `AppPage` plus shared panel, empty/loading/error/status, button,
+  segmented-control, and form-control primitives so ops pages use a more consistent system.
+- **Chat/search:** polished `/chat` as the flagship workspace with a stronger header, scoped footer
+  controls, tighter message rhythm, improved citation cards, source/filter chips, composer states,
+  private/agentic affordances, and mobile-safe layout. Reworked `/search` into the same visual
+  language with labeled filters, professional result rows, and improved loading/empty/error states.
+- **Ops pages:** harmonized `/capture`, `/ingest`, `/briefing`, `/tasks`, `/research`, `/sources`,
+  `/feedback`, and `/admin` with improved hierarchy, labels, warnings, actions, and status/metric
+  presentation while preserving existing request data and token handling.
+- **Follow-up UI adjustment:** moved recent conversation history out of the left sidebar into a
+  right-side card capped at half viewport height, keeping the left rail focused on navigation and
+  API access.
+- **Packaging pass:** added authenticated `/status` API and web status page, added status to the
+  operations nav, refreshed README's fast local demo path, expanded the fixed eval corpus from 15
+  to 31 cases, and kept Agentic RAG opt-in pending the expanded eval comparison.
+- **Screenshots:** refreshed `docs/screenshots/ui-home.png`, `ui-chat.png`, `ui-chat-answer.png`,
+  and `ui-status.png` from the production Next server. The committed screenshots use a width below
+  the right-rail breakpoint so local conversation history is not exposed.
+- **Verified:** frontend `npm run lint` passed; frontend `npm run build` passed with the existing
+  Next.js multiple-lockfile workspace-root warning. Full backend suite passed on an isolated test
+  database (`282 passed, 8 warnings`) with fake LLM and Agentic RAG explicitly disabled. Eval gate
+  passed on 31 cases (`citation_validity=1.000`, `hit_at_k=0.964`, `refusal_accuracy=0.935`).
+  Baseline vs agentic deterministic comparison showed agentic did not beat regular RAG
+  (`hit_at_k` tied at `0.964`, baseline `mrr=0.946` vs agentic `mrr=0.631`), so Agentic RAG remains
+  opt-in. Visual QA used installed Chrome headless/CDP screenshots for `/chat`, `/search`,
+  `/ingest`, `/feedback`, `/admin`, and `/status`; dark-mode status QA also passed. The Browser
+  connector remained unavailable because its helper reported `command not found: npx`.
+
 ### 2026-06-05 - Multipart PDF/file upload ingest
 - **What:** added `POST /ingest/upload` for multipart uploads and wired `/ingest` with a file
   picker mode. Uploads accept `.pdf`, `.txt`, and `.md`; PDFs are parsed locally with `pypdf`, text

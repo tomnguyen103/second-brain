@@ -200,22 +200,41 @@ function ChatPage() {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <header className="shrink-0 px-5 py-3 border-b border-border bg-card/50 backdrop-blur-sm flex items-center">
-        <span className="text-xs font-medium text-muted-foreground tracking-tight">
-          {conversationId ? `Conversation #${conversationId}` : "New conversation"}
-        </span>
+    <div className="flex h-full flex-col bg-background">
+      <header className="shrink-0 border-b border-border/80 bg-background/95 px-4 py-3 backdrop-blur md:px-6">
+        <div className="mx-auto flex w-full max-w-5xl flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Cited chat
+            </p>
+            <h1 className="mt-0.5 truncate text-lg font-semibold leading-6 text-foreground">
+              {conversationId ? `Conversation #${conversationId}` : "New conversation"}
+            </h1>
+          </div>
+          <div className="flex max-w-full flex-wrap items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+            <span className="rounded-md bg-muted px-2 py-1 ring-1 ring-border">
+              local-first workspace
+            </span>
+            {agenticAvailable && (
+              <span className="rounded-md bg-primary/10 px-2 py-1 text-primary ring-1 ring-primary/20">
+                agentic opt-in
+              </span>
+            )}
+          </div>
+        </div>
       </header>
       <MessageList messages={displayMessages} isLoading={isSending && !hasStreamingMessage} />
       <div ref={bottomRef} />
-      <SourceFilter sourceIds={sourceIds} tags={tags} onChangeSourceIds={setSourceIds} onChangeTags={setTags} />
-      <ChatComposer
-        onSend={(msg, pm, am) => {
-          void sendMessage({ message: msg, privateMode: pm, agenticMode: am });
-        }}
-        disabled={isSending}
-        agenticAvailable={agenticAvailable}
-      />
+      <footer className="shrink-0 border-t border-border/80 bg-background/95 backdrop-blur">
+        <SourceFilter sourceIds={sourceIds} tags={tags} onChangeSourceIds={setSourceIds} onChangeTags={setTags} />
+        <ChatComposer
+          onSend={(msg, pm, am) => {
+            void sendMessage({ message: msg, privateMode: pm, agenticMode: am });
+          }}
+          disabled={isSending}
+          agenticAvailable={agenticAvailable}
+        />
+      </footer>
     </div>
   );
 }

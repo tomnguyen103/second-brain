@@ -1,4 +1,5 @@
 import type {
+  AppStatusResponse,
   CaptureRequest,
   CaptureResponse,
   ChatRequest,
@@ -15,6 +16,7 @@ import type {
   FeedbackResponse,
   Briefing,
   BriefingListResponse,
+  HealthResponse,
   NegativeFeedbackListResponse,
   DocumentListResponse,
   IngestRequest,
@@ -192,6 +194,14 @@ async function streamChat(req: ChatRequest, handlers: ChatStreamHandlers): Promi
 }
 
 export const api = {
+  getHealth(): Promise<HealthResponse> {
+    return apiFetch("/health");
+  },
+
+  getStatus(): Promise<AppStatusResponse> {
+    return apiFetch("/status");
+  },
+
   capture(req: CaptureRequest): Promise<CaptureResponse> {
     return apiFetch("/capture", { method: "POST", body: JSON.stringify(req) });
   },

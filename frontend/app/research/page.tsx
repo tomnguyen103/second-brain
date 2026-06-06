@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Flask, MagnifyingGlass, PlusCircle } from "@phosphor-icons/react";
 
-import { AppPage, EmptyState, InlineError, LoadingRows, Panel, PanelHeader, StatusPill } from "@/components/AppPage";
+import { AppButton, AppPage, EmptyState, Field, InlineError, LoadingRows, Panel, PanelHeader, StatusPill, TextArea } from "@/components/AppPage";
 import { api } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/format";
 import { queryClient } from "@/lib/query-client";
@@ -74,41 +74,38 @@ export default function ResearchPage() {
             {enqueue.error && (
               <InlineError message={enqueue.error instanceof Error ? enqueue.error.message : "Research job failed"} />
             )}
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Topic
-              <textarea
+            <Field label="Topic">
+              <TextArea
                 value={topic}
                 onChange={(event) => setTopic(event.target.value)}
-                className="min-h-32 resize-y rounded-lg border border-input bg-background px-2.5 py-2 text-sm leading-6 text-foreground outline-none transition-colors focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
+                className="min-h-32"
                 placeholder="Research topic"
               />
-            </label>
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Source URLs
-              <textarea
+            </Field>
+            <Field label="Source URLs">
+              <TextArea
                 value={sourceUrls}
                 onChange={(event) => setSourceUrls(event.target.value)}
-                className="min-h-20 resize-y rounded-lg border border-input bg-background px-2.5 py-2 text-sm leading-6 text-foreground outline-none transition-colors focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
+                className="min-h-20"
                 placeholder="One public URL per line"
               />
-            </label>
-            <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-              Source text
-              <textarea
+            </Field>
+            <Field label="Source text">
+              <TextArea
                 value={sourceText}
                 onChange={(event) => setSourceText(event.target.value)}
-                className="min-h-28 resize-y rounded-lg border border-input bg-background px-2.5 py-2 text-sm leading-6 text-foreground outline-none transition-colors focus:border-amber-400 focus:ring-3 focus:ring-amber-400/15"
+                className="min-h-28"
                 placeholder="Paste source excerpt"
               />
-            </label>
-            <button
+            </Field>
+            <AppButton
               type="button"
               onClick={() => enqueue.mutate()}
               disabled={!topic.trim() || enqueue.isPending}
-              className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full"
             >
               <PlusCircle size={15} weight="bold" /> {enqueue.isPending ? "Queuing" : "Queue research"}
-            </button>
+            </AppButton>
           </div>
         </Panel>
 

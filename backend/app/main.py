@@ -13,6 +13,7 @@ from app.api import (
     research_jobs,
     search,
     sources,
+    status,
     tasks,
 )
 from app.config import settings
@@ -46,3 +47,4 @@ app.include_router(briefing.router)
 app.include_router(tasks.router)
 app.include_router(research_jobs.router)
 app.include_router(sources.router)
+app.include_router(status.router)

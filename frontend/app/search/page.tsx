@@ -1,45 +1,90 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { MagnifyingGlass, BookOpen, ArrowRight } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowRight, BookOpen, MagnifyingGlass } from "@phosphor-icons/react";
+
+import {
+  AppButton,
+  AppPage,
+  EmptyState,
+  Field,
+  InlineError,
+  LoadingRows,
+  Panel,
+  PanelHeader,
+  StatusPill,
+  TextInput,
+} from "@/components/AppPage";
 import { api } from "@/lib/api/client";
 import type { SearchHit } from "@/lib/api/types";
 
+function parseSourceIds(value: string): number[] | undefined {
+  const ids = value
+    .split(",")
+    .map((sourceId) => parseInt(sourceId.trim(), 10))
+    .filter((sourceId) => !Number.isNaN(sourceId));
+  return ids.length ? ids : undefined;
+}
+
+function parseTags(value: string): string[] | undefined {
+  const tags = value
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+  return tags.length ? tags : undefined;
+}
+
 function SearchResultRow({ hit, index }: { hit: SearchHit; index: number }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04, type: "spring", stiffness: 300, damping: 26 }}
-      className="group px-5 py-4 flex items-start gap-3.5 hover:bg-muted/50 transition-colors duration-100"
+    <motion.article
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03, type: "spring", stiffness: 300, damping: 26 }}
+      className="group grid gap-3 px-4 py-4 transition-colors hover:bg-muted/45 sm:grid-cols-[2rem_minmax(0,1fr)]"
     >
-      <div className="shrink-0 mt-0.5 flex h-6 w-6 items-center justify-center rounded-md bg-amber-50 dark:bg-amber-950/40 ring-1 ring-amber-100 dark:ring-amber-900/60">
-        <span className="font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400">{index + 1}</span>
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 font-mono text-[11px] font-bold text-primary ring-1 ring-primary/20">
+        {index + 1}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline justify-between gap-2 mb-1">
-          <p className="text-sm font-semibold text-foreground tracking-tight leading-snug">{hit.document_title}</p>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[10px] bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-medium">{hit.source_name}</span>
-            <span className="font-mono text-[10px] text-muted-foreground">{hit.score.toFixed(4)}</span>
+      <div className="min-w-0">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold leading-5 text-foreground">{hit.document_title}</h2>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{hit.source_name}</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            <StatusPill>{hit.method}</StatusPill>
+            <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground ring-1 ring-border">
+              {hit.score.toFixed(4)}
+            </span>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{hit.snippet}</p>
-        <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-[10px] bg-muted text-muted-foreground rounded-full px-2 py-0.5">{hit.method}</span>
-          {hit.vector_score != null && <span className="font-mono text-[10px] text-muted-foreground/70">vec {hit.vector_score.toFixed(3)}</span>}
-          {hit.fulltext_score != null && <span className="font-mono text-[10px] text-muted-foreground/70">fts {hit.fulltext_score.toFixed(3)}</span>}
+        <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">{hit.snippet}</p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground ring-1 ring-border">
+            chunk #{hit.chunk_id}
+          </span>
+          {hit.vector_score != null && (
+            <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground ring-1 ring-border">
+              vec {hit.vector_score.toFixed(3)}
+            </span>
+          )}
+          {hit.fulltext_score != null && (
+            <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground ring-1 ring-border">
+              fts {hit.fulltext_score.toFixed(3)}
+            </span>
+          )}
         </div>
       </div>
-    </motion.div>
+    </motion.article>
   );
 }
 
 function SearchPageContent() {
-  const sp = useSearchParams();
-  const initialQ = sp.get("q") ?? "";
+  const searchParams = useSearchParams();
+  const initialQ = searchParams.get("q") ?? "";
   const [inputValue, setInputValue] = useState(initialQ);
   const [query, setQuery] = useState(initialQ);
   const [sourceIds, setSourceIds] = useState("");
@@ -49,118 +94,125 @@ function SearchPageContent() {
   const { data, isFetching, error } = useQuery({
     queryKey: ["search", query, sourceIds, tags],
     queryFn: () => api.search({
-      q: query, top_k: 10,
-      source_ids: sourceIds ? sourceIds.split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n)) : undefined,
-      tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : undefined,
+      q: query,
+      top_k: 10,
+      source_ids: parseSourceIds(sourceIds),
+      tags: parseTags(tags),
     }),
     enabled: query.length > 0,
   });
 
-  const handleSearch = () => { const q = inputValue.trim(); if (q) setQuery(q); };
+  const handleSearch = () => {
+    const nextQuery = inputValue.trim();
+    if (nextQuery) setQuery(nextQuery);
+  };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <header className="shrink-0 px-5 py-3 border-b border-border bg-card/50 backdrop-blur-sm">
-        <span className="text-xs font-medium text-muted-foreground tracking-tight">Semantic Search</span>
-      </header>
-
-      <div className="shrink-0 px-5 pt-4 pb-3 border-b border-border bg-card/30">
-        <div className="flex items-center gap-2">
-          <div className={`relative flex-1 flex items-center rounded-xl border bg-card transition-all duration-200 ${
-            focused ? "border-amber-400/70 ring-2 ring-amber-400/15" : "border-border"
-          }`}>
-            <MagnifyingGlass size={15} className="absolute left-3.5 text-muted-foreground" />
-            <input value={inputValue} onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-              placeholder="Search your knowledge base…" autoFocus
-              className="w-full h-10 bg-transparent pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-              aria-label="Search query"
-            />
+    <AppPage
+      eyebrow="Search"
+      title="Knowledge search"
+      description="Run hybrid vector and full-text search across indexed notes, captures, PDFs, and research."
+      actions={
+        data && !isFetching ? (
+          <StatusPill tone={data.hits.length ? "success" : "neutral"}>
+            {data.hits.length} result{data.hits.length === 1 ? "" : "s"}
+          </StatusPill>
+        ) : undefined
+      }
+    >
+      <Panel>
+        <form
+          className="grid gap-3 p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleSearch();
+          }}
+        >
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <Field label="Search query">
+              <div className={`relative rounded-lg transition-all ${focused ? "ring-3 ring-primary/15" : ""}`}>
+                <MagnifyingGlass size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <TextInput
+                  value={inputValue}
+                  onChange={(event) => setInputValue(event.target.value)}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  placeholder="Search your knowledge base..."
+                  autoFocus
+                  className="pl-9"
+                />
+              </div>
+            </Field>
+            <AppButton type="submit" disabled={!inputValue.trim() || isFetching} className="w-full lg:w-auto">
+              Search <ArrowRight size={14} weight="bold" />
+            </AppButton>
           </div>
-          <motion.button whileTap={{ scale: 0.95 }} onClick={handleSearch}
-            disabled={!inputValue.trim() || isFetching}
-            className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 dark:hover:bg-amber-400 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow-sm shadow-amber-200/50 dark:shadow-none"
-          >
-            Search <ArrowRight size={14} weight="bold" />
-          </motion.button>
-        </div>
-        <div className="flex gap-4 mt-2.5">
-          {[["Source IDs", sourceIds, setSourceIds, "1,2,3"], ["Tags", tags, setTags, "ml,notes"]].map(([label, val, setter, ph]) => (
-            <label key={label as string} className="flex items-center gap-2 text-xs text-muted-foreground">
-              {label as string}:
-              <input value={val as string} onChange={(e) => (setter as (v: string) => void)(e.target.value)}
-                placeholder={ph as string}
-                className="h-6 w-20 rounded-lg border border-border bg-transparent px-2 text-xs text-foreground outline-none focus:border-amber-400 transition-colors"
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Source IDs" hint="Comma-separated IDs, optional.">
+              <TextInput
+                value={sourceIds}
+                onChange={(event) => setSourceIds(event.target.value)}
+                placeholder="1, 2, 3"
+                inputMode="numeric"
               />
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto divide-y divide-border">
-        {isFetching && [0,1,2].map((i) => (
-          <div key={i} className="px-5 py-4 flex items-start gap-3.5">
-            <div className="h-6 w-6 rounded-md skeleton-shimmer shrink-0" />
-            <div className="flex-1 space-y-2 pt-1">
-              <div className="h-3.5 rounded skeleton-shimmer w-2/5" />
-              <div className="h-3 rounded skeleton-shimmer w-full" />
-              <div className="h-3 rounded skeleton-shimmer w-3/4" />
-            </div>
+            </Field>
+            <Field label="Tags" hint="Comma-separated tags, optional.">
+              <TextInput
+                value={tags}
+                onChange={(event) => setTags(event.target.value)}
+                placeholder="ml, notes"
+              />
+            </Field>
           </div>
-        ))}
+        </form>
+      </Panel>
+
+      <Panel className="overflow-hidden">
+        <PanelHeader
+          title={query ? `Results for "${query}"` : "Results"}
+          description={query ? "Ranked by fused semantic and full-text signals." : "Enter a query to search your indexed workspace."}
+        />
+        {isFetching && <LoadingRows rows={5} />}
 
         {error && !isFetching && (
-          <div className="px-5 py-10 text-center">
-            <p className="text-sm text-destructive">{error instanceof Error ? error.message : "Search failed"}</p>
+          <div className="p-4">
+            <InlineError message={error instanceof Error ? error.message : "Search failed"} />
           </div>
         )}
 
         {data && !isFetching && (
           <AnimatePresence>
             {data.hits.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-muted">
-                  <BookOpen size={20} className="text-muted-foreground" />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-foreground">No results for &ldquo;{data.query}&rdquo;</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Try a different query or ingest more notes.</p>
-                </div>
-              </div>
+              <EmptyState
+                icon={<BookOpen size={20} />}
+                title={`No results for "${data.query}"`}
+                body="Try broader wording, remove filters, or ingest more source material."
+              />
             ) : (
-              <>
-                <div className="px-5 py-2 bg-muted/30">
-                  <span className="text-[11px] text-muted-foreground">
-                    {data.hits.length} result{data.hits.length !== 1 ? "s" : ""} for{" "}
-                    <span className="text-foreground font-medium">&ldquo;{data.query}&rdquo;</span>
-                  </span>
-                </div>
-                {data.hits.map((hit, i) => <SearchResultRow key={hit.chunk_id} hit={hit} index={i} />)}
-              </>
+              <div className="divide-y divide-border/80">
+                {data.hits.map((hit, index) => (
+                  <SearchResultRow key={hit.chunk_id} hit={hit} index={index} />
+                ))}
+              </div>
             )}
           </AnimatePresence>
         )}
 
         {!query && !isFetching && !data && (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 dark:bg-amber-950/40 ring-1 ring-amber-100 dark:ring-amber-900/60">
-              <MagnifyingGlass size={20} weight="bold" className="text-amber-400" />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-foreground">Search your notes</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Hybrid vector + full-text across ingested documents.</p>
-            </div>
-          </div>
+          <EmptyState
+            icon={<MagnifyingGlass size={20} weight="bold" />}
+            title="Search your workspace"
+            body="Use source IDs or tags when you want a narrow review set."
+          />
         )}
-      </div>
-    </div>
+      </Panel>
+    </AppPage>
   );
 }
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-xs text-muted-foreground">Loading…</span></div>}>
+    <Suspense fallback={<div className="flex flex-1 items-center justify-center"><span className="text-xs text-muted-foreground">Loading...</span></div>}>
       <SearchPageContent />
     </Suspense>
   );

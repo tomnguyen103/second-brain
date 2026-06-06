@@ -54,7 +54,7 @@ export default function SourcesPage() {
                     type="button"
                     onClick={() => setSelectedSourceId(source.id)}
                     className={`block w-full px-4 py-3 text-left transition-colors ${
-                      active ? "bg-amber-50/70 dark:bg-amber-950/20" : "hover:bg-muted/50"
+                      active ? "bg-primary/10" : "hover:bg-muted/50"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">

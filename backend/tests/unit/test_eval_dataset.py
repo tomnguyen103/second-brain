@@ -27,7 +27,7 @@ def test_corpus_loads_with_titles():
 
 def test_dataset_loads_and_is_consistent():
     cases = load_dataset()
-    assert len(cases) >= 12
+    assert len(cases) >= 30
     ids = [c.id for c in cases]
     assert len(ids) == len(set(ids)), "case ids must be unique"
 

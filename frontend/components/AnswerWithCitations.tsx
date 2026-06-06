@@ -19,13 +19,14 @@ export function AnswerWithCitations({ answer, citations }: Props) {
     const r = e.currentTarget.getBoundingClientRect();
     const cr = ref.current?.getBoundingClientRect();
     if (!cr) return;
-    setPos({ top: r.bottom - cr.top + 6, left: Math.min(r.left - cr.left, cr.width - 308) });
+    const maxLeft = Math.max(0, cr.width - 320);
+    setPos({ top: r.bottom - cr.top + 8, left: Math.max(0, Math.min(r.left - cr.left, maxLeft)) });
     setActive((p) => p?.marker === citation.marker ? null : citation);
   };
 
   return (
     <div ref={ref} className="relative">
-      <p className="text-sm leading-[1.75] whitespace-pre-wrap text-foreground">
+      <p className="whitespace-pre-wrap text-sm leading-[1.75] text-foreground">
         {parts.map((part, i) => {
           const m = part.match(/^\[(\d+)\]$/);
           if (!m) return <span key={i}>{part}</span>;
@@ -35,7 +36,7 @@ export function AnswerWithCitations({ answer, citations }: Props) {
             <sup key={i}>
               <button
                 onClick={(e) => handleClick(e, c)}
-                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-[10px] font-mono font-semibold transition-colors focus:outline-none focus:ring-1 focus:ring-amber-400 ring-offset-1 ring-offset-card"
+                className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-md bg-primary/10 px-1 font-mono text-[10px] font-semibold text-primary ring-1 ring-primary/20 transition-colors hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/30"
                 aria-label={`Source ${m[1]}: ${c.document_title}`}
               >
                 {m[1]}
