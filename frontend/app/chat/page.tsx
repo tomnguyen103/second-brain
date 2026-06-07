@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo, Suspense } from "react";
+import { useState, useRef, useEffect, useMemo, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api, isChatStreamUnavailableError } from "@/lib/api/client";
@@ -32,6 +32,25 @@ function ChatPage() {
   const routeConversationIdRef = useRef(routeConversationId);
   const preserveMessagesForRouteIdRef = useRef<number | null>(null);
 
+  const resetChatState = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    preserveMessagesForRouteIdRef.current = null;
+    setIsSending(false);
+    setMessages([]);
+    setConversationId(null);
+  }, []);
+
+  const startNewChat = useCallback(() => {
+    resetChatState();
+    router.replace("/chat", { scroll: false });
+  }, [resetChatState, router]);
+
+  useEffect(() => {
+    window.addEventListener("second-brain-new-chat", startNewChat);
+    return () => window.removeEventListener("second-brain-new-chat", startNewChat);
+  }, [startNewChat]);
+
   useEffect(() => {
     if (routeConversationIdRef.current === routeConversationId) return;
     routeConversationIdRef.current = routeConversationId;
@@ -41,12 +60,10 @@ function ChatPage() {
     preserveMessagesForRouteIdRef.current = null;
 
     if (!shouldPreserveMessages) {
-      abortRef.current?.abort();
-      setIsSending(false);
-      setMessages([]);
+      resetChatState();
     }
     setConversationId(routeConversationId);
-  }, [routeConversationId]);
+  }, [routeConversationId, resetChatState]);
 
   const { data: history } = useQuery({
     queryKey: ["conversation", conversationId],

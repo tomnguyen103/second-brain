@@ -9,7 +9,9 @@ import type {
   ConversationDetailResponse,
   ConversationListResponse,
   DataExportResponse,
+  DeleteDocumentResponse,
   DeleteSourceResponse,
+  DocumentContentResponse,
   EvalCandidateExportResponse,
   FeedbackAnalyticsResponse,
   FeedbackRequest,
@@ -19,6 +21,7 @@ import type {
   HealthResponse,
   NegativeFeedbackListResponse,
   DocumentListResponse,
+  DocumentSummary,
   IngestRequest,
   IngestResponse,
   PromoteEvalCandidateRequest,
@@ -29,6 +32,7 @@ import type {
   ResearchJobRequest,
   SearchResponse,
   SourceListResponse,
+  SourceRecord,
   TaskItem,
   TaskListResponse,
   TaskStatus,
@@ -60,7 +64,9 @@ export class ChatStreamUnavailableError extends Error {
   }
 }
 
-export function isChatStreamUnavailableError(error: unknown): error is ChatStreamUnavailableError {
+export function isChatStreamUnavailableError(
+  error: unknown,
+): error is ChatStreamUnavailableError {
   return error instanceof ChatStreamUnavailableError;
 }
 
@@ -94,7 +100,10 @@ function isFormDataBody(body?: BodyInit | null): boolean {
   return typeof FormData !== "undefined" && body instanceof FormData;
 }
 
-function buildHeaders(initHeaders?: HeadersInit, body?: BodyInit | null): Headers {
+function buildHeaders(
+  initHeaders?: HeadersInit,
+  body?: BodyInit | null,
+): Headers {
   const headers = new Headers(initHeaders);
   if (!headers.has("Content-Type") && !isFormDataBody(body)) {
     headers.set("Content-Type", "application/json");
@@ -124,7 +133,10 @@ function parseSseBlock(block: string): { event: string; data: unknown } | null {
   }
 }
 
-async function streamChat(req: ChatRequest, handlers: ChatStreamHandlers): Promise<void> {
+async function streamChat(
+  req: ChatRequest,
+  handlers: ChatStreamHandlers,
+): Promise<void> {
   const res = await fetch(`${BASE}/chat/stream`, {
     method: "POST",
     headers: buildHeaders(),
@@ -148,7 +160,9 @@ async function streamChat(req: ChatRequest, handlers: ChatStreamHandlers): Promi
   }
 
   if (!res.body) {
-    throw new ChatStreamUnavailableError("This browser cannot read streaming responses");
+    throw new ChatStreamUnavailableError(
+      "This browser cannot read streaming responses",
+    );
   }
 
   const reader = res.body.getReader();
@@ -172,7 +186,11 @@ async function streamChat(req: ChatRequest, handlers: ChatStreamHandlers): Promi
         handlers.onComplete(parsed.data as ChatStreamComplete);
       } else if (parsed?.event === "error") {
         const data = parsed.data as { message?: unknown };
-        throw new Error(typeof data.message === "string" ? data.message : "Streaming chat failed");
+        throw new Error(
+          typeof data.message === "string"
+            ? data.message
+            : "Streaming chat failed",
+        );
       }
       separator = buffer.indexOf("\n\n");
     }
@@ -220,7 +238,12 @@ export const api = {
 
   chatStream: streamChat,
 
-  search(params: { q: string; top_k?: number; source_ids?: number[]; tags?: string[] }): Promise<SearchResponse> {
+  search(params: {
+    q: string;
+    top_k?: number;
+    source_ids?: number[];
+    tags?: string[];
+  }): Promise<SearchResponse> {
     const sp = new URLSearchParams({ q: params.q });
     if (params.top_k) sp.set("top_k", String(params.top_k));
     params.source_ids?.forEach((id) => sp.append("source_ids", String(id)));
@@ -244,7 +267,9 @@ export const api = {
     return apiFetch(`/feedback/analytics?days=${days}`);
   },
 
-  listNegativeFeedback(params: { limit?: number; offset?: number; days?: number } = {}): Promise<NegativeFeedbackListResponse> {
+  listNegativeFeedback(
+    params: { limit?: number; offset?: number; days?: number } = {},
+  ): Promise<NegativeFeedbackListResponse> {
     const sp = new URLSearchParams();
     if (params.limit) sp.set("limit", String(params.limit));
     if (params.offset) sp.set("offset", String(params.offset));
@@ -253,7 +278,9 @@ export const api = {
     return apiFetch(`/feedback/negative${suffix}`);
   },
 
-  getFeedbackEvalCandidates(params: { limit?: number; offset?: number; days?: number } = {}): Promise<EvalCandidateExportResponse> {
+  getFeedbackEvalCandidates(
+    params: { limit?: number; offset?: number; days?: number } = {},
+  ): Promise<EvalCandidateExportResponse> {
     const sp = new URLSearchParams();
     if (params.limit) sp.set("limit", String(params.limit));
     if (params.offset) sp.set("offset", String(params.offset));
@@ -282,7 +309,9 @@ export const api = {
     return apiFetch(`/briefing/history?limit=${limit}`);
   },
 
-  listTasks(params: { status?: TaskStatus; limit?: number } = {}): Promise<TaskListResponse> {
+  listTasks(
+    params: { status?: TaskStatus; limit?: number } = {},
+  ): Promise<TaskListResponse> {
     const sp = new URLSearchParams();
     if (params.status) sp.set("status", params.status);
     if (params.limit) sp.set("limit", String(params.limit));
@@ -290,16 +319,25 @@ export const api = {
     return apiFetch(`/tasks${suffix}`);
   },
 
-  createTask(req: { title: string; detail?: string | null }): Promise<TaskItem> {
+  createTask(req: {
+    title: string;
+    detail?: string | null;
+  }): Promise<TaskItem> {
     return apiFetch("/tasks", { method: "POST", body: JSON.stringify(req) });
   },
 
   updateTask(id: number, req: { status: TaskStatus }): Promise<TaskItem> {
-    return apiFetch(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(req) });
+    return apiFetch(`/tasks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(req),
+    });
   },
 
   enqueueResearchJob(req: ResearchJobRequest): Promise<ResearchJob> {
-    return apiFetch("/research/jobs", { method: "POST", body: JSON.stringify(req) });
+    return apiFetch("/research/jobs", {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
   },
 
   listResearchJobs(limit = 20): Promise<ResearchJobListResponse> {
@@ -314,25 +352,89 @@ export const api = {
     return apiFetch(`/sources?limit=${limit}`);
   },
 
-  listSourceDocuments(sourceId: number, limit = 100): Promise<DocumentListResponse> {
+  updateSource(
+    sourceId: number,
+    req: { name: string },
+    adminToken: string,
+  ): Promise<SourceRecord> {
+    return apiFetch(`/sources/${sourceId}`, {
+      method: "PATCH",
+      headers: { "X-Second-Brain-Admin-Token": adminToken },
+      body: JSON.stringify(req),
+    });
+  },
+
+  listSourceDocuments(
+    sourceId: number,
+    limit = 100,
+  ): Promise<DocumentListResponse> {
     return apiFetch(`/sources/${sourceId}/documents?limit=${limit}`);
   },
 
-  exportSource(sourceId: number, adminToken: string): Promise<DataExportResponse> {
+  getDocumentContent(documentId: number): Promise<DocumentContentResponse> {
+    return apiFetch(`/documents/${documentId}/content`);
+  },
+
+  updateDocument(
+    documentId: number,
+    req: { title: string },
+    adminToken: string,
+  ): Promise<DocumentSummary> {
+    return apiFetch(`/documents/${documentId}`, {
+      method: "PATCH",
+      headers: { "X-Second-Brain-Admin-Token": adminToken },
+      body: JSON.stringify(req),
+    });
+  },
+
+  updateDocumentContent(
+    documentId: number,
+    req: { content: string },
+    adminToken: string,
+  ): Promise<DocumentContentResponse> {
+    return apiFetch(`/documents/${documentId}/content`, {
+      method: "PATCH",
+      headers: { "X-Second-Brain-Admin-Token": adminToken },
+      body: JSON.stringify(req),
+    });
+  },
+
+  deleteDocument(
+    documentId: number,
+    adminToken: string,
+  ): Promise<DeleteDocumentResponse> {
+    return apiFetch(`/documents/${documentId}`, {
+      method: "DELETE",
+      headers: { "X-Second-Brain-Admin-Token": adminToken },
+    });
+  },
+
+  exportSource(
+    sourceId: number,
+    adminToken: string,
+  ): Promise<DataExportResponse> {
     return apiFetch(`/data/export?source_id=${sourceId}`, {
       headers: { "X-Second-Brain-Admin-Token": adminToken },
     });
   },
 
-  deleteSource(sourceId: number, adminToken: string): Promise<DeleteSourceResponse> {
+  deleteSource(
+    sourceId: number,
+    adminToken: string,
+  ): Promise<DeleteSourceResponse> {
     return apiFetch(`/data/sources/${sourceId}`, {
       method: "DELETE",
       headers: { "X-Second-Brain-Admin-Token": adminToken },
     });
   },
 
-  purgeRetention(params: { older_than_days?: number; adminToken: string }): Promise<PurgeRetentionResponse> {
-    const suffix = params.older_than_days ? `?older_than_days=${params.older_than_days}` : "";
+  purgeRetention(params: {
+    older_than_days?: number;
+    adminToken: string;
+  }): Promise<PurgeRetentionResponse> {
+    const suffix = params.older_than_days
+      ? `?older_than_days=${params.older_than_days}`
+      : "";
     return apiFetch(`/admin/retention/purge${suffix}`, {
       method: "POST",
       headers: { "X-Second-Brain-Admin-Token": params.adminToken },

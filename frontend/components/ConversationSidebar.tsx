@@ -1,8 +1,9 @@
 "use client";
 
+import type { MouseEvent, ReactNode } from "react";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { AnimatePresence, motion } from "framer-motion";
@@ -12,7 +13,6 @@ import {
   ChatCircle,
   Check,
   Database,
-  FilePlus,
   Flask,
   Gauge,
   Key,
@@ -31,7 +31,14 @@ import { api, getStoredApiToken, setStoredApiToken } from "@/lib/api/client";
 import { queryClient } from "@/lib/query-client";
 import { cn } from "@/lib/utils";
 
-const navSections = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: ReactNode;
+  activePrefixes?: string[];
+};
+
+const navSections: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "Workspace",
     items: [
@@ -43,8 +50,12 @@ const navSections = [
   {
     label: "Operations",
     items: [
-      { href: "/ingest", label: "Ingest", icon: <FilePlus size={15} weight="bold" /> },
-      { href: "/sources", label: "Sources", icon: <Database size={15} weight="bold" /> },
+      {
+        href: "/sources",
+        label: "Sources",
+        icon: <Database size={15} weight="bold" />,
+        activePrefixes: ["/sources", "/ingest"],
+      },
       { href: "/status", label: "Status", icon: <Gauge size={15} weight="bold" /> },
       { href: "/feedback", label: "Feedback", icon: <ChartBar size={15} weight="bold" /> },
       { href: "/admin", label: "Admin", icon: <ShieldCheck size={15} weight="bold" /> },
@@ -62,6 +73,7 @@ const navSections = [
 
 function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [apiTokenInput, setApiTokenInput] = useState("");
@@ -96,6 +108,14 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
     queryClient.invalidateQueries();
   };
   const navigate = () => {
+    onNavigate?.();
+  };
+  const startNewChat = (event?: MouseEvent<HTMLElement>) => {
+    event?.preventDefault();
+    window.dispatchEvent(new Event("second-brain-new-chat"));
+    if (pathname !== "/chat") {
+      router.push("/chat");
+    }
     onNavigate?.();
   };
 
@@ -141,14 +161,14 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
             )}
           </div>
         </div>
-        <Link
+        <a
           href="/chat"
-          onClick={navigate}
+          onClick={startNewChat}
           className="mt-3 flex h-9 items-center justify-center gap-1.5 rounded-lg bg-foreground text-sm font-semibold text-background transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
         >
           <Plus size={14} weight="bold" />
           New chat
-        </Link>
+        </a>
       </div>
 
       <nav className="flex flex-col gap-3 px-3 py-3" aria-label="Primary navigation">
@@ -161,7 +181,9 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
               {section.items.map((item) => {
                 const active = item.href === "/chat"
                   ? pathname === "/chat"
-                  : pathname.startsWith(item.href);
+                  : (item.activePrefixes ?? [item.href]).some((prefix) =>
+                      pathname.startsWith(prefix),
+                    );
                 return (
                   <Link
                     key={item.href}
@@ -342,6 +364,16 @@ function ConversationHistoryContent() {
 }
 
 function MobileTopBar({ onOpen }: { onOpen: () => void }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const startNewChat = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    window.dispatchEvent(new Event("second-brain-new-chat"));
+    if (pathname !== "/chat") {
+      router.push("/chat");
+    }
+  };
+
   return (
     <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border/80 bg-background/95 px-3 backdrop-blur md:hidden">
       <button
@@ -358,6 +390,7 @@ function MobileTopBar({ onOpen }: { onOpen: () => void }) {
       </Link>
       <Link
         href="/chat"
+        onClick={startNewChat}
         className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-background transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
         aria-label="New chat"
       >

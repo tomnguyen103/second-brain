@@ -23,6 +23,74 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-07 - CodeRabbit review follow-up for admin/source management
+- **What:** addressed PR #26 CodeRabbit findings before merge. Document summaries now use SQL
+  aggregate chunk counts instead of hydrating full chunk bodies, document content updates abort
+  before mutation when embeddings return a mismatched vector count, document deletion bumps the
+  search-cache epoch, admin integration tests use scoped settings overrides, and admin-only auth
+  tests now verify the valid-API-token/missing-admin-token path.
+- **Frontend:** made desktop and mobile New chat controls dispatch the same reset event, prevented
+  duplicate desktop anchor navigation, and removed the redundant manual History API call from
+  `/chat`.
+- **Verified:** focused backend review tests passed (`53 passed`), backend unit suite passed
+  (`155 passed`), frontend `npm run lint` passed, frontend `npm run build` passed with the existing
+  multiple-lockfile warning, and `git diff --check` passed. A full local backend run hit existing
+  shared-test-database residue (`audit_log`/negative feedback rows); PR CI remains the clean
+  database merge gate.
+
+### 2026-06-06 - Admin governance console
+- **What:** upgraded `/admin` from three standalone forms into a governance/data-safety console
+  that explains the two-token operating model, shows API/admin/database/corpus guardrail tiles,
+  pulls source summaries into a source picker, previews the selected source before export/delete,
+  validates retention purge input, and keeps destructive actions disabled until the admin token and
+  typed source-id confirmation are present.
+- **Frontend:** reused the existing `/status`, `/sources`, `/data/export`, `DELETE /data/sources/{id}`,
+  and `/admin/retention/purge` contracts; no backend endpoint, migration, or auth-contract change
+  was added for this pass.
+- **Verified:** frontend `npm run lint` passed; frontend `npm run build` passed with the existing
+  Next.js multiple-lockfile workspace-root warning. Production preview on
+  `http://localhost:3017/admin` returned `200` and rendered the expected Admin console text. The
+  browser session hook still failed with the known `command not found: npx` helper issue.
+- **Follow-up fix:** changed the Admin source picker from `listSources(500)` to the backend's
+  validated `listSources(200)` cap, fixing the visible `422` error on `/admin`.
+- **Docs follow-up:** clarified in `README.md` that `SECOND_BRAIN_API_TOKEN` is the value to paste
+  into the web UI's lower-left API access field, while `SECOND_BRAIN_ADMIN_TOKEN` remains a separate
+  unsaved token for guarded destructive/governance actions.
+- **Test follow-up:** made the shared backend `test_settings` fixture ignore local `.env` files, so
+  auth expectations do not change when a developer has real API/admin tokens configured locally.
+
+### 2026-06-06 - Sources navigation cleanup
+- **What:** cleaned the Operations submenu by removing the standalone Ingest item and making
+  Sources the active navigation home for both `/sources` and the existing `/ingest` add-source
+  workflow.
+- **Frontend:** added an `Add New Sources` action to the `/sources` header that opens the
+  existing source-ingest workflow, and renamed that workflow's visible page copy from ingest
+  language to add-source language while preserving the same API behavior.
+- **Verified:** frontend `npm run lint` passed; frontend `npm run build` passed with the existing
+  Next.js multiple-lockfile workspace-root warning. Production HTTP smoke on
+  `http://localhost:3017/sources` confirmed `Add New Sources` renders and the sidebar no longer
+  contains an Ingest submenu link/label; `/ingest` renders the Add New Sources title/copy.
+
+### 2026-06-06 - Sources page file management
+- **What:** upgraded `/sources` from a read-only overview into a source/file management workspace.
+  Source folders can be renamed or deleted, files can be clicked for file content, renamed,
+  edited, or deleted, and the page now has a cleaner metrics strip, folder list, file list,
+  inline confirmations, and file-content panel.
+- **Backend:** added admin-guarded `PATCH /sources/{source_id}`, `PATCH /documents/{document_id}`,
+  `PATCH /documents/{document_id}/content`, and `DELETE /documents/{document_id}` plus read-only
+  `GET /documents/{document_id}/content`. Document content returns retained raw text when present
+  and falls back to indexed chunks after retention purges raw text. Content saves rebuild chunks
+  and embeddings, update the document hash, invalidate search cache, and audit the source/document
+  changes.
+- **Frontend:** added typed API client methods, inline admin-token entry for rename/delete actions,
+  per-folder and per-file icon actions, document content loading/error/empty states, edit/save/cancel
+  controls, and guarded delete confirmation by typed id.
+- **Verified:** focused backend/API auth tests passed (`45 passed, 1 warning`); frontend
+  `npm run lint` passed; frontend `npm run build` passed with the existing Next.js multiple-lockfile
+  workspace-root warning. Browser QA against a production smoke server on `http://localhost:3016/sources`
+  and updated API on `http://localhost:8011` confirmed real source data, rename/delete controls,
+  and successful file content loading with no 404, failed fetch, or runtime error.
+
 ### 2026-06-06 - Web UI modernization
 - **What:** modernized the Second Brain web UI into a quieter local-first command center without
   changing backend API contracts, auth headers, routes, streaming behavior, citation behavior, or
@@ -47,6 +115,9 @@ Add a dated entry per working session. Most recent on top.
 - **Screenshots:** refreshed `docs/screenshots/ui-home.png`, `ui-chat.png`, `ui-chat-answer.png`,
   and `ui-status.png` from the production Next server. The committed screenshots use a width below
   the right-rail breakpoint so local conversation history is not exposed.
+- **Follow-up chat reset fix:** changed the sidebar `+ New chat` control to force a fresh `/chat`
+  navigation and clear chat page state, so it resets correctly from both `/chat?cid=...` and an
+  already-open `/chat` page.
 - **Verified:** frontend `npm run lint` passed; frontend `npm run build` passed with the existing
   Next.js multiple-lockfile workspace-root warning. Full backend suite passed on an isolated test
   database (`282 passed, 8 warnings`) with fake LLM and Agentic RAG explicitly disabled. Eval gate
