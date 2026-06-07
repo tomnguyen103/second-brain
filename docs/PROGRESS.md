@@ -23,6 +23,13 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-07 - README Gemini API switch guidance
+- **What:** added README guidance explaining that LLM provider switching happens in the backend,
+  not the frontend, and documented the `backend/.env` variables for moving from the keyless
+  `fake` provider to Gemini API.
+- **Docs:** clarified that Gemini API keys stay out of frontend/browser configuration, listed the
+  backend restart command, and noted the optional frontend Agentic RAG toggle.
+
 ### 2026-06-07 - Public-safe demo corpus seed
 - **What:** added `python -m app.demo.seed_public` to seed a small public-safe corpus for hosted
   portfolio demos. The corpus covers regular RAG, Agentic RAG, local-first runtime, source
