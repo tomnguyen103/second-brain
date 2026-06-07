@@ -9,6 +9,22 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Public demo uses seeded corpus before anonymous uploads (2026-06-07)
+
+- **What:** added `python -m app.demo.seed_public` as a separate seed path for a small public-safe
+  corpus covering regular RAG, Agentic RAG, local-first runtime, source governance, MCP tools,
+  feedback/evals, and citation safety.
+- **Why:** the hosted demo should let visitors query and compare RAG modes without writing private
+  uploads into a public database. This keeps the demo useful while staying aligned with the
+  local-first, cost-minimal posture.
+- **Trade-off / what I gave up:** public anonymous upload is not part of demo v1. It should wait
+  until there are file-size limits, per-session isolation, rate limits, and automatic deletion of
+  uploaded demo data.
+- **Affects:** `backend/app/demo/seed_public.py`, `backend/tests/integration/test_public_demo_seed.py`,
+  `README.md`, `docs/USAGE.md`.
+
+---
+
 ## PR review follow-up: IME-safe chat submit and design-source alignment (2026-06-07)
 
 - **What:** after CodeRabbit reviewed PR #27, ChatComposer now ignores `Enter` while the browser is
