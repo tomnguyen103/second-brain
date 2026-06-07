@@ -38,9 +38,14 @@ Sample input for both runs:
 > idle cloud uptime. A 2 GB DigitalOcean + Caddy deployment was previously verified and remains as
 > an optional recipe, but it is no longer the recommended default.
 
-## Fast Local Demo
+## Demo Modes
 
-Use the deterministic fake LLM for a keyless portfolio/demo loop:
+Second Brain has two demo paths: a local testing loop for contributors and a public-safe demo
+corpus for portfolio deployments.
+
+### Local Testing
+
+Use the deterministic fake LLM for a keyless local loop:
 
 ```powershell
 # 1. Start the local database.
@@ -71,6 +76,26 @@ Then open:
 - `http://localhost:3000/sources` - manage source folders, files, retained text, and add-source routing.
 - `http://localhost:3000/feedback` - review the seeded negative feedback candidate.
 - `http://localhost:3000/status` - confirm DB migration, source counts, worker queue, token state, and model mode.
+
+### Public Demo Corpus
+
+For a hosted portfolio demo, use a separate demo database and seed a small public-safe corpus
+instead of allowing anonymous uploads first:
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+alembic upgrade head
+python -m app.demo.seed_public
+```
+
+The public seed inserts a compact source named `Second Brain Public Demo Corpus` with notes about
+regular RAG, Agentic RAG, local-first runtime, source governance, MCP tools, feedback/evals, and
+citation safety. It prints suggested prompts visitors can run against the seeded source, including
+the regular-vs-agentic comparison shown above.
+
+For a public demo, keep uploads disabled in v1. If uploads are added later, use a separate demo
+database, small file limits, per-session isolation, and automatic deletion of uploaded demo data.
 
 ### Token Setup Note
 
@@ -166,7 +191,7 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 | API | `/docs` or `/api/*` in production | Capture, text/file ingest, chat, search, briefing, conversations, feedback analytics, tasks, research jobs, sources/documents, and admin data-ops. Personal-data calls require the API bearer token in production. |
 | MCP | `python -m app.mcp_server` | Tool interface for MCP clients such as Claude Desktop. |
 | Worker | `python -m app.jobs.worker --loop` | Runs in production; drains briefing and research jobs. |
-| Demo tools | `python -m app.demo.seed`, `python -m app.eval.export_cases` | Seed the portfolio loop, then export promoted `eval_cases` rows into a reviewable YAML fragment. |
+| Demo tools | `python -m app.demo.seed`, `python -m app.demo.seed_public`, `python -m app.eval.export_cases` | Seed the capture -> feedback portfolio loop, seed a public-safe demo corpus, then export promoted `eval_cases` rows into a reviewable YAML fragment. |
 | Runbooks | [docs/runbooks/](docs/runbooks/) | Deploy, firewall, backup/restore, restore drills, secret rotation, rollback, and incident response procedures. |
 
 ## Portfolio Demo Loop
@@ -174,12 +199,13 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 The shortest demo story is:
 
 1. `docker compose up -d db`
-2. `python -m app.demo.seed`
-3. Open `/chat` and ask a cited question over the seeded source.
-4. Open `/feedback` and review the seeded negative feedback candidate.
+2. `python -m app.demo.seed_public`
+3. Open `/chat` and compare regular RAG vs Agentic RAG over the public-safe corpus.
+4. Optional local quality loop: run `python -m app.demo.seed`, open `/feedback`, and review the seeded negative feedback candidate.
 5. Export staged eval rows with `python -m app.eval.export_cases --output eval/promoted-cases.yaml`.
 
-That gives you one visible loop: capture -> cited chat/search -> feedback review -> eval export/gate.
+That gives you two visible loops: public-safe cited chat/search for viewers, plus capture ->
+feedback review -> eval export/gate for local development.
 
 ## Tech Stack
 

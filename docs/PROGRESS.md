@@ -23,6 +23,19 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-07 - Public-safe demo corpus seed
+- **What:** added `python -m app.demo.seed_public` to seed a small public-safe corpus for hosted
+  portfolio demos. The corpus covers regular RAG, Agentic RAG, local-first runtime, source
+  governance, MCP tools, feedback/evals, and citation safety so viewers can query the app without
+  uploading private files.
+- **Docs:** split README demo guidance into local testing vs public demo corpus paths, updated the
+  portfolio demo loop, and added the public seed command to `docs/USAGE.md`.
+- **Safety posture:** public demo v1 should use a separate demo database and seeded sources;
+  anonymous uploads stay out of scope until file limits, per-session isolation, and automatic
+  deletion are implemented.
+- **Verified:** wrote integration coverage first, confirmed it failed for the missing module, then
+  implemented the seed command. Focused public demo seed tests passed (`2 passed`).
+
 ### 2026-06-07 - README RAG comparison screenshots
 - **What:** added a side-by-side README comparison for regular RAG and Agentic RAG using the
   same sample input: "Compare regular RAG and Agentic RAG in Second Brain. When should I use

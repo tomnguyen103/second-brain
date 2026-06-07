@@ -39,9 +39,22 @@ for optional local/demo monitoring.
 
 ---
 
-## Seed the portfolio demo
+## Seed Demo Data
 
-From `backend/`, seed the compact case-study loop:
+Second Brain has two seed commands.
+
+For a public-safe demo corpus that viewers can query with regular RAG or Agentic RAG, run from
+`backend/`:
+
+```bash
+python -m app.demo.seed_public
+```
+
+This inserts a small source named `Second Brain Public Demo Corpus` with notes about regular RAG,
+Agentic RAG, local-first runtime, source governance, MCP tools, feedback/evals, and citation
+safety. It does not enable public uploads or store uploaded binaries.
+
+For the compact capture -> chat -> feedback case-study loop, run:
 
 ```bash
 python -m app.demo.seed
