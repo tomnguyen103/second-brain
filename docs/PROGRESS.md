@@ -23,6 +23,18 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-07 - README current-state and screenshot refresh
+- **What:** refreshed `README.md` so the public overview matches the June 7 state: WattVision
+  DesignMD adoption, warm light inspection mode, Sources as the user-facing management home,
+  admin governance, local preview CORS hardening, IME-safe chat submission, file upload ingest,
+  and the current local-first runtime posture.
+- **Screenshot:** regenerated `docs/screenshots/ui-chat-answer.png` from the live local app using
+  the deterministic fake-provider demo conversation, replacing the outdated pre-WattVision light
+  shell screenshot with the current dark monitoring-dashboard shell.
+- **Verified:** local Postgres started, migrations were current, `python -m app.demo.seed` created
+  a demo conversation, backend `/health` returned OK, frontend `/chat` returned `200`, the new PNG
+  is `1180x900`, and the screenshot was visually checked.
+
 ### 2026-06-07 - PR #27 review follow-up and publish gate
 - **What:** opened PR #27 for the WattVision DesignMD/CORS/theme work, moved it out of draft after
   local self-checks, and requested one explicit CodeRabbit review. Addressed the actionable review
