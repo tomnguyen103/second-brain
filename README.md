@@ -77,6 +77,48 @@ Then open:
 - `http://localhost:3000/feedback` - review the seeded negative feedback candidate.
 - `http://localhost:3000/status` - confirm DB migration, source counts, worker queue, token state, and model mode.
 
+### Switch to Gemini API
+
+The web UI does not switch LLM providers directly. It calls the backend at
+`http://localhost:8000`; the backend chooses the provider from `SECOND_BRAIN_*`
+environment variables. Keep Gemini keys in the backend environment only, never in
+frontend `.env.local` or browser code.
+
+For a persistent local Gemini setup, create or update `backend/.env`:
+
+```dotenv
+SECOND_BRAIN_DATABASE_URL=postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain
+SECOND_BRAIN_LLM_PROVIDER=gemini
+SECOND_BRAIN_GEMINI_API_KEY=replace-with-your-api-key
+# Optional: defaults to gemini-2.5-flash if omitted.
+SECOND_BRAIN_GEMINI_MODEL=gemini-2.5-flash
+# Optional: enables backend Agentic RAG requests.
+SECOND_BRAIN_AGENTIC_RAG_ENABLED=true
+```
+
+Then restart only the backend:
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+The frontend can stay pointed at the same API:
+
+```powershell
+cd frontend
+$env:NEXT_PUBLIC_API_BASE_URL = "http://localhost:8000"
+$env:NEXT_PUBLIC_AGENTIC_RAG_ENABLED = "true"  # Optional: shows the Agentic RAG toggle.
+npm run dev
+```
+
+After the backend restarts, `http://localhost:3000/status` should report `gemini`
+and new chat responses should show `gemini-2.5-flash` instead of `fake`. To go
+back to keyless local testing, set `SECOND_BRAIN_LLM_PROVIDER=fake` and restart
+the backend.
+
 ### Public Demo Corpus
 
 For a hosted portfolio demo, use a separate demo database and seed a small public-safe corpus
@@ -333,7 +375,10 @@ python -m venv .venv
 pip install -r requirements.txt
 alembic upgrade head
 
-# Use a real Gemini key, or run keyless with the deterministic fake driver.
+# Use Gemini API from the backend:
+#   SECOND_BRAIN_LLM_PROVIDER=gemini
+#   SECOND_BRAIN_GEMINI_API_KEY=<your key>
+# Or run keyless with the deterministic fake driver:
 #   Windows PowerShell: $env:SECOND_BRAIN_LLM_PROVIDER = "fake"
 #   macOS/Linux:        export SECOND_BRAIN_LLM_PROVIDER=fake
 uvicorn app.main:app --reload
