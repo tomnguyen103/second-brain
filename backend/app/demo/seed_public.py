@@ -13,6 +13,7 @@ from typing import Sequence
 from sqlalchemy.orm import Session
 
 from app.cache.redis_client import get_redis_client
+from app.cache.search import bump_search_cache_epoch
 from app.config import Settings, settings
 from app.ingest.service import DocumentInput, SourceSpec, ingest_documents
 
@@ -135,6 +136,8 @@ PUBLIC_DEMO_DOCUMENTS = (
 
 @dataclass
 class PublicDemoSeedResult:
+    """Summary printed by the public demo seed CLI."""
+
     source_id: int
     document_ids: list[int]
     embedded_count: int
@@ -149,6 +152,8 @@ def seed_public_demo_corpus(
     *,
     redis_client=None,
 ) -> PublicDemoSeedResult:
+    """Seed all public demo documents as one atomic batch."""
+
     result = ingest_documents(
         db,
         embedder,
@@ -165,23 +170,33 @@ def seed_public_demo_corpus(
         documents=list(PUBLIC_DEMO_DOCUMENTS),
         settings=cfg,
         redis_client=redis_client,
+        commit=False,
     )
     failed = [doc for doc in result.documents if doc.status == "failed"]
     if failed:
+        db.rollback()
         titles = ", ".join(doc.title for doc in failed)
         raise RuntimeError(f"public demo seed failed for: {titles}")
+
+    embedded_count = sum(1 for doc in result.documents if doc.status == "embedded")
+    duplicate_count = sum(1 for doc in result.documents if doc.status == "duplicate")
+    db.commit()
+    if embedded_count:
+        bump_search_cache_epoch(redis_client, cfg)
 
     document_ids = [doc.document_id for doc in result.documents if doc.document_id is not None]
     return PublicDemoSeedResult(
         source_id=result.source_id,
         document_ids=document_ids,
-        embedded_count=sum(1 for doc in result.documents if doc.status == "embedded"),
-        duplicate_count=sum(1 for doc in result.documents if doc.status == "duplicate"),
+        embedded_count=embedded_count,
+        duplicate_count=duplicate_count,
         suggested_prompts=PUBLIC_DEMO_SUGGESTED_PROMPTS,
     )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point for seeding the public demo corpus."""
+
     parser = argparse.ArgumentParser(
         prog="python -m app.demo.seed_public",
         description="Seed a small public-safe corpus for local or hosted demos.",

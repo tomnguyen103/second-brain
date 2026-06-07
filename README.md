@@ -198,11 +198,13 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 
 The shortest demo story is:
 
-1. `docker compose up -d db`
-2. `python -m app.demo.seed_public`
+Run the Python demo commands from `backend/` after migrations are current.
+
+1. From the repo root: `docker compose up -d db`
+2. From `backend/`: `python -m app.demo.seed_public`
 3. Open `/chat` and compare regular RAG vs Agentic RAG over the public-safe corpus.
-4. Optional local quality loop: run `python -m app.demo.seed`, open `/feedback`, and review the seeded negative feedback candidate.
-5. Export staged eval rows with `python -m app.eval.export_cases --output eval/promoted-cases.yaml`.
+4. Optional local quality loop from `backend/`: run `python -m app.demo.seed`, open `/feedback`, and review the seeded negative feedback candidate.
+5. From `backend/`: `python -m app.eval.export_cases --output eval/promoted-cases.yaml`.
 
 That gives you two visible loops: public-safe cited chat/search for viewers, plus capture ->
 feedback review -> eval export/gate for local development.

@@ -33,8 +33,12 @@ Add a dated entry per working session. Most recent on top.
 - **Safety posture:** public demo v1 should use a separate demo database and seeded sources;
   anonymous uploads stay out of scope until file limits, per-session isolation, and automatic
   deletion are implemented.
+- **Review follow-up:** made the public seed atomic by owning the ingest transaction, rolling back
+  the whole batch on any failed document, and bumping the search cache epoch only after a successful
+  commit with newly embedded documents.
 - **Verified:** wrote integration coverage first, confirmed it failed for the missing module, then
-  implemented the seed command. Focused public demo seed tests passed (`2 passed`).
+  implemented the seed command. Follow-up atomic rollback/cache coverage passed with the focused
+  seed tests (`5 passed`).
 
 ### 2026-06-07 - README RAG comparison screenshots
 - **What:** added a side-by-side README comparison for regular RAG and Agentic RAG using the
