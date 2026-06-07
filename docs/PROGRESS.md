@@ -23,6 +23,20 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-07 - README RAG comparison screenshots
+- **What:** added a side-by-side README comparison for regular RAG and Agentic RAG using the
+  same sample input: "Compare regular RAG and Agentic RAG in Second Brain. When should I use
+  each?"
+- **Sample run:** ingested a controlled local source named `README RAG Comparison Demo`, scoped
+  the web UI to `source 2919`, and ran the prompt once with regular RAG and once with Agentic RAG.
+  The final README screenshots are live UI captures of conversation `#1654` and conversation
+  `#1655`.
+- **Verified:** `/status` reported `gemini` / `gemini-2.5-flash` with Agentic RAG enabled; the
+  regular run returned a cited Gemini answer with 3 sources and no agentic trace, while the
+  agentic run returned a cited Gemini answer with 3 sources and the live `agentic: 4 searches / 3
+  chunks` trace. Both PNGs were visually checked for the current WattVision shell and no `(fake)`
+  label.
+
 ### 2026-06-07 - README current-state and screenshot refresh
 - **What:** refreshed `README.md` so the public overview matches the June 7 state: WattVision
   DesignMD adoption, warm light inspection mode, Sources as the user-facing management home,
