@@ -70,6 +70,31 @@ integrated.
   the DESIGNmd MCP to download the kit again and commit the updated `.design/DESIGN.md` with the
   code changes. Do not silently mix in a second visual system.
 
+## Repo workflows and commands
+
+- **Baseline first:** start by checking `git status --short --branch` and reading the current
+  `docs/PROGRESS.md` entry. Do not assume wrapper tools are installed; raw PowerShell, `git`, `rg`,
+  `docker compose`, `pytest`, and `npm` are the reliable defaults here.
+- **Local backend loop:** from the repo root run `docker compose up -d db`; from `backend/` activate
+  `.\.venv\Scripts\Activate.ps1`, set
+  `SECOND_BRAIN_TEST_DATABASE_URL=postgresql+psycopg://second_brain:second_brain@localhost:5433/second_brain`
+  and usually `SECOND_BRAIN_LLM_PROVIDER=fake`, then run `alembic upgrade head` and the focused
+  `pytest ...` command for the touched area. Use `uvicorn app.main:app --reload` for the local API
+  at `http://localhost:8000`.
+- **Frontend loop:** from `frontend/`, run `npm run lint` and `npm run build` for UI changes.
+  `npm run build` may print the known multiple-lockfile workspace-root warning; do not treat that
+  warning alone as a failure.
+- **Quality gates:** before publishing or requesting review, run the smallest relevant backend
+  tests plus frontend lint/build when UI changed, then `git diff --check`. Broader changes may also
+  need `python -m app.eval.gate`, `npm audit --audit-level=high`, `docker compose config`, and
+  `kubectl kustomize deploy/k8s` depending on the touched surface.
+- **Demo/runtime helpers:** the keyless portfolio loop uses `python -m app.demo.seed` from
+  `backend/`; background jobs use `python -m app.jobs.worker --once` for a local drain or
+  `python -m app.jobs.worker --loop` for a resident worker.
+- **PR review discipline:** open GitHub PRs as drafts, batch commits, self-review with the checks
+  above, and only after the branch is complete and green mark the PR ready and request exactly one
+  `@coderabbitai review`. Never request CodeRabbit on incomplete work.
+
 ## My environment
 
 - I have a Gemini Ultra subscription — I use NotebookLM (research by hand) and the Gemini
