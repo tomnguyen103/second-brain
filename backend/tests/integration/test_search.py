@@ -1,4 +1,5 @@
 """Integration tests for GET /search, GET /conversations, POST /feedback."""
+from datetime import datetime, timezone
 import os
 import pytest
 from sqlalchemy import select
@@ -6,7 +7,7 @@ from sqlalchemy import select
 from app import deps
 from app.api import conversations
 from app.config import Settings
-from app.db.models import AuditLog, EvalCaseRecord
+from app.db.models import AuditLog, Conversation, EvalCaseRecord, Message
 from app.main import app
 
 pytestmark = pytest.mark.skipif(
@@ -63,6 +64,38 @@ def test_conversations_detail(client):
     assert body["id"] == conv_id
     assert len(body["messages"]) >= 1
     assert body["messages"][0]["role"] == "user"
+
+
+def test_conversations_detail_orders_tied_timestamps_by_message_id(client, db_session):
+    ts = datetime(2026, 6, 7, 17, 57, tzinfo=timezone.utc)
+    conv = Conversation(title="timestamp tie", created_at=ts, updated_at=ts)
+    db_session.add(conv)
+    db_session.flush()
+
+    user = Message(
+        conversation_id=conv.id,
+        role="user",
+        content="question",
+        created_at=ts,
+    )
+    assistant = Message(
+        conversation_id=conv.id,
+        role="assistant",
+        content="answer",
+        model="fake",
+        latency_ms=1,
+        created_at=ts,
+    )
+    db_session.add_all([user, assistant])
+    db_session.flush()
+    assert user.id < assistant.id
+
+    # Relationship load order is not a chronology contract when timestamps tie.
+    conv.messages = [assistant, user]
+
+    r = client.get(f"/conversations/{conv.id}")
+    assert r.status_code == 200, r.text
+    assert [m["role"] for m in r.json()["messages"]] == ["user", "assistant"]
 
 
 def test_conversations_not_found(client):
