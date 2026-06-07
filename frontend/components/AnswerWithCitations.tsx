@@ -36,7 +36,7 @@ export function AnswerWithCitations({ answer, citations }: Props) {
             <sup key={i}>
               <button
                 onClick={(e) => handleClick(e, c)}
-                className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-md bg-primary/10 px-1 font-mono text-[10px] font-semibold text-primary ring-1 ring-primary/20 transition-colors hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-md bg-primary/10 px-1 font-mono text-[10px] font-semibold text-primary ring-1 ring-primary/25 transition-colors hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/30"
                 aria-label={`Source ${m[1]}: ${c.document_title}`}
               >
                 {m[1]}

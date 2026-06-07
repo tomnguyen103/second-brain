@@ -42,7 +42,7 @@ export function SourceFilter({ sourceIds, tags, onChangeSourceIds, onChangeTags 
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: "spring", stiffness: 400, damping: 22 }}
-              className="inline-flex h-7 items-center gap-1 rounded-lg bg-primary/10 px-2 text-[11px] font-semibold text-primary ring-1 ring-primary/20"
+              className="inline-flex h-7 items-center gap-1 rounded-lg bg-primary/10 px-2 text-[11px] font-semibold text-primary ring-1 ring-primary/25"
             >
               <IdentificationCard size={11} />
               source {id}
@@ -92,7 +92,7 @@ export function SourceFilter({ sourceIds, tags, onChangeSourceIds, onChangeTags 
           }}
           placeholder="+ source"
           inputMode="numeric"
-          className="h-7 w-24 rounded-lg border border-input bg-background px-2.5 text-[11px] text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-3 focus:ring-primary/15"
+          className="h-7 w-24 rounded-lg border border-input bg-background px-2.5 text-[11px] text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:bg-surface-hover/60 focus:border-primary focus:ring-3 focus:ring-primary/25"
         />
         <label htmlFor={tagInputId} className="sr-only">Add tag filter</label>
         <input
@@ -106,7 +106,7 @@ export function SourceFilter({ sourceIds, tags, onChangeSourceIds, onChangeTags 
             }
           }}
           placeholder="+ tag"
-          className="h-7 w-24 rounded-lg border border-input bg-background px-2.5 text-[11px] text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-3 focus:ring-primary/15"
+          className="h-7 w-24 rounded-lg border border-input bg-background px-2.5 text-[11px] text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:bg-surface-hover/60 focus:border-primary focus:ring-3 focus:ring-primary/25"
         />
       </div>
     </div>

@@ -47,7 +47,7 @@ function StatusTile({
   tone?: Tone;
 }) {
   return (
-    <div className="rounded-lg border border-border/80 bg-background/70 p-3">
+    <div className="rounded-lg border border-border bg-background p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-muted-foreground">
           <span className="shrink-0">{icon}</span>

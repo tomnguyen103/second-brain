@@ -100,7 +100,7 @@ export default function TasksPage() {
                       variant="quiet"
                       size="sm"
                       className={`${
-                        active ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                       }`}
                     >
                       {item.label}
@@ -154,7 +154,7 @@ export default function TasksPage() {
                       disabled={task.status === "done" || updateTask.isPending}
                       variant="quiet"
                       size="icon"
-                      className="hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
+                      className="hover:bg-live/10 hover:text-live"
                       aria-label="Mark done"
                     >
                       <Check size={15} weight="bold" />

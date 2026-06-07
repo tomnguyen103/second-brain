@@ -21,6 +21,12 @@ integrated.
 - **Datastore:** self-hosted Postgres doing relational + pgvector + full-text (tsvector) +
   JSONB + materialized-view analytics + RLS/audit. Redis for caching/rate-limit only.
 - **Backend:** Python + FastAPI. **Frontend:** Next.js + TypeScript. **Agent tools:** MCP server.
+- **Frontend design system:** the repo-local source of truth is the downloaded DESIGNmd kit at
+  `.design/DESIGN.md` ("WattVision"). UI work should preserve its dark monitoring-dashboard
+  language: `#121212` app background, `#1E1E1E` card surfaces, `#2C2C2E` grid/borders, cyan
+  `#00E5FF` primary data/action accent, red `#FF453A` alerts, lime `#32D74B` live/success state,
+  16px cards, 8px spacing rhythm, Inter/Geist-style sans text, and Geist Mono/JetBrains-style
+  tabular numbers. Avoid pastel/white dashboard themes unless I explicitly approve a new kit.
 - **MLOps:** MLflow for eval + prompt/model versioning. **CI/CD:** GitHub Actions, eval-gated.
 - **Observability:** Prometheus-compatible metrics plus retained Prometheus/Grafana configs; run
   dashboards locally or during optional demos instead of paying for always-on monitoring.
@@ -59,6 +65,10 @@ integrated.
 - **Keep records current:** update `docs/PROGRESS.md` at the end of each session (status +
   dated log), and append to `docs/implementation-notes.md` whenever you make a decision,
   change, or trade-off that wasn't in the spec (what / why / what I gave up).
+- **Frontend design-system discipline:** before UI implementation, read `.design/DESIGN.md`
+  alongside the real shared frontend files. If I ask to change or refresh the design system, use
+  the DESIGNmd MCP to download the kit again and commit the updated `.design/DESIGN.md` with the
+  code changes. Do not silently mix in a second visual system.
 
 ## My environment
 

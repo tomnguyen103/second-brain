@@ -218,7 +218,7 @@ function ChatPage() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <header className="shrink-0 border-b border-border/80 bg-background/95 px-4 py-3 backdrop-blur md:px-6">
+      <header className="shrink-0 border-b border-grid bg-background px-4 py-3 md:px-6">
         <div className="mx-auto flex w-full max-w-5xl flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -233,7 +233,7 @@ function ChatPage() {
               local-first workspace
             </span>
             {agenticAvailable && (
-              <span className="rounded-md bg-primary/10 px-2 py-1 text-primary ring-1 ring-primary/20">
+              <span className="rounded-md bg-primary/10 px-2 py-1 text-primary ring-1 ring-primary/25">
                 agentic opt-in
               </span>
             )}
@@ -242,7 +242,7 @@ function ChatPage() {
       </header>
       <MessageList messages={displayMessages} isLoading={isSending && !hasStreamingMessage} />
       <div ref={bottomRef} />
-      <footer className="shrink-0 border-t border-border/80 bg-background/95 backdrop-blur">
+      <footer className="shrink-0 border-t border-grid bg-background">
         <SourceFilter sourceIds={sourceIds} tags={tags} onChangeSourceIds={setSourceIds} onChangeTags={setTags} />
         <ChatComposer
           onSend={(msg, pm, am) => {

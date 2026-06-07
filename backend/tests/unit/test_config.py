@@ -10,6 +10,8 @@ def test_defaults(monkeypatch):
                 "SECOND_BRAIN_RETRIEVAL_MIN_VECTOR_SCORE",
                 "SECOND_BRAIN_RETRIEVAL_QUERY_REWRITE_ENABLED",
                 "SECOND_BRAIN_GEMINI_API_KEY",
+                "SECOND_BRAIN_CORS_ORIGINS",
+                "SECOND_BRAIN_CORS_ORIGIN_REGEX",
                 "SECOND_BRAIN_API_TOKEN",
                 "SECOND_BRAIN_RATE_LIMIT_FAIL_CLOSED",
                 "SECOND_BRAIN_TRUST_FORWARDED_FOR",
@@ -31,6 +33,7 @@ def test_defaults(monkeypatch):
     assert s.prompt_version == "rag-v1"
     assert s.mlflow_tracking_uri == "file:./mlruns"
     assert s.cors_origins == ["http://localhost:3000", "http://127.0.0.1:3000"]
+    assert s.cors_origin_regex == r"^https?://(localhost|127\.0\.0\.1):\d+$"
     assert s.api_token is None
     assert s.rate_limit_fail_closed is True
     assert s.trust_forwarded_for is False

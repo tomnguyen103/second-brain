@@ -4,10 +4,10 @@ import { WarningCircle } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 const focusRing =
-  "focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/15 focus-visible:outline-none";
+  "focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/25 focus-visible:outline-none";
 
 const controlBase =
-  "w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground shadow-sm shadow-zinc-950/[0.02] transition-colors placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50";
+  "w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground transition-colors placeholder:text-muted-foreground hover:bg-surface-hover/60 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function AppPage({
   eyebrow,
@@ -24,10 +24,10 @@ export function AppPage({
 }) {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <header className="shrink-0 border-b border-border/80 bg-background/95 px-4 py-4 backdrop-blur-sm md:px-6">
+      <header className="shrink-0 border-b border-grid bg-background px-4 py-4 md:px-6">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
               {eyebrow}
             </p>
             <h1 className="mt-1 text-xl font-semibold leading-tight text-foreground md:text-2xl">
@@ -59,7 +59,7 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className={cn("rounded-lg bg-card/95 ring-1 ring-border/90 shadow-sm shadow-zinc-950/[0.025]", className)}>
+    <section className={cn("rounded-lg border border-border bg-card", className)}>
       {children}
     </section>
   );
@@ -75,7 +75,7 @@ export function PanelHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-border/80 px-4 py-3">
+    <div className="flex items-start justify-between gap-4 border-b border-grid px-5 py-4">
       <div className="min-w-0">
         <h2 className="text-sm font-semibold leading-5 tracking-tight text-foreground">
           {title}
@@ -101,7 +101,7 @@ export function EmptyState({
   return (
     <div className={cn("flex flex-col items-center justify-center px-6 py-12 text-center", className)}>
       {icon && (
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground ring-1 ring-border/70">
+        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/25">
           {icon}
         </div>
       )}
@@ -113,7 +113,7 @@ export function EmptyState({
 
 export function InlineError({ message }: { message: string }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+    <div className="flex items-start gap-2 rounded-lg border border-destructive/30 border-l-4 bg-destructive/10 px-3 py-2 text-xs text-destructive">
       <WarningCircle size={14} weight="bold" className="mt-0.5 shrink-0" />
       <span className="leading-5">{message}</span>
     </div>
@@ -142,8 +142,8 @@ export function StatusPill({
 }) {
   const tones = {
     neutral: "bg-muted text-muted-foreground ring-border",
-    success: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900/60",
-    warning: "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-900/60",
+    success: "bg-live/10 text-live ring-live/30",
+    warning: "bg-primary/10 text-primary ring-primary/25",
     danger: "bg-destructive/10 text-destructive ring-destructive/20",
   };
   return (
@@ -217,13 +217,13 @@ export function AppButton({
 }) {
   const variants = {
     primary:
-      "bg-primary text-primary-foreground shadow-sm shadow-amber-200/50 hover:bg-primary/90 dark:shadow-none",
+      "bg-primary text-primary-foreground shadow-sm shadow-primary/20 hover:bg-primary/90",
     secondary:
-      "border border-border bg-background text-foreground hover:bg-muted",
+      "border border-border bg-background text-foreground hover:bg-surface-hover",
     quiet:
-      "text-muted-foreground hover:bg-muted hover:text-foreground",
+      "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
     danger:
-      "bg-destructive text-white hover:bg-destructive/90 dark:text-foreground",
+      "bg-destructive text-background hover:bg-destructive/90",
     dangerSoft:
       "bg-destructive/10 text-destructive hover:bg-destructive/20",
   };
@@ -258,7 +258,7 @@ export function SegmentedControl<T extends string>({
   className?: string;
 }) {
   return (
-    <div className={cn("flex rounded-lg border border-border bg-muted/40 p-1", className)} role="group">
+    <div className={cn("flex rounded-lg border border-border bg-background p-1", className)} role="group">
       {options.map((option) => (
         <button
           key={option.value}
@@ -267,7 +267,7 @@ export function SegmentedControl<T extends string>({
           className={cn(
             "h-8 flex-1 rounded-md px-2 text-xs font-semibold transition-colors",
             value === option.value
-              ? "bg-background text-foreground shadow-sm"
+              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
               : "text-muted-foreground hover:text-foreground",
             focusRing,
           )}

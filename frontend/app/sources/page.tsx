@@ -63,7 +63,7 @@ function MetricTile({
   detail: string;
 }) {
   return (
-    <div className="rounded-lg bg-card/90 px-4 py-3 ring-1 ring-border/90 shadow-sm shadow-zinc-950/[0.02]">
+    <div className="rounded-lg border border-border bg-card px-4 py-3">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-foreground">
         {value}
@@ -513,7 +513,7 @@ export default function SourcesPage() {
                   <div
                     key={source.id}
                     className={cn(
-                      "rounded-lg border bg-background/70 transition-colors",
+                      "rounded-lg border bg-background transition-colors",
                       active
                         ? "border-primary/45 bg-primary/10"
                         : "border-border hover:border-foreground/20",
@@ -559,7 +559,7 @@ export default function SourcesPage() {
                         <button
                           type="button"
                           onClick={() => selectSource(source.id)}
-                          className="min-w-0 flex-1 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/60 focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/15 focus-visible:outline-none"
+                          className="min-w-0 flex-1 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-hover focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/25 focus-visible:outline-none"
                         >
                           <div className="flex min-w-0 items-start gap-2">
                             <FolderSimple
@@ -707,7 +707,7 @@ export default function SourcesPage() {
                           <button
                             type="button"
                             onClick={() => selectDocument(doc.id)}
-                            className="min-w-0 flex-1 rounded-md text-left transition-colors hover:bg-muted/45 focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/15 focus-visible:outline-none"
+                            className="min-w-0 flex-1 rounded-md text-left transition-colors hover:bg-surface-hover focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/25 focus-visible:outline-none"
                           >
                             <div className="flex min-w-0 flex-wrap items-center gap-2 px-1 py-0.5">
                               <StatusPill

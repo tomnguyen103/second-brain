@@ -45,7 +45,7 @@ function SearchResultRow({ hit, index }: { hit: SearchHit; index: number }) {
       transition={{ delay: index * 0.03, type: "spring", stiffness: 300, damping: 26 }}
       className="group grid gap-3 px-4 py-4 transition-colors hover:bg-muted/45 sm:grid-cols-[2rem_minmax(0,1fr)]"
     >
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 font-mono text-[11px] font-bold text-primary ring-1 ring-primary/20">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 font-mono text-[11px] font-bold text-primary ring-1 ring-primary/25">
         {index + 1}
       </div>
       <div className="min-w-0">
@@ -130,7 +130,7 @@ function SearchPageContent() {
         >
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
             <Field label="Search query">
-              <div className={`relative rounded-lg transition-all ${focused ? "ring-3 ring-primary/15" : ""}`}>
+              <div className={`relative rounded-lg transition-all ${focused ? "ring-3 ring-primary/25" : ""}`}>
                 <MagnifyingGlass size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <TextInput
                   value={inputValue}
