@@ -254,7 +254,7 @@ def get_conversation(
     if conv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    ordered = sorted(conv.messages, key=lambda m: m.created_at)
+    ordered = sorted(conv.messages, key=lambda m: (m.created_at, m.id))
 
     all_chunk_ids = [r.chunk_id for m in ordered for r in m.retrievals]
     display = load_display_chunks(db, all_chunk_ids) if all_chunk_ids else {}

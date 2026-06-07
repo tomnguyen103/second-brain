@@ -34,6 +34,13 @@ Add a dated entry per working session. Most recent on top.
 - **Verified:** local Postgres started, migrations were current, `python -m app.demo.seed` created
   a demo conversation, backend `/health` returned OK, frontend `/chat` returned `200`, the new PNG
   is `1180x900`, and the screenshot was visually checked.
+- **Follow-up fix:** replaced the fake-provider README screenshot with a real configured Gemini
+  (`gemini-2.5-flash`) UI run. While recapturing, fixed conversation replay ordering when user and
+  assistant messages share the same `created_at` timestamp by sorting tied history rows by message
+  id. Added regression coverage for the timestamp-tie case and recaptured the screenshot from the
+  corrected `/chat?cid=...` replay path. Focused conversation tests passed, and the full
+  `tests/integration/test_search.py` file passed on a fresh migrated temporary Postgres database
+  (`19 passed, 4 warnings`).
 
 ### 2026-06-07 - PR #27 review follow-up and publish gate
 - **What:** opened PR #27 for the WattVision DesignMD/CORS/theme work, moved it out of draft after
