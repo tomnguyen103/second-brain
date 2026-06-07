@@ -23,6 +23,21 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-07 - CodeRabbit review follow-up for admin/source management
+- **What:** addressed PR #26 CodeRabbit findings before merge. Document summaries now use SQL
+  aggregate chunk counts instead of hydrating full chunk bodies, document content updates abort
+  before mutation when embeddings return a mismatched vector count, document deletion bumps the
+  search-cache epoch, admin integration tests use scoped settings overrides, and admin-only auth
+  tests now verify the valid-API-token/missing-admin-token path.
+- **Frontend:** made desktop and mobile New chat controls dispatch the same reset event, prevented
+  duplicate desktop anchor navigation, and removed the redundant manual History API call from
+  `/chat`.
+- **Verified:** focused backend review tests passed (`53 passed`), backend unit suite passed
+  (`155 passed`), frontend `npm run lint` passed, frontend `npm run build` passed with the existing
+  multiple-lockfile warning, and `git diff --check` passed. A full local backend run hit existing
+  shared-test-database residue (`audit_log`/negative feedback rows); PR CI remains the clean
+  database merge gate.
+
 ### 2026-06-06 - Admin governance console
 - **What:** upgraded `/admin` from three standalone forms into a governance/data-safety console
   that explains the two-token operating model, shows API/admin/database/corpus guardrail tiles,

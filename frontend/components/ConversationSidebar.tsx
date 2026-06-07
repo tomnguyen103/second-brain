@@ -1,9 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { AnimatePresence, motion } from "framer-motion";
@@ -73,6 +73,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
 
 function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [apiTokenInput, setApiTokenInput] = useState("");
@@ -109,8 +110,12 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
   const navigate = () => {
     onNavigate?.();
   };
-  const startNewChat = () => {
+  const startNewChat = (event?: MouseEvent<HTMLElement>) => {
+    event?.preventDefault();
     window.dispatchEvent(new Event("second-brain-new-chat"));
+    if (pathname !== "/chat") {
+      router.push("/chat");
+    }
     onNavigate?.();
   };
 
@@ -359,6 +364,16 @@ function ConversationHistoryContent() {
 }
 
 function MobileTopBar({ onOpen }: { onOpen: () => void }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const startNewChat = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    window.dispatchEvent(new Event("second-brain-new-chat"));
+    if (pathname !== "/chat") {
+      router.push("/chat");
+    }
+  };
+
   return (
     <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border/80 bg-background/95 px-3 backdrop-blur md:hidden">
       <button
@@ -375,6 +390,7 @@ function MobileTopBar({ onOpen }: { onOpen: () => void }) {
       </Link>
       <Link
         href="/chat"
+        onClick={startNewChat}
         className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-background transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
         aria-label="New chat"
       >

@@ -43,7 +43,6 @@ function ChatPage() {
 
   const startNewChat = useCallback(() => {
     resetChatState();
-    window.history.replaceState(window.history.state, "", "/chat");
     router.replace("/chat", { scroll: false });
   }, [resetChatState, router]);
 

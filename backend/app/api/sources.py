@@ -1,6 +1,7 @@
 """Source and document overview endpoints."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -28,9 +29,21 @@ from app.schemas.sources import (
 )
 
 router = APIRouter(dependencies=[Depends(deps.require_api_access)])
+logger = logging.getLogger(__name__)
 
 
-def _document_summary(doc: Document) -> DocumentSummary:
+def _chunk_counts_for_documents(db: Session, document_ids: list[int]) -> dict[int, int]:
+    if not document_ids:
+        return {}
+    rows = db.execute(
+        select(Chunk.document_id, func.count(Chunk.id))
+        .where(Chunk.document_id.in_(document_ids))
+        .group_by(Chunk.document_id)
+    ).all()
+    return {document_id: chunk_count for document_id, chunk_count in rows}
+
+
+def _document_summary(doc: Document, *, chunk_count: int) -> DocumentSummary:
     return DocumentSummary(
         id=doc.id,
         source_id=doc.source_id,
@@ -40,7 +53,7 @@ def _document_summary(doc: Document) -> DocumentSummary:
         content_hash=doc.content_hash,
         status=doc.status,
         tags=[tag.name for tag in doc.tags],
-        chunk_count=len(doc.chunks),
+        chunk_count=chunk_count,
         raw_text_available=doc.raw_text is not None,
         ingested_at=doc.ingested_at,
         created_at=doc.created_at,
@@ -83,7 +96,7 @@ def _document_content_response(
 
     return DocumentContentResponse(
         source=SourceOut.model_validate(doc.source),
-        document=_document_summary(doc),
+        document=_document_summary(doc, chunk_count=len(doc.chunks)),
         content=content,
         content_source=content_source,
         truncated=truncated,
@@ -178,16 +191,19 @@ def list_source_documents(
     docs = db.scalars(
         select(Document)
         .where(Document.source_id == source_id)
-        .options(selectinload(Document.tags), selectinload(Document.chunks))
+        .options(selectinload(Document.tags))
         .order_by(Document.created_at.desc(), Document.id.desc())
         .limit(limit)
     ).all()
+    chunk_counts = _chunk_counts_for_documents(db, [doc.id for doc in docs])
     total = db.scalar(
         select(func.count()).select_from(Document).where(Document.source_id == source_id)
     ) or 0
     return DocumentListResponse(
         source=SourceOut.model_validate(source),
-        documents=[_document_summary(doc) for doc in docs],
+        documents=[
+            _document_summary(doc, chunk_count=chunk_counts.get(doc.id, 0)) for doc in docs
+        ],
         total=total,
     )
 
@@ -225,11 +241,14 @@ def update_document(
     doc = db.scalars(
         select(Document)
         .where(Document.id == document_id)
-        .options(selectinload(Document.tags), selectinload(Document.chunks))
+        .options(selectinload(Document.tags))
     ).first()
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
+    chunk_count = db.scalar(
+        select(func.count(Chunk.id)).where(Chunk.document_id == document_id)
+    ) or 0
     previous_title = doc.title
     doc.title = req.title
     audit.record(
@@ -243,7 +262,7 @@ def update_document(
     )
     db.commit()
     db.refresh(doc)
-    return _document_summary(doc)
+    return _document_summary(doc, chunk_count=chunk_count)
 
 
 @router.patch("/documents/{document_id}/content", response_model=DocumentContentResponse)
@@ -292,6 +311,20 @@ def update_document_content(
         if pieces
         else []
     )
+    if len(vectors) != len(pieces):
+        logger.error(
+            "Embedding count mismatch during document content update",
+            extra={
+                "document_id": document_id,
+                "source_id": doc.source_id,
+                "piece_count": len(pieces),
+                "vector_count": len(vectors),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="embedding service returned an unexpected vector count",
+        )
 
     previous_hash = doc.content_hash
     previous_chunk_count = db.scalar(
@@ -307,7 +340,7 @@ def update_document_content(
     doc.status = "embedded"
     doc.ingested_at = datetime.now(timezone.utc)
 
-    for piece, vector in zip(pieces, vectors):
+    for piece, vector in zip(pieces, vectors, strict=True):
         chunk = Chunk(
             document_id=doc.id,
             chunk_index=piece.index,
@@ -356,6 +389,7 @@ def delete_document(
     document_id: int,
     db: Session = Depends(deps.get_db),
     settings=Depends(deps.get_settings),
+    redis_client=Depends(deps.get_redis),
     _: bool = Depends(deps.require_admin),
 ):
     doc = db.get(Document, document_id)
@@ -380,6 +414,7 @@ def delete_document(
         enabled=settings.audit_enabled,
     )
     db.commit()
+    bump_search_cache_epoch(redis_client, settings)
     return DeleteDocumentResponse(
         document_id=document_id,
         source_id=source_id,

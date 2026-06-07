@@ -94,6 +94,44 @@ def test_personal_data_routes_require_api_token(method: str, path: str, kwargs: 
         app.dependency_overrides.clear()
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "kwargs"),
+    [
+        ("patch", "/sources/1", {"json": {"name": "renamed"}}),
+        ("patch", "/documents/1", {"json": {"title": "renamed"}}),
+        ("patch", "/documents/1/content", {"json": {"content": "updated content"}}),
+        ("delete", "/documents/1", {}),
+        ("get", "/data/export", {"params": {"source_id": 1}}),
+        ("delete", "/data/sources/1", {}),
+        ("post", "/admin/retention/purge", {}),
+    ],
+)
+def test_admin_only_routes_require_admin_token_after_api_gate(
+    method: str, path: str, kwargs: dict
+):
+    app.dependency_overrides[deps.get_settings] = lambda: Settings(
+        _env_file=None,
+        api_token="api-secret",
+        admin_token="admin-secret",
+        metrics_enabled=False,
+    )
+    app.dependency_overrides[deps.get_db] = lambda: object()
+    app.dependency_overrides[deps.get_embedder] = lambda: object()
+    app.dependency_overrides[deps.get_redis] = lambda: None
+    try:
+        with TestClient(app) as client:
+            request = getattr(client, method)
+            response = request(
+                path,
+                headers={"Authorization": "Bearer api-secret"},
+                **kwargs,
+            )
+            assert response.status_code == 401
+            assert response.json()["detail"] == "invalid or missing admin token"
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_authenticated_request_passes_api_gate_but_still_validates_request_body():
     app.dependency_overrides[deps.get_settings] = lambda: Settings(
         _env_file=None,
