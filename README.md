@@ -2,13 +2,15 @@
 
 # Second Brain
 
-**A local-first personal AI assistant for streaming cited RAG, hybrid search, briefings, and MCP-powered actions.**
+**A local-first personal AI workspace for streaming cited RAG, hybrid search, source management, briefings, and MCP-powered actions.**
 
 Second Brain captures web passages and personal knowledge, stores them in PostgreSQL with pgvector
 and full-text indexes, serves citation-validated answers over SSE, produces briefings, and exposes
-agentic tools over MCP. The default runtime is local-first Docker Compose so the owner can run it
-on demand without a recurring server bill; the old VPS/Caddy deployment recipe is retained only as
-an optional cloud demo path.
+agentic tools over MCP. The web app now uses the repo-local WattVision DesignMD system: a dark,
+monitoring-dashboard workspace with a warm inspection-mode light toggle, a Sources management home,
+a guarded Admin console, and a live Status surface. The default runtime is local-first Docker
+Compose so the owner can run it on demand without a recurring server bill; the old VPS/Caddy
+deployment recipe is retained only as an optional cloud demo path.
 
 [![Status](https://img.shields.io/badge/status-local--first-brightgreen)](docs/USAGE.md)
 [![Roadmap](https://img.shields.io/badge/roadmap-7%2F7%20complete-success)](docs/PROGRESS.md)
@@ -24,7 +26,7 @@ an optional cloud demo path.
 <div align="center">
   <img src="docs/screenshots/ui-chat-answer.png" alt="Second Brain chat UI with a cited answer" width="820">
   <br>
-  <sub>Chat over personal notes with inline source citations.</sub>
+  <sub>Current WattVision dark workspace: cited chat over a deterministic local demo source.</sub>
 </div>
 
 > **Runtime decision:** Second Brain now defaults to local/on-demand operation to avoid paying for
@@ -61,6 +63,7 @@ npm run dev
 Then open:
 
 - `http://localhost:3000/chat` - ask over the seeded source and inspect citations.
+- `http://localhost:3000/sources` - manage source folders, files, retained text, and add-source routing.
 - `http://localhost:3000/feedback` - review the seeded negative feedback candidate.
 - `http://localhost:3000/status` - confirm DB migration, source counts, worker queue, token state, and model mode.
 
@@ -85,7 +88,7 @@ python -m app.eval.export_cases --output eval/promoted-cases.yaml
 
 ## Current Status
 
-Last README synchronization: **2026-06-06**. Runtime default changed to local-first on
+Last README synchronization: **2026-06-07**. Runtime default changed to local-first on
 **2026-06-05**.
 
 | Area | Status | Notes |
@@ -93,8 +96,9 @@ Last README synchronization: **2026-06-06**. Runtime default changed to local-fi
 | Product roadmap | Complete | Phases 0-7 are implemented and documented in [docs/PROGRESS.md](docs/PROGRESS.md). |
 | Runtime | Local-first | Run the Compose-backed app on demand locally; optional cloud deploy recipe remains for demos. |
 | Operations | Documented | Bearer-token API access, backup/restore, health checks, secret rotation, rollback, and optional VPS hardening runbooks. |
-| Web UI | Implemented | Streaming chat, capture, search, ingest, briefing, tasks, research, sources, feedback review, status, and admin data-ops pages. |
-| API | Implemented | Capture, ingest, streaming and non-streaming chat, search, conversations, feedback analytics, briefing, tasks, research jobs, sources, health, and governed data-ops endpoints. |
+| Design system | Current | `.design/DESIGN.md` is the WattVision source of truth: dark technical dashboard tokens with an approved warm light inspection variant. |
+| Web UI | Implemented | Streaming chat, capture, search, add-source ingest, briefing, tasks, research, Sources management, feedback review, status, and guarded admin pages. |
+| API | Implemented | Capture, text/file ingest, streaming and non-streaming chat, search, conversations, feedback analytics, briefing, tasks, research jobs, sources/documents, health, and governed data-ops endpoints. |
 | MCP server | Implemented | `search_notes`, `list_tasks`, and `send_digest` are available by default; `create_task` and `research_topic` require explicit local mutation opt-in. |
 | Background jobs | Implemented | Durable Postgres job queue for briefing and async research; schedule locally when desired. |
 | CI/CD | Active | Unit tests, integration tests against pgvector, and deterministic eval gate. |
@@ -107,6 +111,11 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 
 | Update | Summary | Reference |
 |---|---|:---:|
+| WattVision DesignMD adoption | Rebased the shared frontend shell and primitives on the repo-local WattVision kit: dark `#121212` workspace, cyan data/action accent, lime live state, red alerts, 16px cards, tabular numbers, and a documented warm light inspection mode. | [design](.design/DESIGN.md) |
+| Sources management home | Moved source operations behind `/sources`, added Add New Sources routing, folder rename/delete, file rename/edit/delete, retained-content viewing, guarded confirmations, and admin-token action gates. | [progress](docs/PROGRESS.md) |
+| Admin governance console | Reworked `/admin` into a data-safety console for token posture, corpus/database status, source export/delete previews, and retention purge controls while reusing existing backend contracts. | [progress](docs/PROGRESS.md) |
+| Local preview hardening | Local CORS defaults now allow localhost and `127.0.0.1` preview ports, so Next dev/server ports such as `3001` can call the API without changing production CORS posture. | [progress](docs/PROGRESS.md) |
+| Chat input hardening | Chat no longer submits on `Enter` while an IME composition is active, preserving normal multilingual input behavior. | [progress](docs/PROGRESS.md) |
 | UI modernization + status | Modernized the local web workspace and added `/status` for API health, migration state, worker queue, indexed corpus counts, token state, and model mode. | [progress](docs/PROGRESS.md) |
 | Expanded eval set | Expanded the fixed eval corpus to 14 notes and 31 cases across capture, feedback, agentic RAG, governance, jobs, MCP, uploads, status, and refusal probes. | [eval dataset](backend/eval/dataset.yaml) |
 | Agentic RAG v1 | Added an opt-in read-only LangGraph retrieval graph that plans subqueries, searches existing notes, returns compact trace metadata, and is eval-comparable against regular RAG. | [ADR-0016](docs/adr/0016-agentic-rag-v1.md) |
@@ -129,14 +138,15 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 | Agentic RAG | Opt-in `/chat` mode uses LangGraph to plan 2-4 note searches, merge evidence, optionally retry weak evidence, and answer through the same citation validator. It is read-only and remains disabled by default until eval beats baseline on the expanded eval set. |
 | Web capture | `/capture` saves a URL, title, selected text, notes, and tags as a `bookmark` source/document through the ingest pipeline; it performs no server-side scraping. |
 | Hybrid search | pgvector semantic search and PostgreSQL full-text search are fused with reciprocal rank fusion, with configurable weak-context refusal. |
-| Source ingestion | `/ingest` accepts text documents, dedupes by content hash, chunks semantically, embeds, tags, and stores them. |
+| Source ingestion | `/ingest` accepts pasted text and `.pdf`, `.txt`, or `.md` uploads, dedupes by content hash, chunks semantically, embeds, tags, and stores extracted text without retaining uploaded binaries by default. |
+| Source and file management | `/sources` lists source folders, files, chunk counts, and raw-text retention state; admin-guarded controls can rename/delete folders, rename/delete files, and edit retained document content with chunk/embedding rebuilds. |
 | Morning briefing | A scheduled job summarizes newly ingested documents since the previous briefing and stores the result. |
 | MCP tools | A stdio MCP server exposes search, task listing, and digest composition by default; durable task/research mutations are opt-in for trusted local clients. |
 | Self-research | `research_topic` can use pasted source text or safe public text/HTML URLs on default HTTP(S) ports, stores provenance, and indexes the resulting `research_note`. |
 | Evaluation and MLOps | Fixed 31-case eval set, MLflow logging, prompt versioning, A/B configs, rollback by env var, and CI eval gate. |
 | Feedback quality review | Feedback analytics and negative-feedback review endpoints turn thumbs into reviewable eval candidates; reviewed promotions are stored durably in Postgres and exportable as YAML patch fragments. |
 | Redis paths | Optional Redis-backed `/chat` and `/ingest` rate limits, `/search` response caching, and embedding caching are enabled in production; rate limits fail closed by default. |
-| Data governance | RLS, audit logging, raw-text retention purge, source export, source erasure, and durable reviewed eval cases. |
+| Data governance | RLS, audit logging, raw-text retention purge, source export, source erasure, admin previews, typed destructive confirmations, and durable reviewed eval cases. |
 | Single-owner auth | `SECOND_BRAIN_API_TOKEN` protects chat, conversations, capture, ingest, search, briefing, feedback, tasks, research, sources, and admin surfaces; destructive data-ops also require `X-Second-Brain-Admin-Token: <SECOND_BRAIN_ADMIN_TOKEN>`. |
 | Local status | `/health` stays open for reachability; authenticated `/status` reports migration state, worker queue state, indexed corpus counts, LLM/embedding mode, and feature flags. |
 | Observability | Prometheus-format request, cache, and rate-limit metrics at `/metrics`; alert rules and Grafana dashboard configs are retained under `deploy/`, but production Compose does not start monitoring containers until a scanned-clean runtime is selected. |
@@ -147,7 +157,8 @@ Most recent first. Full detail lives in [docs/PROGRESS.md](docs/PROGRESS.md) and
 | Surface | Entry point | Notes |
 |---|---|---|
 | Web app | `/chat`, `/capture`, `/search`, `/ingest`, `/briefing`, `/tasks`, `/research`, `/sources`, `/status`, `/feedback`, `/admin` | Main daily-use and operations UI. |
-| API | `/docs` or `/api/*` in production | Capture, ingest, chat, search, briefing, conversations, feedback analytics, tasks, research jobs, sources, and admin data-ops. Personal-data calls require the API bearer token in production. |
+| Sources workspace | `/sources` | User-facing source management home. `/ingest` remains the add-source workflow and is reachable from the Sources header. |
+| API | `/docs` or `/api/*` in production | Capture, text/file ingest, chat, search, briefing, conversations, feedback analytics, tasks, research jobs, sources/documents, and admin data-ops. Personal-data calls require the API bearer token in production. |
 | MCP | `python -m app.mcp_server` | Tool interface for MCP clients such as Claude Desktop. |
 | Worker | `python -m app.jobs.worker --loop` | Runs in production; drains briefing and research jobs. |
 | Demo tools | `python -m app.demo.seed`, `python -m app.eval.export_cases` | Seed the portfolio loop, then export promoted `eval_cases` rows into a reviewable YAML fragment. |
@@ -171,6 +182,7 @@ That gives you one visible loop: capture -> cited chat/search -> feedback review
 |---|---|
 | Backend | Python, FastAPI, SQLAlchemy, Alembic, Pydantic v2 |
 | Frontend | Next.js, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query |
+| Design system | Repo-local WattVision DesignMD kit in `.design/DESIGN.md`, with dark dashboard tokens and a warm light inspection variant |
 | Database | Self-hosted PostgreSQL with pgvector, full-text search, JSONB, RLS, and audit tables |
 | Retrieval | Hybrid pgvector cosine search plus PostgreSQL full-text search, fused by RRF |
 | Agentic orchestration | LangGraph request-scoped `StateGraph` for opt-in read-only agentic RAG |
@@ -240,13 +252,15 @@ Browser / local client
 second-brain/
 |-- README.md
 |-- AGENTS.md
+|-- .design/
+|   `-- DESIGN.md                      # WattVision frontend design-system source
 |-- docker-compose.yml                 # local Postgres + pgvector on host port 5433
 |-- backend/
 |   |-- app/                           # api, chat, retrieval, ingest, llm, embeddings, mcp, jobs, eval
 |   |-- migrations/                    # Alembic migrations 0001-0006
 |   `-- tests/                         # unit and integration tests
 |-- frontend/
-|   |-- app/                           # chat, capture, search, ingest, briefing, tasks, research, sources, status, feedback, admin
+|   |-- app/                           # chat, capture, search, ingest/add-source, briefing, tasks, research, sources, status, feedback, admin
 |   |-- components/
 |   `-- lib/api/
 |-- deploy/
@@ -381,6 +395,8 @@ Selected ADRs:
 - [ADR-0010](docs/adr/0010-mcp-server-and-agentic-actions.md) - MCP server and agentic actions
 - [ADR-0012](docs/adr/0012-productionization-and-data-governance.md) - productionization and governance
 - [ADR-0014](docs/adr/0014-kubernetes-learning-track.md) - Kubernetes learning track
+- [ADR-0015](docs/adr/0015-local-first-runtime.md) - local-first runtime as the default
+- [ADR-0016](docs/adr/0016-agentic-rag-v1.md) - opt-in agentic RAG v1
 
 ## Cost and Privacy Notes
 
@@ -403,7 +419,7 @@ source erasure.
 - Upgrade self-research beyond user-supplied URLs/text into broader external retrieval with
   source-backed citations.
 - Replace VPS-specific runbook examples with local-first commands where that improves clarity.
-- Keep the seeded demo data and case-study screenshots current as the UI changes.
+- Keep the seeded demo data, README screenshot, and case-study screenshots current as the UI changes.
 - Keep expanding real-world eval cases before making agentic RAG the default.
 - Keep restore-drill evidence current and keep local database backups somewhere you trust.
 
