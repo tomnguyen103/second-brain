@@ -15,15 +15,20 @@ from app.demo.seed_public import (
 from app.retrieval.hybrid import hybrid_search
 
 
-def _delete_public_demo_source(db: Session) -> None:
+def _delete_public_demo_source(db: Session, *, commit: bool = False) -> None:
     db.execute(delete(Source).where(Source.name == PUBLIC_DEMO_SOURCE_NAME))
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
 
 def test_seed_public_demo_corpus_ingests_searchable_public_safe_docs(
     db_session,
     fake_embedder,
 ):
+    _delete_public_demo_source(db_session)
+
     result = seed_public_demo_corpus(
         db_session,
         fake_embedder,
@@ -64,6 +69,8 @@ def test_seed_public_demo_corpus_ingests_searchable_public_safe_docs(
 
 
 def test_seed_public_demo_corpus_is_idempotent(db_session, fake_embedder):
+    _delete_public_demo_source(db_session)
+
     first = seed_public_demo_corpus(
         db_session,
         fake_embedder,
@@ -98,6 +105,7 @@ def test_seed_public_demo_corpus_invalidates_search_cache_on_new_docs(
             self.keys.append(key)
 
     redis = _FakeRedis()
+    _delete_public_demo_source(db_session)
 
     seed_public_demo_corpus(
         db_session,
@@ -131,7 +139,7 @@ def test_seed_public_demo_corpus_rolls_back_when_any_doc_fails(
 
     with Session(db_engine) as db:
         try:
-            _delete_public_demo_source(db)
+            _delete_public_demo_source(db, commit=True)
             with pytest.raises(RuntimeError, match="public demo seed failed"):
                 seed_public_demo_corpus(
                     db,
@@ -145,4 +153,4 @@ def test_seed_public_demo_corpus_rolls_back_when_any_doc_fails(
             )
         finally:
             db.rollback()
-            _delete_public_demo_source(db)
+            _delete_public_demo_source(db, commit=True)
