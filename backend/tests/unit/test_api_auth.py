@@ -157,6 +157,7 @@ def test_authenticated_request_passes_api_gate_but_still_validates_request_body(
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
+        "https://localhost:3000",
     ],
 )
 def test_cors_preflight_allows_local_preview_ports_and_admin_token_header(origin: str):

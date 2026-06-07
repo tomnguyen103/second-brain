@@ -23,6 +23,18 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-07 - PR #27 review follow-up and publish gate
+- **What:** opened PR #27 for the WattVision DesignMD/CORS/theme work, moved it out of draft after
+  local self-checks, and requested one explicit CodeRabbit review. Addressed the actionable review
+  item by preventing ChatComposer `Enter` submission during IME composition.
+- **Follow-up:** translated `.design/DESIGN.md` to English, documented the approved warm light
+  inspection palette in the design source, added HTTPS and CORS env-override test coverage, and
+  reran the failed kind-smoke CI job after confirming it was caused by an external 504 fetching the
+  pinned metrics-server manifest.
+- **Verified:** focused backend config/auth tests passed (`44 passed, 1 warning`), frontend
+  `npm run lint` passed, and frontend `npm run build` passed with the existing multiple-lockfile
+  workspace-root warning.
+
 ### 2026-06-07 - Warm light theme toggle fix
 - **What:** fixed the dark/light toggle behavior and replaced the too-dark light palette with a
   warm, low-glare light mode. The accepted dark WattVision theme remains unchanged; light mode now

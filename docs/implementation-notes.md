@@ -9,6 +9,23 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## PR review follow-up: IME-safe chat submit and design-source alignment (2026-06-07)
+
+- **What:** after CodeRabbit reviewed PR #27, ChatComposer now ignores `Enter` while the browser is
+  still composing text through an IME. The DesignMD kit was translated to English and now documents
+  the approved warm light inspection palette alongside the dark WattVision palette. CORS tests also
+  cover an HTTPS localhost origin and env overrides for the origin list/regex.
+- **Why:** IME users can otherwise send partial text unintentionally. The warm light palette had
+  been implemented by user request but was not yet recorded in the design source, and the regex
+  supported more cases than the tests exercised.
+- **Trade-off / what I gave up:** the design file is no longer a literal Spanish download; it is the
+  English repo-maintained version of the same design system plus the approved Second Brain light
+  variant.
+- **Affects:** `.design/DESIGN.md`, `frontend/components/ChatComposer.tsx`,
+  `backend/tests/unit/{test_api_auth.py,test_config.py}`.
+
+---
+
 ## Light mode becomes a warm inspection theme (2026-06-07)
 
 - **What:** kept the WattVision dark theme as the default and changed only `.light` tokens to a
