@@ -23,11 +23,16 @@ deployment recipe is retained only as an optional cloud demo path.
 
 ---
 
-<div align="center">
-  <img src="docs/screenshots/ui-chat-answer.png" alt="Second Brain chat UI with a cited answer" width="820">
-  <br>
-  <sub>Current WattVision dark workspace: cited chat over a deterministic local demo source.</sub>
-</div>
+## RAG Mode Comparison
+
+Sample input for both runs:
+
+> Compare regular RAG and Agentic RAG in Second Brain. When should I use each?
+
+| Regular RAG | Agentic RAG |
+|---|---|
+| <img src="docs/screenshots/ui-rag-regular.png" alt="Second Brain regular RAG answer with Gemini model, source filter, and citations" width="520"> | <img src="docs/screenshots/ui-rag-agentic.png" alt="Second Brain Agentic RAG answer with Gemini model, source filter, citations, and agentic search trace" width="520"> |
+| Runs one bounded hybrid retrieval pass over the scoped source, then answers with validated citations. This is the fast default for direct questions where one search pass is enough. | Uses the opt-in agentic path to plan multiple note searches, merge evidence, and show the live trace (`4 searches / 3 chunks`) before returning the cited answer. |
 
 > **Runtime decision:** Second Brain now defaults to local/on-demand operation to avoid paying for
 > idle cloud uptime. A 2 GB DigitalOcean + Caddy deployment was previously verified and remains as
