@@ -77,7 +77,7 @@ function TrendPanel({ analytics }: { analytics: FeedbackAnalyticsResponse }) {
             <div key={bucket.date} className="grid gap-3 px-4 py-3 sm:grid-cols-[8rem_minmax(0,1fr)_5rem] sm:items-center">
               <p className="text-xs text-muted-foreground">{formatDate(bucket.date)}</p>
               <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-emerald-400/70" style={{ width: totalWidth }}>
+                <div className="h-full rounded-full bg-live/70" style={{ width: totalWidth }}>
                   <div className="h-full bg-destructive/80" style={{ width: negativeWidth }} />
                 </div>
               </div>
@@ -290,7 +290,7 @@ function EvalCandidateReviewCard({ candidate, adminToken }: { candidate: EvalCan
         </div>
       )}
       {promoted && (
-        <div className="mt-3 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900/60">
+        <div className="mt-3 flex items-center gap-2 rounded-md bg-live/10 px-3 py-2 text-xs font-medium text-live ring-1 ring-live/30">
           <CheckCircle size={14} weight="bold" />
           <span className="min-w-0 truncate">{promoted}</span>
         </div>

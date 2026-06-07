@@ -68,6 +68,9 @@ class Settings(BaseSettings):
 
     # API
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # Next.js can auto-increment the preview port when 3000 is already occupied.
+    # Keep local browser previews usable without widening CORS to non-local origins.
+    cors_origin_regex: str | None = r"^https?://(localhost|127\.0\.0\.1):\d+$"
     # Single-user API bearer token for notes, conversations, sources, tasks, feedback, and
     # research endpoints. None keeps local/dev tests keyless; prod compose requires it.
     api_token: str | None = None

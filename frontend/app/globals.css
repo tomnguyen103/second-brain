@@ -25,79 +25,102 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-live: var(--live);
+  --color-grid: var(--grid);
+  --color-surface-hover: var(--surface-hover);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
 }
 
-/* ── Light mode ── */
-:root {
-  --background: oklch(0.979 0 0);        /* zinc-50 */
-  --foreground: oklch(0.091 0 0);        /* zinc-950 */
-  --card: oklch(1 0 0);                  /* white */
-  --card-foreground: oklch(0.091 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.091 0 0);
-  --primary: oklch(0.769 0.188 70.08);   /* amber-500 */
-  --primary-foreground: oklch(0.153 0.034 79.3);
-  --secondary: oklch(0.968 0 0);         /* zinc-100 */
-  --secondary-foreground: oklch(0.208 0 0);
-  --muted: oklch(0.968 0 0);
-  --muted-foreground: oklch(0.554 0 0);  /* zinc-500 */
-  --accent: oklch(0.968 0 0);
-  --accent-foreground: oklch(0.208 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);            /* zinc-200 */
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.769 0.188 70.08);      /* amber-500 */
-  --radius: 0.5rem;
+/* WattVision DesignMD base: dark technical monitoring surface. */
+:root,
+.dark {
+  --background: #121212;
+  --foreground: #ffffff;
+  --card: #1e1e1e;
+  --card-foreground: #ffffff;
+  --popover: #1e1e1e;
+  --popover-foreground: #ffffff;
+  --primary: #00e5ff;
+  --primary-foreground: #071315;
+  --secondary: #252525;
+  --secondary-foreground: #ffffff;
+  --muted: #252525;
+  --muted-foreground: #98989d;
+  --accent: #252525;
+  --accent-foreground: #ffffff;
+  --destructive: #ff453a;
+  --border: #2c2c2e;
+  --input: #2c2c2e;
+  --ring: #00e5ff;
+  --live: #32d74b;
+  --grid: #2c2c2e;
+  --surface-hover: #252525;
+  --radius: 1rem;
 }
 
-/* ── Dark mode ── */
-.dark {
-  --background: oklch(0.091 0 0);        /* zinc-950 */
-  --foreground: oklch(0.963 0 0);        /* zinc-100 */
-  --card: oklch(0.14 0 0);              /* zinc-900 */
-  --card-foreground: oklch(0.963 0 0);
-  --popover: oklch(0.14 0 0);
-  --popover-foreground: oklch(0.963 0 0);
-  --primary: oklch(0.822 0.173 80.47);   /* amber-400 — brighter in dark */
-  --primary-foreground: oklch(0.153 0.034 79.3);
-  --secondary: oklch(0.18 0 0);          /* zinc-900 */
-  --secondary-foreground: oklch(0.963 0 0);
-  --muted: oklch(0.18 0 0);
-  --muted-foreground: oklch(0.544 0 0);  /* zinc-500 */
-  --accent: oklch(0.18 0 0);
-  --accent-foreground: oklch(0.963 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.242 0 0);            /* zinc-800 */
-  --input: oklch(0.18 0 0);
-  --ring: oklch(0.822 0.173 80.47);      /* amber-400 */
+.light {
+  --background: #e9e1d5;
+  --foreground: #211c18;
+  --card: #f4eee4;
+  --card-foreground: #211c18;
+  --popover: #f7f1e8;
+  --popover-foreground: #211c18;
+  --primary: #007c89;
+  --primary-foreground: #fff8ef;
+  --secondary: #ded4c7;
+  --secondary-foreground: #2d261f;
+  --muted: #ddd3c5;
+  --muted-foreground: #6f6459;
+  --accent: #d7e8e3;
+  --accent-foreground: #1d3838;
+  --destructive: #b42318;
+  --border: #cdbfac;
+  --input: #c8b9a6;
+  --ring: #007c89;
+  --live: #1f8f45;
+  --grid: #d1c3b2;
+  --surface-hover: #e1d7ca;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
+
   html {
     @apply font-sans;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 30%, transparent);
+    color: var(--foreground);
   }
 }
 
 /* Skeleton shimmer */
 @keyframes shimmer {
-  0%   { background-position: -600px 0; }
-  100% { background-position: 600px 0; }
+  0% {
+    background-position: -600px 0;
+  }
+  100% {
+    background-position: 600px 0;
+  }
 }
+
 .skeleton-shimmer {
   background: linear-gradient(
     90deg,
     var(--border) 25%,
-    color-mix(in oklch, var(--border) 50%, var(--background)) 50%,
+    color-mix(in srgb, var(--border) 55%, var(--background)) 50%,
     var(--border) 75%
   );
   background-size: 1200px 100%;

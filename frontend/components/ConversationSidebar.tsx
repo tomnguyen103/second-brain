@@ -95,7 +95,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
     return () => window.removeEventListener("second-brain-api-token-changed", syncToken);
   }, []);
 
-  const isDark = mounted && resolvedTheme === "dark";
+  const isDark = mounted ? resolvedTheme !== "light" : true;
   const saveApiToken = () => {
     setStoredApiToken(apiTokenInput);
     setHasApiToken(Boolean(apiTokenInput.trim()));
@@ -120,15 +120,15 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-card/95">
-      <div className="border-b border-border/80 px-3 py-3">
+    <div className="flex h-full flex-col overflow-hidden bg-card">
+      <div className="border-b border-grid px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <Link
             href="/chat"
             onClick={navigate}
-            className="flex min-w-0 items-center gap-2 rounded-lg p-1 transition-colors hover:bg-muted"
+            className="flex min-w-0 items-center gap-2 rounded-lg p-1 transition-colors hover:bg-surface-hover"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground ring-1 ring-primary/30">
               <Database size={16} weight="bold" />
             </span>
             <span className="min-w-0">
@@ -144,7 +144,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => setTheme(isDark ? "light" : "dark")}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/15"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             >
               {isDark ? <Sun size={15} weight="bold" /> : <Moon size={15} weight="bold" />}
@@ -153,7 +153,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/15 md:hidden"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 md:hidden"
                 aria-label="Close navigation"
               >
                 <X size={15} weight="bold" />
@@ -164,7 +164,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
         <a
           href="/chat"
           onClick={startNewChat}
-          className="mt-3 flex h-9 items-center justify-center gap-1.5 rounded-lg bg-foreground text-sm font-semibold text-background transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+          className="mt-3 flex h-9 items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
         >
           <Plus size={14} weight="bold" />
           New chat
@@ -190,10 +190,10 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
                     href={item.href}
                     onClick={navigate}
                     className={cn(
-                      "flex h-8 items-center gap-2 rounded-lg px-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/15",
+                      "flex h-8 items-center gap-2 rounded-lg px-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
                       active
-                        ? "bg-primary/10 text-foreground ring-1 ring-primary/20"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        ? "bg-primary/10 text-foreground ring-1 ring-primary/25"
+                        : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
                     )}
                   >
                     <span className={cn("text-muted-foreground", active && "text-primary")}>{item.icon}</span>
@@ -206,7 +206,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
         ))}
       </nav>
 
-      <div className="mx-3 mt-auto mb-3 rounded-lg border border-border/80 bg-background/70 p-2">
+      <div className="mx-3 mb-3 mt-auto rounded-lg border border-border bg-background p-2">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <Key size={14} weight="bold" className={hasApiToken ? "text-primary" : "text-muted-foreground"} />
@@ -215,7 +215,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
           <span className={cn(
             "rounded-md px-1.5 py-0.5 text-[10px] font-semibold ring-1",
             hasApiToken
-              ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900/60"
+              ? "bg-live/10 text-live ring-live/30"
               : "bg-muted text-muted-foreground ring-border",
           )}>
             {hasApiToken ? "saved" : "local"}
@@ -236,11 +236,11 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
             onChange={(event) => setApiTokenInput(event.target.value)}
             placeholder="Token"
             autoComplete="off"
-            className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-background px-2.5 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-3 focus:ring-primary/15"
+            className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-background px-2.5 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:bg-surface-hover/60 focus:border-primary focus:ring-3 focus:ring-primary/25"
           />
           <button
             type="submit"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/15"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
             aria-label="Save API token"
             title="Save API token"
           >
@@ -249,7 +249,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
           <button
             type="button"
             onClick={clearApiToken}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/15"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
             aria-label="Clear API token"
             title="Clear API token"
           >
@@ -297,8 +297,8 @@ function ConversationHistoryContent() {
 
   return (
     <aside className="hidden h-full w-80 shrink-0 p-4 xl:block" aria-label="Recent conversations">
-      <section className="max-h-[50vh] overflow-hidden rounded-lg bg-card/95 ring-1 ring-border/90 shadow-sm shadow-zinc-950/[0.025]">
-        <div className="flex items-center justify-between gap-3 border-b border-border/80 px-4 py-3">
+      <section className="max-h-[50vh] overflow-hidden rounded-lg border border-border bg-card">
+        <div className="flex items-center justify-between gap-3 border-b border-grid px-4 py-3">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold leading-5 text-foreground">Recent conversations</h2>
             <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Conversation history</p>
@@ -323,10 +323,10 @@ function ConversationHistoryContent() {
                   <Link
                     href={`/chat?cid=${conversation.id}`}
                     className={cn(
-                      "mb-1 flex min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/15",
+                      "mb-1 flex min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25",
                       activeCid === String(conversation.id)
-                        ? "bg-primary/10 text-foreground ring-1 ring-primary/20"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        ? "bg-primary/10 text-foreground ring-1 ring-primary/25"
+                        : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
                     )}
                     title={conversation.title ?? `Conversation ${conversation.id}`}
                   >
@@ -353,7 +353,7 @@ function ConversationHistoryContent() {
             </AnimatePresence>
           )}
           {data?.conversations.length === 0 && (
-            <p className="rounded-lg bg-muted/40 px-3 py-3 text-xs leading-5 text-muted-foreground">
+            <p className="rounded-lg bg-background px-3 py-3 text-xs leading-5 text-muted-foreground ring-1 ring-border">
               Conversations appear here after your first cited answer.
             </p>
           )}
@@ -375,11 +375,11 @@ function MobileTopBar({ onOpen }: { onOpen: () => void }) {
   };
 
   return (
-    <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border/80 bg-background/95 px-3 backdrop-blur md:hidden">
+    <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-grid bg-background px-3 md:hidden">
       <button
         type="button"
         onClick={onOpen}
-        className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/15"
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
         aria-label="Open navigation"
       >
         <List size={18} weight="bold" />
@@ -391,7 +391,7 @@ function MobileTopBar({ onOpen }: { onOpen: () => void }) {
       <Link
         href="/chat"
         onClick={startNewChat}
-        className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-background transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/20"
+        className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
         aria-label="New chat"
       >
         <Plus size={15} weight="bold" />
@@ -409,7 +409,7 @@ function SidebarFrame({
 }) {
   return (
     <>
-      <aside className="hidden h-full w-64 shrink-0 border-r border-border/80 bg-card/95 md:block">
+      <aside className="hidden h-full w-64 shrink-0 border-r border-grid bg-card md:block">
         <SidebarContent />
       </aside>
 
@@ -419,7 +419,7 @@ function SidebarFrame({
             <motion.button
               key="mobile-nav-backdrop"
               type="button"
-              className="fixed inset-0 z-40 bg-foreground/20 backdrop-blur-sm md:hidden"
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -428,7 +428,7 @@ function SidebarFrame({
             />
             <motion.aside
               key="mobile-nav"
-              className="fixed inset-y-0 left-0 z-50 w-[min(18rem,calc(100vw-1rem))] border-r border-border/80 bg-card shadow-2xl shadow-zinc-950/20 md:hidden"
+              className="fixed inset-y-0 left-0 z-50 w-[min(18rem,calc(100vw-1rem))] border-r border-grid bg-card shadow-2xl shadow-black/40 md:hidden"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
@@ -449,7 +449,7 @@ export function ConversationSidebar() {
   return (
     <>
       <MobileTopBar onOpen={() => setMobileOpen(true)} />
-      <Suspense fallback={<aside className="hidden h-full w-64 shrink-0 border-r border-border/80 bg-card md:block" />}>
+      <Suspense fallback={<aside className="hidden h-full w-64 shrink-0 border-r border-grid bg-card md:block" />}>
         <SidebarFrame mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
       </Suspense>
     </>

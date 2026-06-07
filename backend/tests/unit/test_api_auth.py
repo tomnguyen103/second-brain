@@ -151,10 +151,20 @@ def test_authenticated_request_passes_api_gate_but_still_validates_request_body(
         app.dependency_overrides.clear()
 
 
-def test_cors_preflight_allows_admin_token_header():
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "https://localhost:3000",
+    ],
+)
+def test_cors_preflight_allows_local_preview_ports_and_admin_token_header(origin: str):
     app.dependency_overrides[deps.get_settings] = lambda: Settings(
         _env_file=None,
         cors_origins=["http://localhost:3000"],
+        cors_origin_regex=r"^https?://(localhost|127\.0\.0\.1):\d+$",
         metrics_enabled=False,
     )
     try:
@@ -162,7 +172,7 @@ def test_cors_preflight_allows_admin_token_header():
             response = client.options(
                 "/data/export?source_id=1",
                 headers={
-                    "Origin": "http://localhost:3000",
+                    "Origin": origin,
                     "Access-Control-Request-Method": "GET",
                     "Access-Control-Request-Headers": (
                         "Authorization, X-Second-Brain-Admin-Token"
@@ -171,6 +181,7 @@ def test_cors_preflight_allows_admin_token_header():
             )
 
         assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == origin
         allowed = response.headers["access-control-allow-headers"].lower()
         assert "authorization" in allowed
         assert "x-second-brain-admin-token" in allowed

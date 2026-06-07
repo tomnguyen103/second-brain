@@ -128,7 +128,7 @@ function CapturePageContent() {
             )}
             {lastResult && (
               <div className="space-y-4">
-                <div className="flex items-start gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900/60">
+                <div className="flex items-start gap-2 rounded-lg bg-live/10 px-3 py-2 text-xs text-live ring-1 ring-live/30">
                   <CheckCircle size={15} weight="bold" className="mt-0.5 shrink-0" />
                   <span className="leading-5">Saved to source #{lastResult.source_id}</span>
                 </div>

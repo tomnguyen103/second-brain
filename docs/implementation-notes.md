@@ -9,6 +9,76 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## PR review follow-up: IME-safe chat submit and design-source alignment (2026-06-07)
+
+- **What:** after CodeRabbit reviewed PR #27, ChatComposer now ignores `Enter` while the browser is
+  still composing text through an IME. The DesignMD kit was translated to English and now documents
+  the approved warm light inspection palette alongside the dark WattVision palette. CORS tests also
+  cover an HTTPS localhost origin and env overrides for the origin list/regex.
+- **Why:** IME users can otherwise send partial text unintentionally. The warm light palette had
+  been implemented by user request but was not yet recorded in the design source, and the regex
+  supported more cases than the tests exercised.
+- **Trade-off / what I gave up:** the design file is no longer a literal Spanish download; it is the
+  English repo-maintained version of the same design system plus the approved Second Brain light
+  variant.
+- **Affects:** `.design/DESIGN.md`, `frontend/components/ChatComposer.tsx`,
+  `backend/tests/unit/{test_api_auth.py,test_config.py}`.
+
+---
+
+## Light mode becomes a warm inspection theme (2026-06-07)
+
+- **What:** kept the WattVision dark theme as the default and changed only `.light` tokens to a
+  warm, low-glare palette: stone background, parchment cards, warm dark text, muted borders, and a
+  subdued teal primary. The theme provider now ignores system theme and the toggle assumes dark
+  before hydration so its icon and label match the visual default.
+- **Why:** the prior light mode was effectively another dark-gray palette, so the toggle appeared
+  broken. The user wanted to keep the current dark theme but make light mode warmer and not too
+  bright.
+- **Trade-off / what I gave up:** light mode now intentionally diverges from the imported DesignMD
+  kit's strict dark-dashboard instruction. It remains operational and low glare, but it is an
+  inspection variant rather than a second WattVision-spec theme.
+- **Affects:** `frontend/app/globals.css`, `frontend/components/ThemeProvider.tsx`,
+  `frontend/components/ConversationSidebar.tsx`.
+
+---
+
+## Local preview CORS follows localhost ports (2026-06-07)
+
+- **What:** added `Settings.cors_origin_regex` and wired FastAPI CORS to allow browser origins that
+  match `http(s)://localhost:<port>` or `http(s)://127.0.0.1:<port>`, while retaining the explicit
+  `3000` origin list.
+- **Why:** Next.js can auto-increment from `3000` to `3001` or another local port when a previous
+  preview is still running. The backend was healthy, but browser CORS blocked `/sources` from
+  `localhost:3001`, so the Sources landing page showed `Failed to fetch`.
+- **Trade-off / what I gave up:** any local web app on a localhost/127.0.0.1 port can pass the
+  browser CORS check. Non-local origins are still excluded by default, and production personal-data
+  routes still rely on `SECOND_BRAIN_API_TOKEN` as the real access control.
+- **Affects:** `backend/app/config.py`, `backend/app/main.py`,
+  `backend/tests/unit/{test_api_auth.py,test_config.py}`.
+
+---
+
+## WattVision DesignMD kit becomes the frontend visual source (2026-06-07)
+
+- **What:** downloaded the DesignMD WattVision kit into `.design/DESIGN.md` and mapped its dark
+  monitoring-dashboard language into the shared frontend tokens and primitives. The default app
+  theme is now dark, with cyan primary actions/data, lime live/success state, red alerts, dark card
+  surfaces, grid borders, 16px card radius, and tabular numeric rendering.
+- **Why:** the user asked to implement that DesignMD system in code, and the lowest-risk path was
+  to adapt the existing Tailwind/shadcn primitives rather than introduce a second component library
+  or change route/data behavior.
+- **Trade-off / what I gave up:** the previous bright light theme is no longer part of the visual
+  system. The theme toggle remains, but its light class is a dark-adjacent inspection variant so it
+  does not violate the kit's "no white/pastel dashboard" direction. This keeps UI continuity while
+  making WattVision the single design source for future frontend work.
+- **Affects:** `.design/DESIGN.md`, `frontend/app/globals.css`,
+  `frontend/components/{AppPage,ConversationSidebar,ChatComposer,MessageList,CitationCard,AnswerWithCitations,SourceFilter}.tsx`,
+  `frontend/components/ui/{badge,button,card}.tsx`, `frontend/app/{chat,capture,feedback,search,sources,status,tasks,admin}/page.tsx`,
+  `AGENTS.md`, `CLAUDE.md`.
+
+---
+
 ## Admin console reuses existing ops contracts (2026-06-06)
 
 - **What:** upgraded `/admin` into a governance/data-safety console using existing `/status` and

@@ -23,6 +23,7 @@ app = FastAPI(title="Second Brain API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Second-Brain-Admin-Token"],
     allow_credentials=False,

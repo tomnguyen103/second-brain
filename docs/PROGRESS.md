@@ -23,6 +23,67 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-07 - PR #27 review follow-up and publish gate
+- **What:** opened PR #27 for the WattVision DesignMD/CORS/theme work, moved it out of draft after
+  local self-checks, and requested one explicit CodeRabbit review. Addressed the actionable review
+  item by preventing ChatComposer `Enter` submission during IME composition.
+- **Follow-up:** translated `.design/DESIGN.md` to English, documented the approved warm light
+  inspection palette in the design source, added HTTPS and CORS env-override test coverage, and
+  reran the failed kind-smoke CI job after confirming it was caused by an external 504 fetching the
+  pinned metrics-server manifest.
+- **Verified:** focused backend config/auth tests passed (`44 passed, 1 warning`), frontend
+  `npm run lint` passed, and frontend `npm run build` passed with the existing multiple-lockfile
+  workspace-root warning.
+
+### 2026-06-07 - Warm light theme toggle fix
+- **What:** fixed the dark/light toggle behavior and replaced the too-dark light palette with a
+  warm, low-glare light mode. The accepted dark WattVision theme remains unchanged; light mode now
+  uses warm stone backgrounds, parchment panels, darker warm text, and muted teal actions instead
+  of neon cyan on dark gray.
+- **Frontend:** disabled system theme following in `next-themes` so the app only uses the explicit
+  dark/light choice, and made the sidebar toggle assume the dark default before hydration so its
+  icon/label do not briefly imply the wrong next action.
+- **Verified:** frontend `npm run lint` passed; frontend `npm run build` passed with the existing
+  multiple-lockfile workspace-root warning. Restarted the `localhost:3001` preview after clearing
+  stale generated CSS, then Chrome/CDP QA confirmed dark stays `#121212` / `#1E1E1E` / `#00E5FF`
+  while light becomes warm `#E9E1D5` / `#F4EEE4` / `#007C89`. Screenshots for `/sources` in both
+  themes were visually checked.
+
+### 2026-06-07 - Sources localhost preview CORS fix
+- **What:** fixed the `/sources` landing page failure on `http://localhost:3001` where source
+  folders stayed stuck with `Failed to fetch` after navigating from Chat. The backend CORS default
+  now allows localhost and `127.0.0.1` preview ports through a local-only regex while keeping the
+  explicit `3000` origins.
+- **Why:** Next.js auto-selected port `3001` because `3000` was unavailable, but the API only
+  allowed browser requests from `3000`, so the browser blocked the otherwise-healthy `/sources`
+  API response.
+- **Verified:** focused backend config/auth tests passed (`43 passed, 1 warning`). Restarted the
+  local API on `127.0.0.1:8000`; the in-app browser click path `/chat` -> Sources now lands on
+  `/sources` with 10 source folders, 43 files, 1425 chunks, no `Failed to fetch`, and no console
+  errors.
+- **Runtime follow-up:** the first API restart used the deterministic `fake` LLM provider for local
+  smoke testing, which caused chat to return `(fake)` answers. Restarted the API again without that
+  override so it reads `backend/.env`; `/status` now reports `gemini` / `gemini-2.5-flash`, and a
+  live `/chat` probe returned a cited Gemini answer instead of a fake response.
+
+### 2026-06-07 - WattVision DesignMD system adoption
+- **What:** downloaded the DesignMD WattVision kit into `.design/DESIGN.md` and made it the
+  frontend design-system source for this repo. The shared Tailwind tokens now use the WattVision
+  dark monitoring palette (`#121212`, `#1E1E1E`, `#2C2C2E`, `#00E5FF`, `#FF453A`, `#32D74B`),
+  16px card radius, tabular numeric rendering, and dark-by-default theme behavior with a
+  dark-adjacent light toggle variant.
+- **Frontend:** retuned shared app primitives, the persistent sidebar/history rail, chat composer,
+  message/citation/filter surfaces, and shadcn-owned card/button/badge primitives so routes inherit
+  the cyan/live/alert system without backend/API changes. Fixed the mobile chat composer so action
+  buttons no longer clip on a 390px viewport.
+- **Docs:** updated `AGENTS.md` and `CLAUDE.md` to require reading `.design/DESIGN.md` for UI work
+  and to use the DesignMD MCP when refreshing the kit.
+- **Verified:** frontend `npm run lint` passed; frontend `npm run build` passed with the existing
+  multiple-lockfile workspace-root warning. A temporary production preview on
+  `http://localhost:3018/chat` returned `200`; Chrome headless screenshots at 1440x900 and 390x844
+  confirmed the dark cyan shell and the mobile composer fix. The Browser/Ruflo session hook still
+  failed with the known `command not found: npx` helper issue.
+
 ### 2026-06-07 - CodeRabbit review follow-up for admin/source management
 - **What:** addressed PR #26 CodeRabbit findings before merge. Document summaries now use SQL
   aggregate chunk counts instead of hydrating full chunk bodies, document content updates abort

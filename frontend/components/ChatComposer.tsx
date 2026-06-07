@@ -33,8 +33,8 @@ export function ChatComposer({ onSend, disabled, agenticAvailable = false }: Pro
   };
 
   return (
-    <div className="bg-background px-4 pb-4 pt-2">
-      <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full min-w-0 bg-background px-4 pb-4 pt-2">
+      <div className="mx-auto w-full min-w-0 max-w-5xl">
         {privateMode && (
           <div className="mb-2 flex items-center gap-1.5 px-1">
             <Lock size={11} className="text-primary" />
@@ -53,8 +53,8 @@ export function ChatComposer({ onSend, disabled, agenticAvailable = false }: Pro
         )}
 
         <div
-          className={`flex min-w-0 items-end gap-2 rounded-lg border bg-card px-3 py-2.5 shadow-sm shadow-zinc-950/[0.025] transition-all duration-200 ${
-            focused ? "border-primary/70 ring-3 ring-primary/15" : "border-border"
+          className={`box-border flex w-full min-w-0 max-w-full flex-col gap-2 rounded-lg border bg-card px-3 py-2.5 transition-all duration-200 sm:flex-row sm:items-end ${
+            focused ? "border-primary/70 ring-3 ring-primary/25" : "border-border"
           }`}
         >
           <label htmlFor="chat-message" className="sr-only">Chat message</label>
@@ -64,6 +64,7 @@ export function ChatComposer({ onSend, disabled, agenticAvailable = false }: Pro
             value={text}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return;
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 submit();
@@ -74,19 +75,19 @@ export function ChatComposer({ onSend, disabled, agenticAvailable = false }: Pro
             placeholder="Ask anything about your notes..."
             rows={1}
             disabled={disabled}
-            className="min-h-[28px] max-h-40 min-w-0 flex-1 basis-0 resize-none bg-transparent text-sm leading-[1.65] text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
+            className="min-h-[28px] max-h-40 w-full min-w-0 flex-1 basis-0 resize-none bg-transparent text-sm leading-[1.65] text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
           />
 
-          <div className="flex shrink-0 items-center gap-1.5 pb-0.5">
+          <div className="flex w-full shrink-0 items-center justify-start gap-1.5 pb-0.5 sm:w-auto sm:justify-end">
             {agenticAvailable && (
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setAgenticMode((previous) => !previous)}
-                className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-all focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/15 ${
+                className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-all focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 ${
                   agenticMode
                     ? "border-primary/30 bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                    : "border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                 }`}
                 aria-label="Toggle agentic RAG"
                 aria-pressed={agenticMode}
@@ -100,10 +101,10 @@ export function ChatComposer({ onSend, disabled, agenticAvailable = false }: Pro
               type="button"
               whileTap={{ scale: 0.9 }}
               onClick={() => setPrivateMode((previous) => !previous)}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-all focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/15 ${
+              className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-all focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 ${
                 privateMode
                   ? "border-primary/30 bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                  : "border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground"
               }`}
               aria-label="Toggle private mode"
               aria-pressed={privateMode}
@@ -117,7 +118,7 @@ export function ChatComposer({ onSend, disabled, agenticAvailable = false }: Pro
               whileTap={{ scale: 0.91 }}
               onClick={submit}
               disabled={!canSend}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm shadow-amber-200/60 transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-30 dark:shadow-none"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm shadow-primary/20 transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-30"
               aria-label="Send"
             >
               <PaperPlaneTilt size={14} weight="bold" />
