@@ -34,6 +34,8 @@ publish = "out"
 NEXT_PUBLIC_DEMO_ACCESS_HASH=<lowercase sha256 hash of your demo passcode>
 ```
 
+If you omit `NEXT_PUBLIC_DEMO_ACCESS_HASH`, the passcode gate is disabled and all visitors get immediate access. Only add this variable when you want casual access control for the static demo.
+
 Netlify already receives these from `netlify.toml`:
 
 ```text
@@ -72,9 +74,11 @@ From `frontend/`:
 ```powershell
 npm ci
 npm run lint
+# Verify the normal app build still works before enabling static demo export.
 npm run build
 $env:NEXT_PUBLIC_SECOND_BRAIN_DEMO_MODE="static"
 $env:NEXT_PUBLIC_AGENTIC_RAG_ENABLED="true"
+# Build the Netlify static export.
 npm run build
 ```
 
@@ -94,4 +98,4 @@ Open `http://localhost:4173/chat/` and verify:
 
 ## Portfolio Link
 
-After Netlify deploys successfully, add the Netlify URL to the portfolio as a live demo link. Keep the repository link next to it so reviewers can inspect the full backend, local runtime, MCP server, evals, and operations docs.
+After Netlify deploys successfully, add the live-demo URL to your personal portfolio site and to `README.md` under a clearly labeled `Live Demo` or `Deployment` section. Keep the repository link immediately adjacent, for example: `Live demo: <Netlify URL> (Repo: <repo URL>)`. Verify the live demo link is reachable after deployment.

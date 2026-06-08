@@ -1,6 +1,12 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { STATIC_DEMO_MODE } from "@/lib/demo/config";
 
 export default function Home() {
+  if (!STATIC_DEMO_MODE) {
+    redirect("/chat");
+  }
+
   return (
     <div className="flex h-full items-center justify-center bg-background px-4 text-foreground">
       <section className="w-full max-w-md rounded-lg border border-border bg-card p-5 text-center">

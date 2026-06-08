@@ -1,4 +1,4 @@
-import type { ApiClient, ChatStreamHandlers } from "@/lib/api/client";
+import type { ApiClient, ChatStreamHandlers } from "@/lib/api/client-types";
 import type {
   CaptureResponse,
   ChatRequest,
@@ -331,11 +331,11 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
       reject(new DOMException("Aborted", "AbortError"));
       return;
     }
-    const timer = window.setTimeout(resolve, ms);
+    const timer = globalThis.setTimeout(resolve, ms);
     signal?.addEventListener(
       "abort",
       () => {
-        window.clearTimeout(timer);
+        globalThis.clearTimeout(timer);
         reject(new DOMException("Aborted", "AbortError"));
       },
       { once: true },

@@ -36,6 +36,12 @@ Add a dated entry per working session. Most recent on top.
   API token, admin token, or private notes deployed.
 - **Docs:** added `docs/portfolio-demo-netlify.md` with Netlify setup, passcode-hash generation,
   verification steps, and secret-exclusion guidance.
+- **Review follow-up:** addressed CodeRabbit's static-demo review by restoring the non-demo `/`
+  redirect to `/chat`, pinning Turbopack root to the frontend config directory, extracting API
+  client contracts to a type-only module, making the demo stream delay SSR-safe, clarifying the
+  Netlify runbook, and adding a static-demo CSP header.
+- **Verified:** reran frontend lint, normal `npm run build`, static demo export build, `git diff
+  --check`, and a static HTTP smoke for `/` plus `/chat/`.
 
 ### 2026-06-07 - README Gemini API switch guidance
 - **What:** added README guidance explaining that LLM provider switching happens in the backend,

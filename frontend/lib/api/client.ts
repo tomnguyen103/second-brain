@@ -37,6 +37,7 @@ import type {
   TaskListResponse,
   TaskStatus,
 } from "./types";
+import type { ApiClient, ChatStreamHandlers } from "./client-types";
 import { demoApi } from "./demo-client";
 import { STATIC_DEMO_MODE } from "@/lib/demo/config";
 
@@ -70,12 +71,6 @@ export function isChatStreamUnavailableError(
   error: unknown,
 ): error is ChatStreamUnavailableError {
   return error instanceof ChatStreamUnavailableError;
-}
-
-export interface ChatStreamHandlers {
-  onDelta: (delta: ChatStreamDelta) => void;
-  onComplete: (complete: ChatStreamComplete) => void;
-  signal?: AbortSignal;
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -442,8 +437,8 @@ export const liveApi = {
       headers: { "X-Second-Brain-Admin-Token": params.adminToken },
     });
   },
-};
+} satisfies ApiClient;
 
-export type ApiClient = typeof liveApi;
+export type { ApiClient, ChatStreamHandlers } from "./client-types";
 
 export const api: ApiClient = STATIC_DEMO_MODE ? demoApi : liveApi;
