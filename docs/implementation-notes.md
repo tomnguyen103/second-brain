@@ -9,6 +9,23 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Static Netlify demo uses browser fixtures instead of hosted backend (2026-06-08)
+
+- **What:** added `NEXT_PUBLIC_SECOND_BRAIN_DEMO_MODE=static`, a static demo API adapter, a
+  public-safe fixture corpus, an optional browser-side passcode gate, and a `netlify.toml` that
+  exports the frontend to `frontend/out`.
+- **Why:** the portfolio needs an always-available demo link with zero recurring infrastructure
+  cost and limited casual access, without deploying private notes, Postgres, Redis, API tokens,
+  admin tokens, or Gemini credentials.
+- **Trade-off / what I gave up:** the hosted Netlify demo is not the live RAG backend. It is a
+  faithful read-only UI preview with deterministic cited answers and static operational data. The
+  full FastAPI/Postgres/MCP/eval workflow remains the local or short-lived backend demo path.
+- **Affects:** `frontend/lib/demo/*`, `frontend/lib/api/{client.ts,demo-client.ts}`,
+  `frontend/components/{DemoAccessGate.tsx,Providers.tsx,ConversationSidebar.tsx}`,
+  `frontend/next.config.ts`, `netlify.toml`, `docs/portfolio-demo-netlify.md`, `README.md`.
+
+---
+
 ## Public demo uses seeded corpus before anonymous uploads (2026-06-07)
 
 - **What:** added `python -m app.demo.seed_public` as a separate seed path for a small public-safe

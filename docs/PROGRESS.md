@@ -23,6 +23,20 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-08 - Netlify static portfolio demo
+- **What:** added a separate static portfolio-demo path for Netlify using
+  `NEXT_PUBLIC_SECOND_BRAIN_DEMO_MODE=static`. The frontend now switches to a browser-side
+  public-safe demo API adapter only in static mode, while normal local/API-backed use remains the
+  default.
+- **Demo behavior:** chat, streaming chat, search, status, sources, feedback, briefing, tasks,
+  research, and admin previews use fixture data that mirrors the public demo corpus. Mutating
+  flows return read-only errors instead of calling a backend.
+- **Access/cost posture:** added an optional SHA-256 passcode gate for casual access control and
+  a root `netlify.toml` that builds `frontend/out` with no backend, database, Redis, Gemini key,
+  API token, admin token, or private notes deployed.
+- **Docs:** added `docs/portfolio-demo-netlify.md` with Netlify setup, passcode-hash generation,
+  verification steps, and secret-exclusion guidance.
+
 ### 2026-06-07 - README Gemini API switch guidance
 - **What:** added README guidance explaining that LLM provider switching happens in the backend,
   not the frontend, and documented the `backend/.env` variables for moving from the keyless

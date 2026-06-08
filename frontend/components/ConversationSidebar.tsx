@@ -28,6 +28,7 @@ import {
 } from "@phosphor-icons/react";
 
 import { api, getStoredApiToken, setStoredApiToken } from "@/lib/api/client";
+import { STATIC_DEMO_MODE } from "@/lib/demo/config";
 import { queryClient } from "@/lib/query-client";
 import { cn } from "@/lib/utils";
 
@@ -136,7 +137,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
                 Second Brain
               </span>
               <span className="block truncate text-[11px] leading-4 text-muted-foreground">
-                Local knowledge workspace
+                {STATIC_DEMO_MODE ? "Static portfolio demo" : "Local knowledge workspace"}
               </span>
             </span>
           </Link>
@@ -206,6 +207,24 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
         ))}
       </nav>
 
+      {STATIC_DEMO_MODE ? (
+        <div className="mx-3 mb-3 mt-auto rounded-lg border border-primary/25 bg-primary/10 p-3">
+          <div className="flex items-start gap-2">
+            <ShieldCheck size={15} weight="bold" className="mt-0.5 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-semibold text-foreground">Static demo</p>
+                <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground ring-1 ring-border">
+                  read-only
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                Public-safe fixtures power chat, search, sources, and status. Writes stay local-only.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="mx-3 mb-3 mt-auto rounded-lg border border-border bg-background p-2">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
@@ -257,6 +276,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
           </button>
         </form>
       </div>
+      )}
     </div>
   );
 }
@@ -386,7 +406,9 @@ function MobileTopBar({ onOpen }: { onOpen: () => void }) {
       </button>
       <Link href="/chat" className="min-w-0 text-center">
         <span className="block text-sm font-semibold leading-4 text-foreground">Second Brain</span>
-        <span className="block text-[11px] leading-4 text-muted-foreground">Local-first workspace</span>
+        <span className="block text-[11px] leading-4 text-muted-foreground">
+          {STATIC_DEMO_MODE ? "Static portfolio demo" : "Local-first workspace"}
+        </span>
       </Link>
       <Link
         href="/chat"

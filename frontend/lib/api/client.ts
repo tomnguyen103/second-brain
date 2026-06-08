@@ -37,6 +37,8 @@ import type {
   TaskListResponse,
   TaskStatus,
 } from "./types";
+import { demoApi } from "./demo-client";
+import { STATIC_DEMO_MODE } from "@/lib/demo/config";
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const API_TOKEN_STORAGE_KEY = "second-brain.api-token";
@@ -211,7 +213,7 @@ async function streamChat(
   }
 }
 
-export const api = {
+export const liveApi = {
   getHealth(): Promise<HealthResponse> {
     return apiFetch("/health");
   },
@@ -441,3 +443,7 @@ export const api = {
     });
   },
 };
+
+export type ApiClient = typeof liveApi;
+
+export const api: ApiClient = STATIC_DEMO_MODE ? demoApi : liveApi;

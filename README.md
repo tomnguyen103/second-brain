@@ -251,6 +251,11 @@ Run the Python demo commands from `backend/` after migrations are current.
 That gives you two visible loops: public-safe cited chat/search for viewers, plus capture ->
 feedback review -> eval export/gate for local development.
 
+For a zero-dollar hosted portfolio link, use the static Netlify build described in
+[docs/portfolio-demo-netlify.md](docs/portfolio-demo-netlify.md). It serves public-safe fixture
+data only, keeps all writes read-only, and does not deploy the backend, database, Redis, Gemini
+key, API token, admin token, or private notes.
+
 ## Tech Stack
 
 | Layer | Choice |

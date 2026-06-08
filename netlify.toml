@@ -1,0 +1,19 @@
+[build]
+base = "frontend"
+command = "npm ci && npm run build"
+publish = "out"
+
+[build.environment]
+NODE_VERSION = "22"
+NEXT_PUBLIC_SECOND_BRAIN_DEMO_MODE = "static"
+NEXT_PUBLIC_AGENTIC_RAG_ENABLED = "true"
+NEXT_TELEMETRY_DISABLED = "1"
+
+[[headers]]
+for = "/*"
+
+[headers.values]
+X-Frame-Options = "DENY"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
