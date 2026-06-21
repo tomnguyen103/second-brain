@@ -137,6 +137,8 @@ export interface ConversationSummary {
 export interface ConversationListResponse {
   conversations: ConversationSummary[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface RetrievalOut {

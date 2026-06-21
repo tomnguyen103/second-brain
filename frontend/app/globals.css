@@ -126,3 +126,18 @@
   background-size: 1200px 100%;
   animation: shimmer 1.8s ease-in-out infinite;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .skeleton-shimmer {
+    animation: none;
+  }
+}

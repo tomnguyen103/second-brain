@@ -23,6 +23,20 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-21 - Review fix pass: history pagination, UI access, and frontend gates
+- **What:** continued the whole-project review fix plan by bounding conversation history with
+  `limit`/`offset` pagination, adding a sidebar "Load more" flow, and removing the unused
+  `lucide-react` frontend dependency.
+- **Frontend/accessibility:** mobile navigation now exposes dialog semantics, traps focus while
+  open, closes on Escape, restores focus to the menu button, and respects reduced-motion settings
+  through Framer Motion plus CSS media-query fallbacks.
+- **CI/production:** CI now runs frontend `npm ci`, lint, and build; the frontend Dockerfile uses
+  `npm ci` so image builds honor the committed lockfile.
+- **Verified:** focused conversation pagination tests passed (`2 passed, 1 warning`), full backend
+  pytest passed (`323 passed, 7 warnings`), eval gate passed, frontend `npm ci`, `npm run lint`,
+  `npm run build`, and `npm audit` passed, the frontend Docker image built successfully, Compose
+  config rendered, and `git diff --check` passed.
+
 ### 2026-06-21 - Review fix pass: ingest, limits, and validated stream status
 - **What:** started the whole-project review fix plan by resolving the first three priority
   findings. Main ingest now fails a document when embedding vector count does not match chunk

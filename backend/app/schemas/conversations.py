@@ -19,6 +19,8 @@ class ConversationSummary(BaseModel):
 class ConversationListResponse(BaseModel):
     conversations: list[ConversationSummary]
     total: int
+    limit: int
+    offset: int
 
 
 class RetrievalOut(BaseModel):

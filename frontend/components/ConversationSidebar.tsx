@@ -1,10 +1,10 @@
 "use client";
 
-import type { MouseEvent, ReactNode } from "react";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import type { MouseEvent, ReactNode, RefObject } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -29,6 +29,7 @@ import {
 
 import { api, getStoredApiToken, setStoredApiToken } from "@/lib/api/client";
 import { queryClient } from "@/lib/query-client";
+import type { ConversationSummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -70,6 +71,8 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
     ],
   },
 ];
+
+const HISTORY_PAGE_SIZE = 12;
 
 function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
   const pathname = usePathname();
@@ -266,19 +269,38 @@ function ConversationHistoryContent() {
   const activeCid = searchParams.get("cid");
   const activeConversationId = activeCid ? Number.parseInt(activeCid, 10) : null;
 
-  const { data } = useQuery({
+  const {
+    data,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  } = useInfiniteQuery({
     queryKey: ["conversations"],
-    queryFn: () => api.listConversations(),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      api.listConversations({ limit: HISTORY_PAGE_SIZE, offset: pageParam }),
+    getNextPageParam: (lastPage) => {
+      const nextOffset = lastPage.offset + lastPage.conversations.length;
+      return nextOffset < lastPage.total ? nextOffset : undefined;
+    },
     refetchInterval: 15_000,
   });
+  const conversations = useMemo(
+    () => data?.pages.flatMap((page) => page.conversations) ?? [],
+    [data?.pages],
+  );
+  const latestPage = data?.pages[data.pages.length - 1];
+  const total = latestPage?.total ?? 0;
 
   const historyItems = useMemo(() => {
     const groups = new Map<string, {
-      conversation: NonNullable<typeof data>["conversations"][number];
+      conversation: ConversationSummary;
       duplicateCount: number;
     }>();
 
-    for (const conversation of data?.conversations ?? []) {
+    for (const conversation of conversations) {
       const title = conversation.title?.trim();
       const key = title ? title.toLowerCase() : `id:${conversation.id}`;
       const existing = groups.get(key);
@@ -292,8 +314,8 @@ function ConversationHistoryContent() {
       }
     }
 
-    return Array.from(groups.values()).slice(0, 12);
-  }, [data?.conversations, activeConversationId]);
+    return Array.from(groups.values());
+  }, [conversations, activeConversationId]);
 
   return (
     <aside className="hidden h-full w-80 shrink-0 p-4 xl:block" aria-label="Recent conversations">
@@ -303,14 +325,24 @@ function ConversationHistoryContent() {
             <h2 className="text-sm font-semibold leading-5 text-foreground">Recent conversations</h2>
             <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Conversation history</p>
           </div>
-          {data?.total != null && (
+          {latestPage && (
             <span className="rounded-md bg-muted px-2 py-1 font-mono text-[10px] font-semibold text-muted-foreground ring-1 ring-border">
-              {data.total}
+              {conversations.length}/{total}
             </span>
           )}
         </div>
 
         <div className="max-h-[calc(50vh-4rem)] overflow-y-auto p-2">
+          {isLoading && (
+            <p className="rounded-lg bg-background px-3 py-3 text-xs leading-5 text-muted-foreground ring-1 ring-border">
+              Loading conversation history...
+            </p>
+          )}
+          {error && !isLoading && (
+            <p className="rounded-lg bg-destructive/10 px-3 py-3 text-xs leading-5 text-destructive ring-1 ring-destructive/25">
+              Conversation history failed.
+            </p>
+          )}
           {historyItems.length > 0 && (
             <AnimatePresence initial={false}>
               {historyItems.map(({ conversation, duplicateCount }, index) => (
@@ -352,7 +384,19 @@ function ConversationHistoryContent() {
               ))}
             </AnimatePresence>
           )}
-          {data?.conversations.length === 0 && (
+          {hasNextPage && (
+            <button
+              type="button"
+              onClick={() => {
+                void fetchNextPage();
+              }}
+              disabled={isFetchingNextPage}
+              className="mt-2 flex h-8 w-full items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isFetchingNextPage ? "Loading..." : "Load more"}
+            </button>
+          )}
+          {!isLoading && total === 0 && (
             <p className="rounded-lg bg-background px-3 py-3 text-xs leading-5 text-muted-foreground ring-1 ring-border">
               Conversations appear here after your first cited answer.
             </p>
@@ -363,7 +407,15 @@ function ConversationHistoryContent() {
   );
 }
 
-function MobileTopBar({ onOpen }: { onOpen: () => void }) {
+function MobileTopBar({
+  onOpen,
+  mobileOpen,
+  menuButtonRef,
+}: {
+  onOpen: () => void;
+  mobileOpen: boolean;
+  menuButtonRef: RefObject<HTMLButtonElement | null>;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const startNewChat = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -377,10 +429,13 @@ function MobileTopBar({ onOpen }: { onOpen: () => void }) {
   return (
     <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-grid bg-background px-3 md:hidden">
       <button
+        ref={menuButtonRef}
         type="button"
         onClick={onOpen}
         className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
         aria-label="Open navigation"
+        aria-controls="mobile-navigation"
+        aria-expanded={mobileOpen}
       >
         <List size={18} weight="bold" />
       </button>
@@ -403,10 +458,74 @@ function MobileTopBar({ onOpen }: { onOpen: () => void }) {
 function SidebarFrame({
   mobileOpen,
   onCloseMobile,
+  returnFocusRef,
 }: {
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  returnFocusRef: RefObject<HTMLButtonElement | null>;
 }) {
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const returnFocusElement = returnFocusRef.current;
+    document.body.style.overflow = "hidden";
+
+    const focusableSelector = [
+      "a[href]",
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(",");
+    const focusFirstControl = () => {
+      const panel = panelRef.current;
+      const firstControl = panel?.querySelector<HTMLElement>(focusableSelector);
+      (firstControl ?? panel)?.focus();
+    };
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseMobile();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(focusableSelector))
+        .filter((element) => !element.hasAttribute("disabled"));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    const timer = window.setTimeout(focusFirstControl, 0);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      returnFocusElement?.focus();
+    };
+  }, [mobileOpen, onCloseMobile, returnFocusRef]);
+
   return (
     <>
       <aside className="hidden h-full w-64 shrink-0 border-r border-grid bg-card md:block">
@@ -427,7 +546,13 @@ function SidebarFrame({
               aria-label="Close navigation"
             />
             <motion.aside
+              id="mobile-navigation"
+              ref={panelRef}
               key="mobile-nav"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Primary navigation"
+              tabIndex={-1}
               className="fixed inset-y-0 left-0 z-50 w-[min(18rem,calc(100vw-1rem))] border-r border-grid bg-card shadow-2xl shadow-black/40 md:hidden"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
@@ -445,12 +570,22 @@ function SidebarFrame({
 
 export function ConversationSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   return (
     <>
-      <MobileTopBar onOpen={() => setMobileOpen(true)} />
+      <MobileTopBar
+        onOpen={() => setMobileOpen(true)}
+        mobileOpen={mobileOpen}
+        menuButtonRef={menuButtonRef}
+      />
       <Suspense fallback={<aside className="hidden h-full w-64 shrink-0 border-r border-grid bg-card md:block" />}>
-        <SidebarFrame mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
+        <SidebarFrame
+          mobileOpen={mobileOpen}
+          onCloseMobile={closeMobile}
+          returnFocusRef={menuButtonRef}
+        />
       </Suspense>
     </>
   );

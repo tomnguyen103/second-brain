@@ -9,6 +9,27 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Review fixes: pagination, frontend CI, accessibility, and dependency hygiene (2026-06-21)
+
+- **What:** added `limit`/`offset` support to `GET /conversations`, changed the desktop history
+  rail to fetch conversation pages with an explicit "Load more" action, added frontend lint/build
+  to CI, switched the frontend image dependency install to `npm ci`, removed unused `lucide-react`,
+  added safe transitive overrides for `hono`/`js-yaml`, and added mobile-navigation focus handling
+  plus reduced-motion support.
+- **Why:** the review identified unbounded conversation history loading, a missing frontend CI gate,
+  mobile drawer accessibility gaps, missing reduced-motion handling, and dependency/install drift
+  as production-readiness risks.
+- **Trade-off / what I gave up:** the history rail still groups duplicate titles inside the loaded
+  pages instead of asking the backend for grouped history. This keeps the API simple and bounded,
+  but users may need to load additional pages to reveal all duplicate-title conversations.
+- **Affects:** `backend/app/api/conversations.py`, `backend/app/schemas/conversations.py`,
+  `backend/tests/integration/test_search.py`, `frontend/components/ConversationSidebar.tsx`,
+  `frontend/components/Providers.tsx`, `frontend/app/globals.css`,
+  `frontend/lib/api/{client.ts,types.ts}`, `.github/workflows/ci.yml`,
+  `deploy/Dockerfile.frontend`, `frontend/package.json`, `frontend/package-lock.json`.
+
+---
+
 ## Review fixes: bounded requests and validated stream status (2026-06-21)
 
 - **What:** added bounded Pydantic schemas for high-cost JSON inputs, made main ingest reject

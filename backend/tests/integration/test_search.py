@@ -1,5 +1,5 @@
 """Integration tests for GET /search, GET /conversations, POST /feedback."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 import pytest
 from sqlalchemy import select
@@ -52,6 +52,50 @@ def test_conversations_list(client):
     body = r.json()
     assert "conversations" in body and "total" in body
     assert body["total"] >= 1
+    assert body["limit"] == 25
+    assert body["offset"] == 0
+
+
+def test_conversations_list_paginates(client, db_session):
+    base = datetime(2026, 6, 7, 18, 30, tzinfo=timezone.utc)
+    conversations = []
+    for index in range(3):
+        conv = Conversation(
+            title=f"paged {index}",
+            created_at=base + timedelta(minutes=index),
+            updated_at=base + timedelta(minutes=index),
+        )
+        db_session.add(conv)
+        db_session.flush()
+        db_session.add(
+            Message(
+                conversation_id=conv.id,
+                role="user",
+                content=f"question {index}",
+                created_at=conv.created_at,
+            )
+        )
+        conversations.append(conv)
+    db_session.flush()
+
+    first = client.get("/conversations", params={"limit": 2, "offset": 0})
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+    assert first_body["total"] == 3
+    assert first_body["limit"] == 2
+    assert first_body["offset"] == 0
+    assert [item["id"] for item in first_body["conversations"]] == [
+        conversations[2].id,
+        conversations[1].id,
+    ]
+
+    second = client.get("/conversations", params={"limit": 2, "offset": 2})
+    assert second.status_code == 200, second.text
+    second_body = second.json()
+    assert second_body["total"] == 3
+    assert second_body["limit"] == 2
+    assert second_body["offset"] == 2
+    assert [item["id"] for item in second_body["conversations"]] == [conversations[0].id]
 
 
 def test_conversations_detail(client):
