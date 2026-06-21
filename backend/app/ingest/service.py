@@ -120,6 +120,8 @@ def ingest_documents(
                     )
                     if pieces else []
                 )
+                if len(vectors) != len(pieces):
+                    raise RuntimeError("embedding service returned an unexpected vector count")
                 for piece, vec in zip(pieces, vectors):
                     chunk = Chunk(document_id=doc.id, chunk_index=piece.index,
                                   content=piece.content, token_count=piece.token_count,

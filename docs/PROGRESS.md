@@ -23,6 +23,35 @@ Legend: ⬜ not started · 🟡 in progress · ✅ complete
 
 Add a dated entry per working session. Most recent on top.
 
+### 2026-06-21 - Review fix pass: history pagination, UI access, and frontend gates
+- **What:** continued the whole-project review fix plan by bounding conversation history with
+  `limit`/`offset` pagination, adding a sidebar "Load more" flow, and removing the unused
+  `lucide-react` frontend dependency.
+- **Frontend/accessibility:** mobile navigation now exposes dialog semantics, traps focus while
+  open, closes on Escape, restores focus to the menu button, and respects reduced-motion settings
+  through Framer Motion plus CSS media-query fallbacks.
+- **CI/production:** CI now runs frontend `npm ci`, lint, and build; the frontend Dockerfile uses
+  `npm ci` so image builds honor the committed lockfile.
+- **Verified:** focused conversation pagination tests passed (`2 passed, 1 warning`), full backend
+  pytest passed (`323 passed, 7 warnings`), eval gate passed, frontend `npm ci`, `npm run lint`,
+  `npm run build`, and `npm audit` passed, the frontend Docker image built successfully, Compose
+  config rendered, and `git diff --check` passed.
+
+### 2026-06-21 - Review fix pass: ingest, limits, and validated stream status
+- **What:** started the whole-project review fix plan by resolving the first three priority
+  findings. Main ingest now fails a document when embedding vector count does not match chunk
+  count, JSON chat/ingest/capture/research requests have bounded schemas, and SSE chat emits
+  explicit status frames for the validated delayed-stream contract.
+- **Review follow-up:** bounded nested ingest `source.config` and `document.metadata` payloads
+  after CodeRabbit identified them as a request-limit bypass, and made the custom pgvector image
+  build against the current Alpine LLVM/clang package names used by `postgres:16-alpine`.
+- **Frontend:** the chat loading state now shows server stream status such as context preparation,
+  answer generation, and citation validation while preserving the WattVision shell.
+- **Verified:** focused unit tests passed (`5 passed`), focused DB-backed ingest/chat/API tests
+  passed (`27 passed, 1 warning`), frontend `npm run lint` and `npm run build` passed, full
+  backend pytest passed on a clean throwaway database (`321 passed, 7 warnings`), eval gate
+  passed, and `git diff --check` passed.
+
 ### 2026-06-07 - README Gemini API switch guidance
 - **What:** added README guidance explaining that LLM provider switching happens in the backend,
   not the frontend, and documented the `backend/.env` variables for moving from the keyless

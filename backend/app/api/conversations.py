@@ -211,8 +211,11 @@ def _review_confirmed(req: PromoteEvalCandidateRequest) -> bool:
 
 @router.get("/conversations", response_model=ConversationListResponse)
 def list_conversations(
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(deps.get_db),
 ):
+    total = db.scalar(select(func.count(Conversation.id))) or 0
     rows = db.execute(
         select(
             Conversation.id,
@@ -224,6 +227,8 @@ def list_conversations(
         .outerjoin(Message, Message.conversation_id == Conversation.id)
         .group_by(Conversation.id)
         .order_by(Conversation.updated_at.desc())
+        .offset(offset)
+        .limit(limit)
     ).all()
 
     convs = [
@@ -236,7 +241,12 @@ def list_conversations(
         )
         for r in rows
     ]
-    return ConversationListResponse(conversations=convs, total=len(convs))
+    return ConversationListResponse(
+        conversations=convs,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetailResponse)

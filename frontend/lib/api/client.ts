@@ -6,6 +6,7 @@ import type {
   ChatResponse,
   ChatStreamComplete,
   ChatStreamDelta,
+  ChatStreamStatus,
   ConversationDetailResponse,
   ConversationListResponse,
   DataExportResponse,
@@ -73,6 +74,7 @@ export function isChatStreamUnavailableError(
 export interface ChatStreamHandlers {
   onDelta: (delta: ChatStreamDelta) => void;
   onComplete: (complete: ChatStreamComplete) => void;
+  onStatus?: (status: ChatStreamStatus) => void;
   signal?: AbortSignal;
 }
 
@@ -181,6 +183,8 @@ async function streamChat(
       const parsed = parseSseBlock(block);
       if (parsed?.event === "delta") {
         handlers.onDelta(parsed.data as ChatStreamDelta);
+      } else if (parsed?.event === "status") {
+        handlers.onStatus?.(parsed.data as ChatStreamStatus);
       } else if (parsed?.event === "complete") {
         completed = true;
         handlers.onComplete(parsed.data as ChatStreamComplete);
@@ -251,8 +255,14 @@ export const api = {
     return apiFetch(`/search?${sp}`);
   },
 
-  listConversations(): Promise<ConversationListResponse> {
-    return apiFetch("/conversations");
+  listConversations(
+    params: { limit?: number; offset?: number } = {},
+  ): Promise<ConversationListResponse> {
+    const sp = new URLSearchParams();
+    if (params.limit) sp.set("limit", String(params.limit));
+    if (params.offset) sp.set("offset", String(params.offset));
+    const suffix = sp.toString() ? `?${sp}` : "";
+    return apiFetch(`/conversations${suffix}`);
   },
 
   getConversation(id: number): Promise<ConversationDetailResponse> {

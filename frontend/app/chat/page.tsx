@@ -11,6 +11,12 @@ import { MessageList } from "@/components/MessageList";
 import { ChatComposer } from "@/components/ChatComposer";
 import { SourceFilter } from "@/components/SourceFilter";
 
+const STREAM_STATUS_LABELS: Record<string, string> = {
+  context_ready: "Context ready",
+  generating_answer: "Generating answer",
+  validating_citations: "Validating citations",
+};
+
 function ChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -24,6 +30,7 @@ function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<number | null>(routeConversationId);
   const [isSending, setIsSending] = useState(false);
+  const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const [sourceIds, setSourceIds] = useState<number[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const agenticAvailable = process.env.NEXT_PUBLIC_AGENTIC_RAG_ENABLED === "true";
@@ -37,6 +44,7 @@ function ChatPage() {
     abortRef.current = null;
     preserveMessagesForRouteIdRef.current = null;
     setIsSending(false);
+    setStreamStatus(null);
     setMessages([]);
     setConversationId(null);
   }, []);
@@ -119,10 +127,12 @@ function ChatPage() {
       setConversationId(data.conversation_id);
       router.replace(`/chat?cid=${data.conversation_id}`, { scroll: false });
     }
+    setStreamStatus(null);
     queryClient.invalidateQueries({ queryKey: ["conversations"] });
   };
 
   const showAssistantError = (err: unknown) => {
+    setStreamStatus(null);
     const content = `Error: ${err instanceof Error ? err.message : "Unknown error"}`;
     setMessages((prev) => {
       const idx = prev.findLastIndex((m) => m.role === "assistant" && m.isStreaming);
@@ -157,6 +167,7 @@ function ChatPage() {
     const base = messages.length > 0 ? messages : historyMessages;
     setMessages([...base, { role: "user", content: payload.message }]);
     setIsSending(true);
+    setStreamStatus(payload.agenticMode && agenticAvailable ? "Planning searches" : "Preparing context");
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -166,6 +177,7 @@ function ChatPage() {
     };
     try {
       if (req.options?.agentic) {
+        setStreamStatus("Planning searches");
         const data = await api.chat(req);
         finishIfActive(data);
         return;
@@ -186,6 +198,10 @@ function ChatPage() {
             return next;
           });
         },
+        onStatus: ({ stage }) => {
+          if (controller.signal.aborted || abortRef.current !== controller) return;
+          setStreamStatus(STREAM_STATUS_LABELS[stage] ?? "Working");
+        },
         onComplete: finishIfActive,
       });
     } catch (err) {
@@ -205,6 +221,7 @@ function ChatPage() {
       if (abortRef.current === controller) {
         abortRef.current = null;
         if (!controller.signal.aborted) setIsSending(false);
+        setStreamStatus(null);
       }
     }
   };
@@ -240,7 +257,11 @@ function ChatPage() {
           </div>
         </div>
       </header>
-      <MessageList messages={displayMessages} isLoading={isSending && !hasStreamingMessage} />
+      <MessageList
+        messages={displayMessages}
+        isLoading={isSending && !hasStreamingMessage}
+        statusMessage={streamStatus}
+      />
       <div ref={bottomRef} />
       <footer className="shrink-0 border-t border-grid bg-background">
         <SourceFilter sourceIds={sourceIds} tags={tags} onChangeSourceIds={setSourceIds} onChangeTags={setTags} />

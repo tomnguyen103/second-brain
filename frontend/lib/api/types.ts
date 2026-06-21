@@ -84,6 +84,10 @@ export interface ChatStreamDelta {
   text: string;
 }
 
+export interface ChatStreamStatus {
+  stage: string;
+}
+
 export type ChatStreamComplete = ChatResponse;
 
 export interface CaptureRequest {
@@ -133,6 +137,8 @@ export interface ConversationSummary {
 export interface ConversationListResponse {
   conversations: ConversationSummary[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface RetrievalOut {
