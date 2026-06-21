@@ -3,7 +3,13 @@ from pydantic import ValidationError
 
 from app.schemas.capture import CaptureRequest, MAX_CAPTURE_TEXT_CHARS
 from app.schemas.chat import ChatRequest, MAX_CHAT_MESSAGE_CHARS, MAX_CHAT_TOP_K
-from app.schemas.ingest import IngestRequest, MAX_DOCUMENT_CONTENT_CHARS, MAX_INGEST_DOCUMENTS
+from app.schemas.ingest import (
+    IngestRequest,
+    MAX_DOCUMENT_CONTENT_CHARS,
+    MAX_DOCUMENT_METADATA_JSON_CHARS,
+    MAX_INGEST_DOCUMENTS,
+    MAX_SOURCE_CONFIG_JSON_CHARS,
+)
 from app.schemas.research import (
     MAX_RESEARCH_SOURCE_TEXT_CHARS,
     MAX_RESEARCH_SOURCES,
@@ -28,6 +34,34 @@ def test_ingest_request_bounds_document_count_and_content_size():
                 "source": {"type": "manual", "name": "Huge"},
                 "documents": [
                     {"title": "Huge", "content": "x" * (MAX_DOCUMENT_CONTENT_CHARS + 1)}
+                ],
+            }
+        )
+
+
+def test_ingest_request_bounds_nested_json_payloads():
+    with pytest.raises(ValidationError):
+        IngestRequest.model_validate(
+            {
+                "source": {
+                    "type": "manual",
+                    "name": "Huge config",
+                    "config": {"blob": "x" * MAX_SOURCE_CONFIG_JSON_CHARS},
+                },
+                "documents": [{"title": "Doc", "content": "body"}],
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        IngestRequest.model_validate(
+            {
+                "source": {"type": "manual", "name": "Huge metadata"},
+                "documents": [
+                    {
+                        "title": "Doc",
+                        "content": "body",
+                        "metadata": {"blob": "x" * MAX_DOCUMENT_METADATA_JSON_CHARS},
+                    }
                 ],
             }
         )

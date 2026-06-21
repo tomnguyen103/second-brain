@@ -9,7 +9,11 @@ FROM postgres:16-alpine AS pgvector-builder
 
 ARG PGVECTOR_VERSION=0.8.2
 
-RUN apk add --no-cache build-base clang19 git llvm19-dev
+RUN apk add --no-cache build-base clang git llvm-dev \
+    && ln -sf "$(command -v clang)" /usr/bin/clang-19 \
+    && mkdir -p /usr/lib/llvm19/bin \
+    && ln -sf /usr/bin/llvm-config-21 /usr/lib/llvm19/bin/llvm-config \
+    && ln -sf /usr/lib/llvm21/bin/llvm-lto /usr/lib/llvm19/bin/llvm-lto
 
 WORKDIR /tmp
 RUN git clone --depth 1 --branch "v${PGVECTOR_VERSION}" https://github.com/pgvector/pgvector.git

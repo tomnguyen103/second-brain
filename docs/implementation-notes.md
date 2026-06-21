@@ -13,7 +13,9 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 - **What:** added bounded Pydantic schemas for high-cost JSON inputs, made main ingest reject
   embedding cardinality mismatches before persisting chunks, and changed SSE chat to emit progress
-  status frames while still withholding model text until citation validation passes.
+  status frames while still withholding model text until citation validation passes. Review
+  follow-up also capped nested ingest `source.config` and `document.metadata` JSON payloads and
+  refreshed the pgvector build-stage package compatibility for the current Alpine toolchain.
 - **Why:** file upload and document edit paths already had explicit size/cardinality guards, but
   the JSON ingest/chat/capture/research paths could accept oversized work. The stream endpoint was
   safe against uncited text leaks, but its delta-only shape made the user experience look like
@@ -24,7 +26,7 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 - **Affects:** `backend/app/schemas/{chat.py,ingest.py,capture.py,research.py}`,
   `backend/app/ingest/service.py`, `backend/app/chat/service.py`, `backend/app/api/chat.py`,
   `frontend/lib/api/{client.ts,types.ts}`, `frontend/app/chat/page.tsx`,
-  `frontend/components/MessageList.tsx`.
+  `frontend/components/MessageList.tsx`, `deploy/Dockerfile.pgvector`.
 
 ---
 

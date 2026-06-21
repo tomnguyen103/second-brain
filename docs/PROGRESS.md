@@ -28,6 +28,9 @@ Add a dated entry per working session. Most recent on top.
   findings. Main ingest now fails a document when embedding vector count does not match chunk
   count, JSON chat/ingest/capture/research requests have bounded schemas, and SSE chat emits
   explicit status frames for the validated delayed-stream contract.
+- **Review follow-up:** bounded nested ingest `source.config` and `document.metadata` payloads
+  after CodeRabbit identified them as a request-limit bypass, and made the custom pgvector image
+  build against the current Alpine LLVM/clang package names used by `postgres:16-alpine`.
 - **Frontend:** the chat loading state now shows server stream status such as context preparation,
   answer generation, and citation validation while preserving the WattVision shell.
 - **Verified:** focused unit tests passed (`5 passed`), focused DB-backed ingest/chat/API tests
