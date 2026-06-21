@@ -84,6 +84,10 @@ export interface ChatStreamDelta {
   text: string;
 }
 
+export interface ChatStreamStatus {
+  stage: string;
+}
+
 export type ChatStreamComplete = ChatResponse;
 
 export interface CaptureRequest {

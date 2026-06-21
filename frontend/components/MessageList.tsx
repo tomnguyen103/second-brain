@@ -14,13 +14,16 @@ export interface ChatMessage {
   isStreaming?: boolean;
 }
 
-function MessageSkeleton() {
+function MessageSkeleton({ statusMessage }: { statusMessage?: string | null }) {
   return (
     <div className="flex max-w-2xl items-start gap-3">
       <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/25">
         <Sparkle size={13} weight="fill" className="animate-pulse text-primary" />
       </div>
       <div className="flex-1 space-y-2 pt-1">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          {statusMessage ?? "Validating cited answer"}
+        </p>
         <div className="h-3.5 rounded-lg skeleton-shimmer w-3/4" />
         <div className="h-3.5 rounded-lg skeleton-shimmer w-full" />
         <div className="h-3.5 rounded-lg skeleton-shimmer w-1/2" />
@@ -73,9 +76,13 @@ function EmptyState() {
   );
 }
 
-interface Props { messages: ChatMessage[]; isLoading?: boolean; }
+interface Props {
+  messages: ChatMessage[];
+  isLoading?: boolean;
+  statusMessage?: string | null;
+}
 
-export function MessageList({ messages, isLoading }: Props) {
+export function MessageList({ messages, isLoading, statusMessage }: Props) {
   if (messages.length === 0 && !isLoading) return <EmptyState />;
 
   return (
@@ -142,7 +149,7 @@ export function MessageList({ messages, isLoading }: Props) {
             transition={{ type: "spring", stiffness: 300, damping: 26 }}
             className="flex justify-start"
           >
-            <div className="w-full max-w-2xl"><MessageSkeleton /></div>
+            <div className="w-full max-w-2xl"><MessageSkeleton statusMessage={statusMessage} /></div>
           </motion.div>
         )}
         </AnimatePresence>

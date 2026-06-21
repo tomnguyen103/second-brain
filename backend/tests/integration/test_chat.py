@@ -230,7 +230,9 @@ def test_stream_chat_emits_deltas_and_persists_cited_completion(db_session, fake
 
     deltas = [e.text for e in events if e.type == "delta"]
     complete = next(e.result for e in events if e.type == "complete")
+    statuses = [e.text for e in events if e.type == "status"]
 
+    assert statuses == ["context_ready", "generating_answer", "validating_citations"]
     assert "".join(deltas) == complete.answer
     assert complete.citations
     assert complete.model == "fake"
@@ -249,7 +251,9 @@ def test_stream_chat_does_not_emit_uncited_model_deltas(db_session, fake_embedde
 
     leaked_delta_text = "".join(e.text or "" for e in events if e.type == "delta")
     complete = next(e.result for e in events if e.type == "complete")
+    statuses = [e.text for e in events if e.type == "status"]
 
+    assert statuses == ["context_ready", "generating_answer", "validating_citations"]
     assert "SECRET_STREAM_LEAK" not in leaked_delta_text
     assert leaked_delta_text == ""
     assert complete.answer == CITATION_FAILURE_TEXT

@@ -111,6 +111,8 @@ def test_chat_stream_sends_sse_deltas_and_completion(client):
     assert r.status_code == 200, body
     assert r.headers["content-type"].startswith("text/event-stream")
     blocks = [b for b in body.strip().split("\n\n") if b]
+    assert blocks[0].startswith("event: status")
+    assert any('"stage":"validating_citations"' in b for b in blocks if b.startswith("event: status"))
     assert any(b.startswith("event: delta") for b in blocks)
     complete_block = next(b for b in blocks if b.startswith("event: complete"))
     complete_data = json.loads(next(
@@ -151,6 +153,7 @@ def test_chat_stream_never_sends_uncited_model_text(client, monkeypatch):
     assert r.status_code == 200, body
     assert "SECRET_STREAM_LEAK" not in body
     blocks = [b for b in body.strip().split("\n\n") if b]
+    assert any(b.startswith("event: status") for b in blocks)
     assert not any(b.startswith("event: delta") for b in blocks)
     complete_block = next(b for b in blocks if b.startswith("event: complete"))
     complete_data = json.loads(next(

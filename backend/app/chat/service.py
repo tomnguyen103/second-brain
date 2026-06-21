@@ -55,7 +55,7 @@ class ChatResult:
 
 @dataclass
 class ChatStreamEvent:
-    type: Literal["delta", "complete"]
+    type: Literal["status", "delta", "complete"]
     text: str | None = None
     result: ChatResult | None = None
 
@@ -478,12 +478,14 @@ def stream_chat(db: Session, embedder, llm, settings: Settings, *, message: str,
         yield ChatStreamEvent(type="complete", result=prepared)
         return
 
+    yield ChatStreamEvent(type="status", text="context_ready")
     started = time.perf_counter()
     parts: list[str] = []
     delta_parts: list[str] = []
     usage = {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
     model = getattr(llm, "model", None)
     try:
+        yield ChatStreamEvent(type="status", text="generating_answer")
         for chunk in llm.generate_stream(prepared.messages):
             if chunk.model:
                 model = chunk.model
@@ -499,6 +501,7 @@ def stream_chat(db: Session, embedder, llm, settings: Settings, *, message: str,
 
         latency_ms = int((time.perf_counter() - started) * 1000)
         streamed_answer = "".join(parts)
+        yield ChatStreamEvent(type="status", text="validating_citations")
         final_answer, model, usage, latency_ms = _repair_citations_if_needed(
             llm,
             prepared,

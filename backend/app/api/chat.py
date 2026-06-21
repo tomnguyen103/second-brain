@@ -99,6 +99,8 @@ def _stream_events(db: Session, embedder, llm, settings: Settings, req: ChatRequ
         ):
             if event.type == "delta":
                 yield _format_sse("delta", {"text": event.text or ""})
+            elif event.type == "status":
+                yield _format_sse("status", {"stage": event.text or ""})
             elif event.result is not None:
                 yield _format_sse(
                     "complete",

@@ -1,5 +1,8 @@
 import os
 import pytest
+from sqlalchemy import select
+
+from app.db.models import Document
 from app.ingest.service import DocumentInput, SourceSpec, ingest_documents
 from tests.helpers import sample_pdf_bytes
 
@@ -45,6 +48,34 @@ def test_partial_failure_isolates_bad_doc(db_session, fake_embedder):
     statuses = {d.title: d.status for d in result.documents}
     assert statuses["Good"] == "embedded"
     assert statuses["Bad"] == "failed"
+
+
+def test_ingest_fails_doc_when_embedding_count_mismatches(db_session, fake_embedder):
+    class _ShortEmbedder:
+        model_name = fake_embedder.model_name
+        dim = fake_embedder.dim
+
+        def encode(self, texts):
+            vectors = fake_embedder.encode(texts)
+            return vectors[:-1]
+
+        def count_tokens(self, text):
+            return fake_embedder.count_tokens(text)
+
+    spec = SourceSpec(type="manual", name="mismatched embeddings")
+    docs = [
+        DocumentInput(
+            title="Mismatch",
+            content=("alpha beta gamma delta epsilon zeta eta theta iota kappa. " * 80),
+        )
+    ]
+
+    result = ingest_documents(db_session, _ShortEmbedder(), source=spec, documents=docs)
+
+    assert result.documents[0].status == "failed"
+    assert "unexpected vector count" in (result.documents[0].error or "")
+    stored = db_session.scalar(select(Document).where(Document.title == "Mismatch"))
+    assert stored is None
 
 
 def test_ingest_upload_text_files(client):

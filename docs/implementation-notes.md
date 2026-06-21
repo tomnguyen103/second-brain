@@ -9,6 +9,25 @@ what I gave up**. Keep it honest — the surprises are the valuable part.
 
 ---
 
+## Review fixes: bounded requests and validated stream status (2026-06-21)
+
+- **What:** added bounded Pydantic schemas for high-cost JSON inputs, made main ingest reject
+  embedding cardinality mismatches before persisting chunks, and changed SSE chat to emit progress
+  status frames while still withholding model text until citation validation passes.
+- **Why:** file upload and document edit paths already had explicit size/cardinality guards, but
+  the JSON ingest/chat/capture/research paths could accept oversized work. The stream endpoint was
+  safe against uncited text leaks, but its delta-only shape made the user experience look like
+  token streaming even though the server intentionally waits for citation validation.
+- **Trade-off / what I gave up:** chat SSE remains a validated delayed stream rather than raw
+  token streaming. That protects the citation contract, but users see progress/status updates
+  until the final answer is safe to reveal.
+- **Affects:** `backend/app/schemas/{chat.py,ingest.py,capture.py,research.py}`,
+  `backend/app/ingest/service.py`, `backend/app/chat/service.py`, `backend/app/api/chat.py`,
+  `frontend/lib/api/{client.ts,types.ts}`, `frontend/app/chat/page.tsx`,
+  `frontend/components/MessageList.tsx`.
+
+---
+
 ## Public demo uses seeded corpus before anonymous uploads (2026-06-07)
 
 - **What:** added `python -m app.demo.seed_public` as a separate seed path for a small public-safe

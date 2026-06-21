@@ -6,6 +6,7 @@ import type {
   ChatResponse,
   ChatStreamComplete,
   ChatStreamDelta,
+  ChatStreamStatus,
   ConversationDetailResponse,
   ConversationListResponse,
   DataExportResponse,
@@ -73,6 +74,7 @@ export function isChatStreamUnavailableError(
 export interface ChatStreamHandlers {
   onDelta: (delta: ChatStreamDelta) => void;
   onComplete: (complete: ChatStreamComplete) => void;
+  onStatus?: (status: ChatStreamStatus) => void;
   signal?: AbortSignal;
 }
 
@@ -181,6 +183,8 @@ async function streamChat(
       const parsed = parseSseBlock(block);
       if (parsed?.event === "delta") {
         handlers.onDelta(parsed.data as ChatStreamDelta);
+      } else if (parsed?.event === "status") {
+        handlers.onStatus?.(parsed.data as ChatStreamStatus);
       } else if (parsed?.event === "complete") {
         completed = true;
         handlers.onComplete(parsed.data as ChatStreamComplete);
